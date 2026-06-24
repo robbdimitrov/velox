@@ -1,0 +1,47 @@
+# System files
+.DS_Store
+Thumbs.db
+
+# Build & Compilation
+dist/
+build/
+.svelte-kit/
+.next/
+bin/
+target/
+**/src/cogito.rs
+/apps/*/service
+/apps/*/*service
+/apps/*/*apigateway
+
+# Dependencies
+node_modules/
+vendor/
+venv/
+__pycache__/
+
+# Logs & Caches
+*.log
+npm-debug.log*
+.eslintcache
+*.tsbuildinfo
+coverage/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Editor & IDEs
+.vscode/
+*.code-workspace
+.idea/
+*.sw*
+
+# AI Assistants
+.antigravitycli
+antigravity*
+.claude
+
+# Misc
+scratch/
