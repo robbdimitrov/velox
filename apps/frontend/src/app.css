@@ -1,0 +1,34 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  background: #0f0f11;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  min-width: 320px;
+  margin: 0;
+  background:
+    linear-gradient(90deg, rgba(42, 42, 49, 0.35) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(42, 42, 49, 0.35) 1px, transparent 1px), #0f0f11;
+  background-size: 48px 48px;
+  color: #d7d7de;
+}
+
+button,
+input,
+select {
+  border-radius: 4px;
+}
+
+.thin-panel {
+  border: 1px solid #2a2a31;
+  background: rgba(23, 23, 27, 0.94);
+}
+
+.mono-num {
+  font-variant-numeric: tabular-nums;
+}

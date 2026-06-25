@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Zero Hour theatre">
+  <rect width="640" height="360" fill="#0F0F11"/>
+  <path d="M90 60h460v190H90z" fill="#17171B" stroke="#D7D7DE" stroke-width="3"/>
+  <path d="M130 92h380v126H130z" fill="#2A2A31"/>
+  <path d="M180 118h280v74H180z" fill="#5533FF"/>
+  <path d="M130 262h380" stroke="#FF3366" stroke-width="10"/>
+  <path d="M160 286h320" stroke="#D7D7DE" stroke-width="5"/>
+</svg>
