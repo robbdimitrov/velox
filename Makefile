@@ -1,10 +1,15 @@
-.PHONY: help proto proto-check db-check k8s-check format lint test build \
+.DEFAULT_GOAL := all
+
+.PHONY: all help proto proto-check db-check k8s-check format lint test build \
 	apigateway-image orderservice-image inventoryservice-image projectionservice-image frontend-image \
 	deploy deploy-dry-run
 
-KUBECTL ?= rtk kubectl
+KUBECTL ?= kubectl
 IMAGE_REGISTRY ?= ghcr.io/example/velox
 IMAGE_TAG ?= dev
+PUBLIC_GATEWAY_BASE_URL ?= http://localhost:8081
+
+all: apigateway-image orderservice-image inventoryservice-image projectionservice-image frontend-image
 
 help:
 	@printf 'Velox support targets:\n'
@@ -23,12 +28,12 @@ help:
 proto: proto-check
 
 proto-check:
-	@rtk /bin/test -s pkg/pb/velox.proto
-	@rtk /usr/bin/grep -q 'package velox.v1;' pkg/pb/velox.proto
+	@/bin/test -s pkg/pb/velox.proto
+	@/usr/bin/grep -q 'package velox.v1;' pkg/pb/velox.proto
 
 db-check:
-	@rtk /bin/test -s apps/database/migrations/001_init_logical_schemas.sql
-	@rtk /bin/test -s apps/database/seeds/001_demo_reservation_mvp.sql
+	@/bin/test -s apps/database/migrations/001_init_logical_schemas.sql
+	@/bin/test -s apps/database/seeds/001_demo_reservation_mvp.sql
 
 k8s-check:
 	@$(KUBECTL) apply --dry-run=client -f deploy/namespace.yaml
@@ -38,42 +43,45 @@ k8s-check:
 	@$(KUBECTL) apply --dry-run=client -f deploy/services.yaml
 
 format:
-	@rtk gofmt -w apps/apigateway/main.go apps/apigateway/internal/*.go apps/orderservice/internal/*.go apps/projectionservice/internal/*.go
-	@rtk cargo fmt --manifest-path apps/inventoryservice/Cargo.toml
+	@gofmt -w apps/apigateway/main.go apps/apigateway/internal/*.go apps/orderservice/internal/*.go apps/projectionservice/internal/*.go
+	@cargo fmt --manifest-path apps/inventoryservice/Cargo.toml
 
 lint: proto-check db-check
-	@rtk sh -n scripts/deploy.sh
-	@cd apps/apigateway && rtk go test ./... >/dev/null
-	@cd apps/orderservice && rtk go test ./... >/dev/null
-	@cd apps/projectionservice && rtk go test ./... >/dev/null
-	@rtk cargo test --manifest-path apps/inventoryservice/Cargo.toml >/dev/null
+	@sh -n scripts/deploy.sh
+	@cd apps/apigateway && go test ./... >/dev/null
+	@cd apps/orderservice && go test ./... >/dev/null
+	@cd apps/projectionservice && go test ./... >/dev/null
+	@cargo test --manifest-path apps/inventoryservice/Cargo.toml >/dev/null
+	@cd apps/frontend && npm run check >/dev/null
+	@cd apps/frontend && npm run lint >/dev/null
 
 test:
-	@cd apps/apigateway && rtk go test ./...
-	@cd apps/orderservice && rtk go test ./...
-	@cd apps/projectionservice && rtk go test ./...
-	@rtk cargo test --manifest-path apps/inventoryservice/Cargo.toml
+	@cd apps/apigateway && go test ./...
+	@cd apps/orderservice && go test ./...
+	@cd apps/projectionservice && go test ./...
+	@cargo test --manifest-path apps/inventoryservice/Cargo.toml
 
 build:
-	@cd apps/apigateway && rtk go build ./...
-	@cd apps/orderservice && rtk go test ./...
-	@cd apps/projectionservice && rtk go test ./...
-	@rtk cargo test --manifest-path apps/inventoryservice/Cargo.toml
+	@cd apps/apigateway && go build ./...
+	@cd apps/orderservice && go test ./...
+	@cd apps/projectionservice && go test ./...
+	@cargo test --manifest-path apps/inventoryservice/Cargo.toml
+	@cd apps/frontend && npm run build
 
 frontend-image:
-	@rtk docker build -t $(IMAGE_REGISTRY)-frontend:$(IMAGE_TAG) apps/frontend
+	@docker build --build-arg PUBLIC_GATEWAY_BASE_URL=$(PUBLIC_GATEWAY_BASE_URL) -t $(IMAGE_REGISTRY)-frontend:$(IMAGE_TAG) apps/frontend
 
 apigateway-image:
-	@rtk docker build -t $(IMAGE_REGISTRY)-apigateway:$(IMAGE_TAG) apps/apigateway
+	@docker build -t $(IMAGE_REGISTRY)-apigateway:$(IMAGE_TAG) apps/apigateway
 
 orderservice-image:
-	@rtk docker build -t $(IMAGE_REGISTRY)-orderservice:$(IMAGE_TAG) apps/orderservice
+	@docker build -t $(IMAGE_REGISTRY)-orderservice:$(IMAGE_TAG) apps/orderservice
 
 inventoryservice-image:
-	@rtk docker build -t $(IMAGE_REGISTRY)-inventoryservice:$(IMAGE_TAG) apps/inventoryservice
+	@docker build -t $(IMAGE_REGISTRY)-inventoryservice:$(IMAGE_TAG) apps/inventoryservice
 
 projectionservice-image:
-	@rtk docker build -t $(IMAGE_REGISTRY)-projectionservice:$(IMAGE_TAG) apps/projectionservice
+	@docker build -t $(IMAGE_REGISTRY)-projectionservice:$(IMAGE_TAG) apps/projectionservice
 
 deploy-dry-run:
 	@DRY_RUN=1 scripts/deploy.sh

@@ -1,4 +1,10 @@
-import type { DiscoveryResponse, ReserveOrderResponse, Seat, SeatSnapshot, WalletResponse } from './types';
+import type {
+  DiscoveryResponse,
+  ReserveOrderResponse,
+  Seat,
+  SeatSnapshot,
+  WalletResponse
+} from './types';
 
 const now = Date.now();
 
@@ -53,7 +59,10 @@ export const mockDiscovery: DiscoveryResponse = {
 
 mockDiscovery.featured = mockDiscovery.events;
 
-export function makeMockSeatSnapshot(eventID = 'evt_midnight-array', sectionID = 'A'): SeatSnapshot {
+export function makeMockSeatSnapshot(
+  eventID = 'evt_midnight-array',
+  sectionID = 'A'
+): SeatSnapshot {
   const seats: Seat[] = Array.from({ length: 176 }, (_, index) => {
     const col = index % 22;
     const row = Math.floor(index / 22);

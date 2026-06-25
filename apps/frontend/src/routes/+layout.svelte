@@ -1,6 +1,11 @@
 <script lang="ts">
   import '../app.css';
-  import { BriefcaseBusiness, Search, ShieldCheck, Ticket } from 'lucide-svelte';
+  import {
+    BriefcaseBusiness,
+    Search,
+    ShieldCheck,
+    Ticket
+  } from '@lucide/svelte';
 
   let { children } = $props();
 </script>
@@ -12,14 +17,25 @@
         <Ticket class="text-signal" size={24} />
         Velox
       </a>
-      <label class="hidden min-w-0 flex-1 items-center gap-2 border border-line bg-panel px-3 py-2 md:flex">
+      <label
+        class="hidden min-w-0 flex-1 items-center gap-2 border border-line bg-panel px-3 py-2 md:flex"
+      >
         <Search size={16} class="text-ink/50" />
-        <input class="min-w-0 flex-1 bg-transparent text-sm outline-none" placeholder="Search events, venues, cities" />
+        <input
+          class="min-w-0 flex-1 bg-transparent text-sm outline-none"
+          placeholder="Search events, venues, cities"
+        />
       </label>
-      <a class="btn btn-sm border-line bg-transparent text-ink hover:border-signal hover:bg-panel" href="/wallet">
+      <a
+        class="btn btn-sm border-line bg-transparent text-ink hover:border-signal hover:bg-panel"
+        href="/wallet"
+      >
         <ShieldCheck size={16} /> Wallet
       </a>
-      <a class="btn btn-sm border-line bg-transparent text-ink hover:border-signal hover:bg-panel" href="/vendor">
+      <a
+        class="btn btn-sm border-line bg-transparent text-ink hover:border-signal hover:bg-panel"
+        href="/vendor"
+      >
         <BriefcaseBusiness size={16} /> Vendor
       </a>
     </nav>

@@ -24,7 +24,10 @@ export class GatewayError extends Error {
 
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
-export function createGatewayClient(fetcher: Fetch, baseURL = 'http://localhost:8080') {
+export function createGatewayClient(
+  fetcher: Fetch,
+  baseURL = 'http://localhost:8080'
+) {
   const apiBase = baseURL.replace(/\/$/, '');
 
   async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -41,7 +44,11 @@ export function createGatewayClient(fetcher: Fetch, baseURL = 'http://localhost:
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
-      throw new GatewayError(body.message ?? 'Gateway request failed', response.status, body.code);
+      throw new GatewayError(
+        body.message ?? 'Gateway request failed',
+        response.status,
+        body.code
+      );
     }
 
     return response.json() as Promise<T>;
@@ -50,11 +57,14 @@ export function createGatewayClient(fetcher: Fetch, baseURL = 'http://localhost:
   return {
     apiBase,
     listEvents(params: URLSearchParams) {
-      return request<{ events: GatewayEvent[]; projection_lag_ms?: number }>(`/events?${params.toString()}`, {
-        headers: {
-          'Cache-Control': 'max-age=1, stale-while-revalidate=5'
+      return request<{ events: GatewayEvent[]; projection_lag_ms?: number }>(
+        `/events?${params.toString()}`,
+        {
+          headers: {
+            'Cache-Control': 'max-age=1, stale-while-revalidate=5'
+          }
         }
-      }).then(mapDiscovery);
+      ).then(mapDiscovery);
     },
     getSeatSnapshot(eventID: string, sectionID: string) {
       return request<{ seats: GatewaySeat[]; snapshot_age_ms?: number }>(
@@ -74,14 +84,23 @@ export function createGatewayClient(fetcher: Fetch, baseURL = 'http://localhost:
         })
       }).then(mapReservation);
     },
-    checkout(body: CheckoutRequest, idempotencyKey: string, _reservationToken: string) {
-      return request<{ order: GatewayOrder }>(`/reservations/${encodeURIComponent(body.reservation_id)}/confirm`, {
-        method: 'POST',
-        headers: {
-          'Idempotency-Key': idempotencyKey
-        },
-        body: JSON.stringify({ payment_method_token: body.payment_method_token })
-      }).then(mapCheckout);
+    checkout(
+      body: CheckoutRequest,
+      idempotencyKey: string,
+      _reservationToken: string
+    ) {
+      return request<{ order: GatewayOrder }>(
+        `/reservations/${encodeURIComponent(body.reservation_id)}/confirm`,
+        {
+          method: 'POST',
+          headers: {
+            'Idempotency-Key': idempotencyKey
+          },
+          body: JSON.stringify({
+            payment_method_token: body.payment_method_token
+          })
+        }
+      ).then(mapCheckout);
     },
     wallet() {
       return request<{ orders: GatewayOrder[] }>('/orders').then(mapWallet);
@@ -104,7 +123,10 @@ export function createIdempotencyKey() {
 }
 
 export function formatMoney(cents: number) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD'
+  }).format(cents / 100);
 }
 
 type GatewayEvent = {
@@ -139,9 +161,13 @@ type GatewayOrder = {
   expires_at_server_ms?: number;
 };
 
-function mapDiscovery(body: { events: GatewayEvent[]; projection_lag_ms?: number }): DiscoveryResponse {
+function mapDiscovery(body: {
+  events: GatewayEvent[];
+  projection_lag_ms?: number;
+}): DiscoveryResponse {
   const events = body.events.map((event): EventSummary => {
-    const bucket = event.seats_open < 20 ? 'LOW' : event.seats_open < 80 ? 'MEDIUM' : 'HIGH';
+    const bucket =
+      event.seats_open < 20 ? 'LOW' : event.seats_open < 80 ? 'MEDIUM' : 'HIGH';
     return {
       id: event.id,
       title: event.name,
@@ -208,7 +234,10 @@ function mapReservation(body: { order: GatewayOrder }): ReserveOrderResponse {
     expires_at_server_ms: order.expires_at_server_ms ?? Date.now(),
     server_time_ms: Date.now(),
     version: 1,
-    seats: order.seat_ids.map((seat_id) => ({ seat_id, price_cents: Math.round(subtotal / order.seat_ids.length) })),
+    seats: order.seat_ids.map((seat_id) => ({
+      seat_id,
+      price_cents: Math.round(subtotal / order.seat_ids.length)
+    })),
     fees_cents: 0,
     total_cents: order.total_cents
   };
@@ -217,8 +246,15 @@ function mapReservation(body: { order: GatewayOrder }): ReserveOrderResponse {
 function mapCheckout(body: { order: GatewayOrder }): CheckoutResponse {
   return {
     order_id: body.order.id,
-    status: body.order.status === 'CONFIRMED' ? 'CONFIRMED' : body.order.status === 'EXPIRED' ? 'EXPIRED' : 'FAILED',
-    wallet_ticket_ids: body.order.seat_ids.map((seatID) => `tkt_${body.order.id}_${seatID}`)
+    status:
+      body.order.status === 'CONFIRMED'
+        ? 'CONFIRMED'
+        : body.order.status === 'EXPIRED'
+          ? 'EXPIRED'
+          : 'FAILED',
+    wallet_ticket_ids: body.order.seat_ids.map(
+      (seatID) => `tkt_${body.order.id}_${seatID}`
+    )
   };
 }
 

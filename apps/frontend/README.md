@@ -5,9 +5,9 @@ SvelteKit SSR scaffold for buyer discovery, real-time seat selection, checkout, 
 ## Commands
 
 ```bash
-rtk npm run dev
-rtk npm run check
-rtk npm run build
+npm run dev
+npm run check
+npm run build
 ```
 
 Dependencies are declared in `package.json`; this scaffold intentionally does not vendor `node_modules`.

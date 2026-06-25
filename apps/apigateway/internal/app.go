@@ -117,6 +117,9 @@ func NewServer(secret string) *Server {
 
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	})
 	mux.HandleFunc("POST /sessions", s.handleCreateSession)
 	mux.HandleFunc("DELETE /sessions", s.handleDeleteSession)
 	mux.HandleFunc("GET /events", s.handleEvents)

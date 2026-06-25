@@ -43,10 +43,6 @@ Architectural specs live in [`docs/`](docs/):
 | `deploy/` | Kubernetes | Kafka, Redis, PostgreSQL, Elasticsearch or MongoDB, observability, and application manifests. |
 | `scripts/` | Shell | Local development, deployment, and maintenance automation. |
 
-## Current Status
-
-This repository currently contains initial documentation only. No runtime service scaffolding, package manifests, CI, or local infrastructure files have been added yet.
-
 ## License
 
 Licensed under the [MIT](LICENSE) License.

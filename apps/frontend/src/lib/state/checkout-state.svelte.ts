@@ -8,7 +8,10 @@ export class CheckoutState {
 
   msRemaining = $derived.by(() => {
     if (!this.reservation) return 0;
-    return Math.max(0, this.reservation.expires_at_server_ms - (Date.now() + this.serverOffsetMs));
+    return Math.max(
+      0,
+      this.reservation.expires_at_server_ms - (Date.now() + this.serverOffsetMs)
+    );
   });
 
   load(reservation: ReserveOrderResponse) {

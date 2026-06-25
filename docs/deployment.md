@@ -39,17 +39,15 @@ Manifests live in `deploy/` and create:
 - PostgreSQL StatefulSet and service;
 - Redpanda StatefulSet and service;
 - Dragonfly Deployment and service;
-- placeholder service Deployments for `apigateway`, `orderservice`,
+- service Deployments for `frontend`, `apigateway`, `orderservice`,
   `inventoryservice`, and `projectionservice`.
 
 Secrets are referenced, not committed. Create them outside the repository before
 starting pods:
 
-```bash
-kubectl -n velox create secret generic velox-postgres-secret --from-literal=password=...
-kubectl -n velox create secret generic velox-auth-secret --from-literal=issuer=... --from-literal=audience=...
-kubectl -n velox create secret generic velox-kafka-signing-secret --from-literal=key=...
-```
+`scripts/deploy.sh` creates generated development secrets when they do not
+already exist. For shared or production-like clusters, create managed secrets
+with the same names before running the script.
 
 ## Commands
 
@@ -61,7 +59,13 @@ make deploy-dry-run
 make deploy
 ```
 
-The deploy script uses `rtk kubectl` by default and accepts `--dry-run`. It
-applies manifests to an existing Kubernetes context; full `kind` cluster
-creation, local image loading, and frontend port-forward orchestration are still
-follow-up runtime automation work.
+The deploy script uses `kubectl` by default, builds service images through
+`make`, applies manifests to the current Kubernetes context, waits for rollouts,
+and starts port-forwards:
+
+- frontend: `http://localhost:8080`
+- gateway: `http://localhost:8081`
+
+Use `scripts/deploy.sh --dry-run` for client-side manifest validation and
+`scripts/deploy.sh --skip-build` when images are already available locally. Full
+`kind` cluster creation and image loading are still follow-up automation work.

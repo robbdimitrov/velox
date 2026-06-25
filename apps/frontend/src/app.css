@@ -13,7 +13,8 @@ body {
   margin: 0;
   background:
     linear-gradient(90deg, rgba(42, 42, 49, 0.35) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(42, 42, 49, 0.35) 1px, transparent 1px), #0f0f11;
+    linear-gradient(180deg, rgba(42, 42, 49, 0.35) 1px, transparent 1px),
+    #0f0f11;
   background-size: 48px 48px;
   color: #d7d7de;
 }

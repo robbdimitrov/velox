@@ -1,0 +1,6 @@
+bin
+service
+orderservice
+*.test
+.env
+.env.*

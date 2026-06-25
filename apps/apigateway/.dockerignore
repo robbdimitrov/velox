@@ -1,0 +1,5 @@
+bin
+service
+*.test
+.env
+.env.*

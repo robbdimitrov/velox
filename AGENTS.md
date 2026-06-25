@@ -16,13 +16,15 @@ Project Velox is specified as a high-scale event ticket marketplace using Svelte
 
 ## Build, Test, and Development Commands
 
-No executable project scaffolding exists yet. Add commands here when services are created. Use the local `rtk` wrapper for shell commands:
+Use the local `rtk` wrapper for agent-run shell commands only. Do not write
+`rtk` into project scripts, Makefile targets, README snippets, or user-facing
+docs.
 
 ```bash
-rtk npm run dev        # SvelteKit app
-rtk go test ./...      # Go services
-rtk cargo test         # Rust services
-rtk docker compose up  # Local infrastructure, once added
+rtk make test          # Go and Rust service tests
+rtk make lint          # Backend, frontend, script, and schema checks
+rtk make build         # Backend and frontend builds
+rtk scripts/deploy.sh  # Build images, apply manifests, and port-forward
 ```
 
 ## Coding Style & Naming Conventions
