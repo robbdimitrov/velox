@@ -11,7 +11,7 @@ The reservation MVP transport contract lives in `pkg/pb/velox.proto`. It covers:
 - signed Kafka event envelopes with correlation, causation, aggregate version,
   schema version, and occurrence time metadata;
 - order, payment, reservation, ticket, and seat-delta messages used by the
-  order, inventory, and view services.
+  order, seat, and view services.
 
 Generated language bindings are not committed yet.
 
@@ -43,12 +43,10 @@ Manifests live in `deploy/` and create:
 - service Deployments for `frontend`, `apigateway`, `orderservice`,
   `seatservice`, and `viewservice`.
 
-Secrets are referenced, not committed. Create them outside the repository before
-starting pods:
-
-`scripts/deploy.sh` creates generated development secrets when they do not
-already exist. For shared or production-like clusters, create managed secrets
-with the same names before running the script.
+Secrets are referenced, not committed. `scripts/deploy.sh` creates or updates
+generated development secrets for local use. For shared or production-like
+clusters, create managed secrets with the same names and values before running
+the script, or re-apply them after local development runs.
 
 ## Commands
 
@@ -68,5 +66,7 @@ and starts port-forwards:
 - gateway: `http://localhost:8081`
 
 Use `scripts/deploy.sh --dry-run` for client-side manifest validation and
-`scripts/deploy.sh --skip-build` when images are already available locally. Full
-`kind` cluster creation and image loading are still follow-up automation work.
+`scripts/deploy.sh --skip-build` when images are already available locally.
+Override `KUBECTL`, `IMAGE_REGISTRY`, and `IMAGE_TAG` to match a non-default
+cluster or registry. Full `kind` cluster creation and image loading are still
+follow-up automation work.

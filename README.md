@@ -1,47 +1,137 @@
 # Velox
 
-**Velox** is a high-scale event ticket marketplace designed for flash-sale traffic spikes where hundreds of thousands of users contend for the same venue inventory at once. The target stack is SvelteKit SSR with Svelte 5, Tailwind, DaisyUI, and Lucide icons on the frontend, Go and Rust backend microservices, Apache Kafka as the event backbone, and isolated databases per service.
+**Velox** is a Kubernetes-first event ticket marketplace MVP built for flash-sale contention: many buyers competing for the same reserved seats while vendors watch live inventory and order state. It combines a SvelteKit SSR frontend with Go and Rust backend services, PostgreSQL-owned stores, Redpanda-compatible Kafka event flow, and Dragonfly-backed coordination.
 
-## Architecture Summary
+## Features
 
-Velox uses CQRS and event-driven choreography. Commands enter through `apigateway`, order writes are persisted by `orderservice` with a PostgreSQL transactional outbox, and durable events are streamed to Kafka. `seatservice` validates seat availability with event-sourced optimistic concurrency and publishes immutable inventory events. `viewservice` flattens Kafka events into Elasticsearch or MongoDB read models consumed by the Svelte UI through fast read APIs, WebSockets, and SSE streams.
+- **Buyer reservations**: Seeded buyer login, event discovery, SVG seat map, multi-seat hold, countdown, confirm flow, and order history.
+- **Vendor dashboard**: Seeded vendor login, owned event view, live inventory counts, active holds, and confirmed orders.
+- **Idempotent commands**: Reservation requests require `Idempotency-Key`; duplicate matching requests return the original order while conflicting bodies are rejected.
+- **Seat correctness**: Seat holds are locked in PostgreSQL for the MVP, with reservation ownership checks before confirmation and stale hold cleanup before reuse.
+- **Transactional events**: Order lifecycle changes write an outbox row in the same transaction as order state.
+- **Read models**: Seat snapshots, order summaries, and vendor-facing inventory are materialized behind the gateway and ready for Kafka-backed expansion.
+- **Kubernetes runtime**: Manifests and `scripts/deploy.sh` build images, create development secrets, apply resources, wait for rollouts, and port-forward the frontend and gateway.
 
-```text
-SvelteKit SSR Client
-  | commands
-  v
-apigateway -> orderservice -> PostgreSQL Outbox -> CDC -> Kafka
-                                             |
-                                             v
-seatservice -> Event Store -> Kafka inventory events
-                                             |
-                                             v
-viewservice -> Elasticsearch/MongoDB -> Read API/WebSockets
+## Architecture
+
+```mermaid
+graph TD
+    Browser["Browser"]
+
+    subgraph cluster ["Kubernetes Cluster"]
+        Frontend["Frontend<br>(SvelteKit SSR)"]:::frontend
+        Gateway["API Gateway<br>(Go)"]:::gateway
+
+        subgraph services ["Services"]
+            Orders["Order Service<br>(Go)"]:::service
+            Seats["Seat Service<br>(Rust)"]:::service
+            Views["View Service<br>(Go)"]:::service
+        end
+
+        subgraph data ["Data & Messaging"]
+            DB[("PostgreSQL<br>service-owned schemas")]:::database
+            Cache[("Dragonfly<br>Redis protocol")]:::cache
+            Redpanda[("Redpanda<br>Kafka API")]:::broker
+        end
+    end
+
+    Browser --> Frontend
+    Frontend --> Gateway
+    Gateway --> Orders
+    Gateway --> Views
+    Orders --> DB
+    Orders --> Redpanda
+    Seats --> DB
+    Seats --> Redpanda
+    Redpanda --> Seats
+    Redpanda --> Views
+    Views --> DB
+    Gateway --> Cache
+
+    classDef frontend fill:#0ea5e9,stroke:#0284c7,stroke-width:2px,color:#fff
+    classDef gateway fill:#6366f1,stroke:#4f46e5,stroke-width:2px,color:#fff
+    classDef service fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff
+    classDef database fill:#f59e0b,stroke:#d97706,stroke-width:2px,color:#fff
+    classDef cache fill:#ef4444,stroke:#dc2626,stroke-width:2px,color:#fff
+    classDef broker fill:#8b5cf6,stroke:#7c3aed,stroke-width:2px,color:#fff
+
+    style cluster fill:transparent,stroke:#64748b
+    style services fill:transparent,stroke:transparent
+    style data fill:transparent,stroke:transparent
 ```
+
+| Service | Language | Description |
+| --- | --- | --- |
+| [frontend](apps/frontend) | TypeScript | SvelteKit SSR buyer and vendor UI with Tailwind, DaisyUI, Lucide icons, live seat state, and checkout. |
+| [apigateway](apps/apigateway) | Go | Public HTTP API, dev login, JWT session cookies, role checks, request bounds, and reservation orchestration. |
+| [orderservice](apps/orderservice) | Go | Order state, idempotency, reservation confirmation, and transactional outbox behavior. |
+| [seatservice](apps/seatservice) | Rust | Seat stream concurrency rules, version checks, hold expiry, and ticket issuing rules. |
+| [viewservice](apps/viewservice) | Go | Idempotent projection helpers for read models and vendor-facing state. |
+| [database](apps/database) | PostgreSQL | Versioned schema migrations and demo seed data for service-owned schemas. |
+
+## Infrastructure
+
+Four in-cluster stateful dependencies support the MVP:
+
+- **PostgreSQL** — One local instance with isolated logical schemas for orders, inventory, and projections.
+- **Redpanda** — Kafka-compatible broker for order and inventory events.
+- **Dragonfly** — Redis-protocol cache intended for rate limits, hot coordination, and fanout state.
+- **Kubernetes** — First supported runtime via `kind` or any active cluster context.
 
 ## Docs
 
 Architectural specs live in [`docs/`](docs/):
 
 | Doc | Contents |
-|---|---|
-| [architecture.md](docs/architecture.md) | Service topology, consistency model, event choreography, security controls |
-| [frontend.md](docs/frontend.md) | UI direction, discovery, seat selection, checkout, wallet flows |
-| [infrastructure.md](docs/infrastructure.md) | Operational edge cases, Kafka failure modes, cache behavior, backpressure |
+| --- | --- |
+| [architecture.md](docs/architecture.md) | Service topology, event choreography, consistency model, and security boundaries |
+| [deployment.md](docs/deployment.md) | Kubernetes local runtime, generated secrets, port-forwarding, and smoke checks |
+| [frontend.md](docs/frontend.md) | Buyer and vendor route map, UI behavior, live updates, and accessibility |
+| [infrastructure.md](docs/infrastructure.md) | Kafka failure modes, reservation expiry, cache behavior, and backpressure |
 
-## Initial Service Boundaries
+## Deploy
 
-| Component | Language | Description |
-|---|---|---|
-| `apps/frontend/` | TypeScript | SvelteKit SSR app with Svelte 5, Tailwind, DaisyUI, Lucide icons, Runes client state, live event discovery, seat selector, checkout, wallet. |
-| `apps/apigateway/` | Go | Public HTTP API, auth boundary, rate limiting, request validation, gRPC orchestration. |
-| `apps/orderservice/` | Go | Order state, idempotency, reservation tokens, payment orchestration, transactional outbox. |
-| `apps/seatservice/` | Rust | Tokio Kafka consumers, event store append logic, reservation expiry, seat stream concurrency. |
-| `apps/viewservice/` | Go | Kafka consumers, read-model materializers, read APIs, WebSocket/SSE fanout. |
-| `apps/database/` | PostgreSQL | Versioned schema migrations for service-owned relational stores. |
-| `pkg/` | Protobuf | Shared generated transport contracts such as `pkg/pb`. |
-| `deploy/` | Kubernetes | Kafka, Redis, PostgreSQL, Elasticsearch or MongoDB, observability, and application manifests. |
-| `scripts/` | Shell | Local development, deployment, and maintenance automation. |
+Deploy Velox to the active Kubernetes context:
+
+```sh
+./scripts/deploy.sh
+```
+
+The script builds images, creates or updates generated development secrets, applies manifests from `deploy/`, waits for rollouts, and starts port-forwards:
+
+- Frontend: http://localhost:8080
+- Gateway: http://localhost:8081
+
+Override image names when needed:
+
+```sh
+IMAGE_REGISTRY=localhost:5001/velox IMAGE_TAG=dev ./scripts/deploy.sh
+```
+
+## Cleanup
+
+Remove deployed resources and the namespace:
+
+```sh
+kubectl delete -f ./deploy -n velox
+kubectl delete namespace velox
+```
+
+## Testing
+
+Run the local checks:
+
+```sh
+make lint
+make test
+make build
+```
+
+PostgreSQL integration tests are opt-in:
+
+```sh
+VELOX_TEST_DATABASE_URL='user=velox password=velox host=localhost port=5432 dbname=velox sslmode=disable' go test ./apps/apigateway/internal
+```
 
 ## License
 

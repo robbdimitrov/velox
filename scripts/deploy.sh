@@ -5,6 +5,8 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DEPLOY_DIR="${ROOT_DIR}/deploy"
 NS="${NS:-velox}"
 KUBECTL="${KUBECTL:-kubectl}"
+IMAGE_REGISTRY="${IMAGE_REGISTRY:-ghcr.io/example/velox}"
+IMAGE_TAG="${IMAGE_TAG:-dev}"
 LOCAL_FRONTEND_PORT="${LOCAL_FRONTEND_PORT:-8080}"
 LOCAL_GATEWAY_PORT="${LOCAL_GATEWAY_PORT:-8081}"
 FRONTEND_PORT_FORWARD_LOG="${FRONTEND_PORT_FORWARD_LOG:-/tmp/velox-frontend-port-forward-${LOCAL_FRONTEND_PORT}.log}"
@@ -33,6 +35,8 @@ Usage: $0 [--dry-run] [--skip-build]
 
 Environment:
   NS=${NS}
+  IMAGE_REGISTRY=${IMAGE_REGISTRY}
+  IMAGE_TAG=${IMAGE_TAG}
   LOCAL_FRONTEND_PORT=${LOCAL_FRONTEND_PORT}
   LOCAL_GATEWAY_PORT=${LOCAL_GATEWAY_PORT}
 EOF
@@ -74,7 +78,7 @@ random_secret() {
     openssl rand -hex 32
     return
   fi
-  LC_ALL=C tr -dc 'a-f0-9' </dev/urandom | head -c 64
+  od -An -N32 -tx1 /dev/urandom | tr -d ' \n'
 }
 
 require_tools() {
@@ -86,7 +90,7 @@ build_images() {
     return
   fi
   log "building Velox images"
-  DOCKER_BUILDKIT=1 make -C "$ROOT_DIR"
+  DOCKER_BUILDKIT=1 IMAGE_REGISTRY="$IMAGE_REGISTRY" IMAGE_TAG="$IMAGE_TAG" make -C "$ROOT_DIR"
 }
 
 apply_file() {
@@ -98,6 +102,19 @@ apply_file() {
   fi
 }
 
+render_services_manifest() {
+  local rendered
+  rendered="$(mktemp)"
+  sed \
+    -e "s#ghcr.io/example/velox-apigateway:dev#${IMAGE_REGISTRY}-apigateway:${IMAGE_TAG}#g" \
+    -e "s#ghcr.io/example/velox-orderservice:dev#${IMAGE_REGISTRY}-orderservice:${IMAGE_TAG}#g" \
+    -e "s#ghcr.io/example/velox-seatservice:dev#${IMAGE_REGISTRY}-seatservice:${IMAGE_TAG}#g" \
+    -e "s#ghcr.io/example/velox-viewservice:dev#${IMAGE_REGISTRY}-viewservice:${IMAGE_TAG}#g" \
+    -e "s#ghcr.io/example/velox-frontend:dev#${IMAGE_REGISTRY}-frontend:${IMAGE_TAG}#g" \
+    "$DEPLOY_DIR/services.yaml" >"$rendered"
+  printf '%s\n' "$rendered"
+}
+
 ensure_namespace() {
   $KUBECTL create namespace "$NS" >/dev/null 2>&1 || true
 }
@@ -105,10 +122,7 @@ ensure_namespace() {
 ensure_secret() {
   local name="$1"
   shift
-  if $KUBECTL -n "$NS" get secret "$name" >/dev/null 2>&1; then
-    return
-  fi
-  $KUBECTL -n "$NS" create secret generic "$name" "$@"
+  $KUBECTL -n "$NS" create secret generic "$name" "$@" --dry-run=client -o yaml | $KUBECTL apply -f -
 }
 
 ensure_dev_secrets() {
@@ -134,7 +148,10 @@ apply_manifests() {
   apply_file "$DEPLOY_DIR/postgres.yaml"
   apply_file "$DEPLOY_DIR/redpanda.yaml"
   apply_file "$DEPLOY_DIR/dragonfly.yaml"
-  apply_file "$DEPLOY_DIR/services.yaml"
+  local services_manifest
+  services_manifest="$(render_services_manifest)"
+  trap 'rm -f "$services_manifest"' RETURN
+  apply_file "$services_manifest"
 }
 
 wait_for_rollouts() {
@@ -158,7 +175,7 @@ start_port_forward() {
     return
   fi
 
-  if [[ -s "$pid_file" ]] && ps -p "$(cat "$pid_file")" >/dev/null 2>&1; then
+  if port_forward_running "$pid_file" "$service" "$local_port" "$remote_port"; then
     log "port-forward for service/${service} already running on ${local_port}"
     return
   fi
@@ -166,12 +183,28 @@ start_port_forward() {
   log "starting port-forward service/${service} ${local_port}:${remote_port}"
   nohup bash -c '
     set -u
+    kubectl_cmd="$1"
     while true; do
-      kubectl -n "$1" port-forward "service/$2" "$3:$4"
+      "$kubectl_cmd" -n "$2" port-forward "service/$3" "$4:$5"
       sleep 3
     done
-  ' bash "$NS" "$service" "$local_port" "$remote_port" >>"$log_file" 2>&1 &
+  ' bash "$KUBECTL" "$NS" "$service" "$local_port" "$remote_port" >>"$log_file" 2>&1 &
   echo "$!" >"$pid_file"
+}
+
+port_forward_running() {
+  local pid_file="$1"
+  local service="$2"
+  local local_port="$3"
+  local remote_port="$4"
+  if [[ ! -s "$pid_file" ]]; then
+    return 1
+  fi
+  local pid
+  pid="$(cat "$pid_file")"
+  local command
+  command="$(ps -p "$pid" -o command= 2>/dev/null || true)"
+  [[ "$command" == *"port-forward service/${service} ${local_port}:${remote_port}"* || "$command" == *" ${service} ${local_port} ${remote_port}"* ]]
 }
 
 print_summary() {

@@ -58,7 +58,7 @@ spec:
                   name: velox-postgres-secret
                   key: password
             - name: DATABASE_URL
-              value: postgres://velox:$(POSTGRES_PASSWORD)@postgres.velox.svc.cluster.local:5432/velox?sslmode=disable
+              value: user=velox password=$(POSTGRES_PASSWORD) host=postgres.velox.svc.cluster.local port=5432 dbname=velox sslmode=disable
             - name: VELOX_SESSION_SECRET
               valueFrom:
                 secretKeyRef:
