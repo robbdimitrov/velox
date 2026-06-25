@@ -139,6 +139,7 @@ CREATE TABLE IF NOT EXISTS projection.seat_snapshots (
     seat_id text NOT NULL,
     status text NOT NULL CHECK (status IN ('AVAILABLE', 'HELD', 'SOLD', 'TRANSFERRED', 'USED')),
     aggregate_version integer NOT NULL CHECK (aggregate_version >= 0),
+    price_amount_minor bigint NOT NULL DEFAULT 0 CHECK (price_amount_minor >= 0),
     reservation_id text,
     held_by_user_id text,
     expires_at timestamptz,
@@ -146,6 +147,9 @@ CREATE TABLE IF NOT EXISTS projection.seat_snapshots (
     updated_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (event_id, section_id, seat_id)
 );
+
+ALTER TABLE projection.seat_snapshots
+    ADD COLUMN IF NOT EXISTS price_amount_minor bigint NOT NULL DEFAULT 0 CHECK (price_amount_minor >= 0);
 
 CREATE INDEX IF NOT EXISTS idx_projection_seat_snapshots_section
     ON projection.seat_snapshots (event_id, section_id, status);

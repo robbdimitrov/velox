@@ -67,6 +67,15 @@ func TestRoleChecks(t *testing.T) {
 	}
 }
 
+func TestLoginAttemptsAreRateLimited(t *testing.T) {
+	server := NewServer("test")
+	client := newTestClient(server)
+	for range 5 {
+		client.loginStatus(t, "buyer@velox.local", "wrong", http.StatusUnauthorized)
+	}
+	client.loginStatus(t, "buyer@velox.local", "buyer", http.StatusTooManyRequests)
+}
+
 func TestExpiredHoldReleasesSeat(t *testing.T) {
 	server := NewServer("test")
 	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
@@ -88,13 +97,7 @@ func newTestClient(server *Server) testClient {
 
 func (c testClient) login(t *testing.T, email, password string) *http.Cookie {
 	t.Helper()
-	body := []byte(`{"email":"` + email + `","password":"` + password + `"}`)
-	req := httptest.NewRequest(http.MethodPost, "/sessions", bytes.NewReader(body))
-	rr := httptest.NewRecorder()
-	c.server.Routes().ServeHTTP(rr, req)
-	if rr.Code != http.StatusOK {
-		t.Fatalf("login status = %d body=%s", rr.Code, rr.Body.String())
-	}
+	rr := c.loginStatus(t, email, password, http.StatusOK)
 	for _, cookie := range rr.Result().Cookies() {
 		if cookie.Name == CookieName {
 			return cookie
@@ -102,6 +105,18 @@ func (c testClient) login(t *testing.T, email, password string) *http.Cookie {
 	}
 	t.Fatal("missing session cookie")
 	return nil
+}
+
+func (c testClient) loginStatus(t *testing.T, email, password string, want int) *httptest.ResponseRecorder {
+	t.Helper()
+	body := []byte(`{"email":"` + email + `","password":"` + password + `"}`)
+	req := httptest.NewRequest(http.MethodPost, "/sessions", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+	c.server.Routes().ServeHTTP(rr, req)
+	if rr.Code != want {
+		t.Fatalf("login status = %d want %d body=%s", rr.Code, want, rr.Body.String())
+	}
+	return rr
 }
 
 func (c testClient) reserve(t *testing.T, cookie *http.Cookie, key string, seatIDs []string, want int) Order {

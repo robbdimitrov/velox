@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"sort"
 	"strings"
@@ -89,12 +90,18 @@ type Server struct {
 	seats       map[string]map[string]map[string]*Seat
 	orders      map[string]*Order
 	idempotency map[string]idempotencyRecord
+	loginFails  map[string]loginFailure
 	store       *PostgresStore
 }
 
 type idempotencyRecord struct {
 	Hash     string
 	Response Order
+}
+
+type loginFailure struct {
+	Count       int
+	LockedUntil time.Time
 }
 
 type apiError struct {
@@ -115,6 +122,7 @@ func NewServerWithStore(secret string, store *PostgresStore) *Server {
 		seats:       map[string]map[string]map[string]*Seat{},
 		orders:      map[string]*Order{},
 		idempotency: map[string]idempotencyRecord{},
+		loginFails:  map[string]loginFailure{},
 		store:       store,
 	}
 	s.seed()
@@ -183,13 +191,23 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	email := strings.ToLower(req.Email)
+	attemptKey := email + "|" + clientIP(r)
 	s.mu.Lock()
-	user, ok := s.users[strings.ToLower(req.Email)]
+	now := s.now()
+	if failure := s.loginFails[attemptKey]; failure.LockedUntil.After(now) {
+		s.mu.Unlock()
+		writeError(w, http.StatusTooManyRequests, "too_many_login_attempts")
+		return
+	}
+	user, ok := s.users[email]
 	s.mu.Unlock()
-	if !ok || user.Password != req.Password {
+	if !ok || !constantTimeStringEqual(user.Password, req.Password) {
+		s.recordLoginFailure(attemptKey, now)
 		writeError(w, http.StatusUnauthorized, "invalid_credentials")
 		return
 	}
+	s.clearLoginFailure(attemptKey)
 	token, err := s.sign(user)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "session_signing_failed")
@@ -197,6 +215,23 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, &http.Cookie{Name: CookieName, Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Expires: s.now().Add(12 * time.Hour)})
 	writeJSON(w, http.StatusOK, map[string]any{"user": publicUser(user)})
+}
+
+func (s *Server) recordLoginFailure(key string, now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	failure := s.loginFails[key]
+	failure.Count++
+	if failure.Count >= 5 {
+		failure.LockedUntil = now.Add(5 * time.Minute)
+	}
+	s.loginFails[key] = failure
+}
+
+func (s *Server) clearLoginFailure(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.loginFails, key)
 }
 
 func (s *Server) handleDeleteSession(w http.ResponseWriter, r *http.Request) {
@@ -646,6 +681,20 @@ func publicUser(user User) map[string]string {
 func requestHash(body []byte) string {
 	sum := sha256.Sum256(body)
 	return hex.EncodeToString(sum[:])
+}
+
+func constantTimeStringEqual(expected, actual string) bool {
+	expectedHash := sha256.Sum256([]byte(expected))
+	actualHash := sha256.Sum256([]byte(actual))
+	return hmac.Equal(expectedHash[:], actualHash[:])
+}
+
+func clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err == nil {
+		return host
+	}
+	return r.RemoteAddr
 }
 
 func decodeJSONBytes(w http.ResponseWriter, r *http.Request, dst any) ([]byte, bool) {

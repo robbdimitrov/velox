@@ -77,7 +77,7 @@ func (s *PostgresStore) CreateReservation(ctx context.Context, user User, idempo
 			return Order{}, false, ErrStoreIdempotencyConflict
 		}
 		if responseRef.Valid {
-			order, err := loadOrderTx(ctx, tx, responseRef.String)
+			order, err := loadOrderAndCommit(ctx, tx, responseRef.String)
 			return order, true, err
 		}
 		return Order{}, false, ErrStoreConflict
@@ -97,7 +97,8 @@ func (s *PostgresStore) CreateReservation(ctx context.Context, user User, idempo
 	for _, seat := range seats {
 		seatByID[seat.ID] = seat
 	}
-	sort.Strings(req.SeatIDs)
+	seatIDs := append([]string(nil), req.SeatIDs...)
+	sort.Strings(seatIDs)
 	orderID, err := newUUID()
 	if err != nil {
 		return Order{}, false, err
@@ -106,7 +107,7 @@ func (s *PostgresStore) CreateReservation(ctx context.Context, user User, idempo
 	expiresAt := now.Add(ttl)
 	total := 0
 
-	for _, seatID := range req.SeatIDs {
+	for _, seatID := range seatIDs {
 		seat, ok := seatByID[seatID]
 		if !ok {
 			return Order{}, false, ErrStoreNotFound
@@ -119,15 +120,25 @@ func (s *PostgresStore) CreateReservation(ctx context.Context, user User, idempo
 			return Order{}, false, err
 		}
 		if status == StatusHeld && expiresAtDB.Valid && !expiresAtDB.Time.After(now) {
-			version++
-			status = StatusAvailable
-			if _, err := tx.ExecContext(ctx, `
-				UPDATE projection.seat_snapshots
-				SET status = 'AVAILABLE', aggregate_version = $4, reservation_id = NULL, held_by_user_id = NULL, expires_at = NULL, updated_at = $5
-				WHERE event_id = $1 AND section_id = $2 AND seat_id = $3
-			`, seat.EventID, seat.SectionID, seat.ID, version, now); err != nil {
+			reservationID, err := seatReservationIDTx(ctx, tx, seat.EventID, seat.SectionID, seat.ID)
+			if err != nil {
 				return Order{}, false, err
 			}
+			if reservationID != "" {
+				if err := expireReservationTx(ctx, tx, reservationID, now); err != nil {
+					return Order{}, false, err
+				}
+			} else {
+				version++
+				if _, err := tx.ExecContext(ctx, `
+					UPDATE projection.seat_snapshots
+					SET status = 'AVAILABLE', aggregate_version = $4, reservation_id = NULL, held_by_user_id = NULL, expires_at = NULL, updated_at = $5
+					WHERE event_id = $1 AND section_id = $2 AND seat_id = $3
+				`, seat.EventID, seat.SectionID, seat.ID, version, now); err != nil {
+					return Order{}, false, err
+				}
+			}
+			status = StatusAvailable
 		}
 		if status != StatusAvailable {
 			return Order{}, false, ErrStoreConflict
@@ -145,7 +156,7 @@ func (s *PostgresStore) CreateReservation(ctx context.Context, user User, idempo
 		return Order{}, false, err
 	}
 
-	for _, seatID := range req.SeatIDs {
+	for _, seatID := range seatIDs {
 		seat := seatByID[seatID]
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO orders.order_seats (order_id, event_id, section_id, seat_id, price_amount_minor)
@@ -176,7 +187,7 @@ func (s *PostgresStore) CreateReservation(ctx context.Context, user User, idempo
 
 	order := Order{
 		ID: orderID, ReservationID: reservationID, UserID: user.ID, EventID: req.EventID,
-		SectionID: req.SectionID, SeatIDs: append([]string(nil), req.SeatIDs...), Status: OrderPending,
+		SectionID: req.SectionID, SeatIDs: append([]string(nil), seatIDs...), Status: OrderPending,
 		TotalCents: total, ExpiresAtServerMS: expiresAt.UnixMilli(), CreatedAt: now.UnixMilli(), UpdatedAt: now.UnixMilli(),
 	}
 	if err := insertOutbox(ctx, tx, orderID, "OrderCreated", order, now); err != nil {
@@ -203,7 +214,7 @@ func (s *PostgresStore) ConfirmReservation(ctx context.Context, user User, reser
 	defer rollback(tx)
 
 	var orderID string
-	var expiresAt time.Time
+	var expiresAt sql.NullTime
 	var status string
 	err = tx.QueryRowContext(ctx, `
 		SELECT id::text, status, reservation_expires_at
@@ -220,8 +231,8 @@ func (s *PostgresStore) ConfirmReservation(ctx context.Context, user User, reser
 	if status == OrderConfirmed {
 		return loadOrderAndCommit(ctx, tx, orderID)
 	}
-	if !expiresAt.After(now) {
-		if err := expireOrderTx(ctx, tx, orderID, reservationID, now); err != nil {
+	if !expiresAt.Valid || !expiresAt.Time.After(now) {
+		if err := expireReservationTx(ctx, tx, reservationID, now); err != nil {
 			return Order{}, err
 		}
 		if err := tx.Commit(); err != nil {
@@ -241,12 +252,20 @@ func (s *PostgresStore) ConfirmReservation(ctx context.Context, user User, reser
 		if status != StatusHeld {
 			return Order{}, ErrStoreConflict
 		}
-		if _, err := tx.ExecContext(ctx, `
+		result, err := tx.ExecContext(ctx, `
 			UPDATE projection.seat_snapshots
 			SET status = 'SOLD', aggregate_version = aggregate_version + 1, expires_at = NULL, updated_at = $4
 			WHERE event_id = $1 AND section_id = $2 AND seat_id = $3 AND reservation_id = $5
-		`, seat.EventID, seat.SectionID, seat.ID, now, reservationID); err != nil {
+		`, seat.EventID, seat.SectionID, seat.ID, now, reservationID)
+		if err != nil {
 			return Order{}, err
+		}
+		updated, err := result.RowsAffected()
+		if err != nil {
+			return Order{}, err
+		}
+		if updated != 1 {
+			return Order{}, ErrStoreConflict
 		}
 	}
 	if _, err := tx.ExecContext(ctx, `
@@ -323,7 +342,7 @@ func (s *PostgresStore) GetOrder(ctx context.Context, user User, orderID string)
 
 func (s *PostgresStore) ListSeats(ctx context.Context, eventID, sectionID string) ([]Seat, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT seat_id, status, aggregate_version, COALESCE(extract(epoch from expires_at) * 1000, 0)::bigint
+		SELECT seat_id, status, aggregate_version, COALESCE(extract(epoch from expires_at) * 1000, 0)::bigint, price_amount_minor
 		FROM projection.seat_snapshots
 		WHERE event_id = $1 AND section_id = $2
 		ORDER BY seat_id
@@ -337,11 +356,10 @@ func (s *PostgresStore) ListSeats(ctx context.Context, eventID, sectionID string
 		var seat Seat
 		seat.EventID = eventID
 		seat.SectionID = sectionID
-		if err := rows.Scan(&seat.ID, &seat.Status, &seat.Version, &seat.ExpiresAtServerMS); err != nil {
+		if err := rows.Scan(&seat.ID, &seat.Status, &seat.Version, &seat.ExpiresAtServerMS, &seat.PriceCents); err != nil {
 			return nil, err
 		}
 		seat.Row, seat.Number = splitSeatLabel(seat.ID)
-		seat.PriceCents = 8500 + seat.Number*150
 		seats = append(seats, seat)
 	}
 	return seats, rows.Err()
@@ -417,10 +435,12 @@ func loadOrderSeatsTx(ctx context.Context, tx *sql.Tx, orderID string) ([]Seat, 
 
 func ensureSeatSnapshot(ctx context.Context, tx *sql.Tx, seat Seat) error {
 	_, err := tx.ExecContext(ctx, `
-		INSERT INTO projection.seat_snapshots (event_id, section_id, seat_id, status, aggregate_version)
-		VALUES ($1, $2, $3, 'AVAILABLE', 0)
-		ON CONFLICT (event_id, section_id, seat_id) DO NOTHING
-	`, seat.EventID, seat.SectionID, seat.ID)
+		INSERT INTO projection.seat_snapshots (event_id, section_id, seat_id, status, aggregate_version, price_amount_minor)
+		VALUES ($1, $2, $3, 'AVAILABLE', 0, $4)
+		ON CONFLICT (event_id, section_id, seat_id) DO UPDATE
+		SET price_amount_minor = EXCLUDED.price_amount_minor
+		WHERE projection.seat_snapshots.price_amount_minor = 0
+	`, seat.EventID, seat.SectionID, seat.ID, seat.PriceCents)
 	return err
 }
 
@@ -440,18 +460,34 @@ func lockSeatSnapshot(ctx context.Context, tx *sql.Tx, eventID, sectionID, seatI
 	return status, version, expiresAt, err
 }
 
-func expireOrderTx(ctx context.Context, tx *sql.Tx, orderID, reservationID string, now time.Time) error {
+func seatReservationIDTx(ctx context.Context, tx *sql.Tx, eventID, sectionID, seatID string) (string, error) {
+	var reservationID sql.NullString
+	err := tx.QueryRowContext(ctx, `
+		SELECT reservation_id
+		FROM projection.seat_snapshots
+		WHERE event_id = $1 AND section_id = $2 AND seat_id = $3
+	`, eventID, sectionID, seatID).Scan(&reservationID)
+	if err != nil {
+		return "", err
+	}
+	if !reservationID.Valid {
+		return "", nil
+	}
+	return reservationID.String, nil
+}
+
+func expireReservationTx(ctx context.Context, tx *sql.Tx, reservationID string, now time.Time) error {
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE orders.orders
 		SET status = 'EXPIRED', updated_at = $2
-		WHERE id = $1
-	`, orderID, now); err != nil {
+		WHERE reservation_id = $1 AND status IN ('PENDING', 'AWAITING_PAYMENT')
+	`, reservationID, now); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE inventory.reservations
 		SET status = 'EXPIRED', updated_at = $2
-		WHERE reservation_id = $1
+		WHERE reservation_id = $1 AND status = 'HELD'
 	`, reservationID, now); err != nil {
 		return err
 	}
