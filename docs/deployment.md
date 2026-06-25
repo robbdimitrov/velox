@@ -33,7 +33,7 @@ seed so the reservation flow can be exercised before PostgreSQL wiring is added.
 
 ## Kubernetes
 
-Manifests live in `deploy/k8s/` and create:
+Manifests live in `deploy/` and create:
 
 - `velox` namespace;
 - PostgreSQL StatefulSet and service;

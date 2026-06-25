@@ -31,11 +31,11 @@ db-check:
 	@rtk /bin/test -s apps/database/seeds/001_demo_reservation_mvp.sql
 
 k8s-check:
-	@$(KUBECTL) apply --dry-run=client -f deploy/k8s/namespace.yaml
-	@$(KUBECTL) apply --dry-run=client -f deploy/k8s/postgres.yaml
-	@$(KUBECTL) apply --dry-run=client -f deploy/k8s/redpanda.yaml
-	@$(KUBECTL) apply --dry-run=client -f deploy/k8s/dragonfly.yaml
-	@$(KUBECTL) apply --dry-run=client -f deploy/k8s/services.yaml
+	@$(KUBECTL) apply --dry-run=client -f deploy/namespace.yaml
+	@$(KUBECTL) apply --dry-run=client -f deploy/postgres.yaml
+	@$(KUBECTL) apply --dry-run=client -f deploy/redpanda.yaml
+	@$(KUBECTL) apply --dry-run=client -f deploy/dragonfly.yaml
+	@$(KUBECTL) apply --dry-run=client -f deploy/services.yaml
 
 format:
 	@rtk gofmt -w apps/apigateway/main.go apps/apigateway/internal/*.go apps/orderservice/internal/*.go apps/projectionservice/internal/*.go

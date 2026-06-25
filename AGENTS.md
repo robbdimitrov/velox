@@ -2,9 +2,9 @@
 
 ## Project Structure & Module Organization
 
-Project Velox is specified as a high-scale event ticket marketplace using Svelte 5, Go, Rust, Kafka, and isolated persistence per service. Keep product and architecture documents in `docs/`. Match the sibling project structure:
+Project Velox is specified as a high-scale event ticket marketplace using SvelteKit SSR with Svelte 5, Tailwind, DaisyUI, Lucide icons, Go, Rust, Kafka, and isolated persistence per service. Keep product and architecture documents in `docs/`. Match the sibling project structure:
 
-- `apps/frontend/`: Svelte 5 frontend, Runes state, WebSocket/SSE clients, seat-map rendering.
+- `apps/frontend/`: SvelteKit SSR frontend with Svelte 5, Tailwind, DaisyUI, Lucide icons, Runes state, WebSocket/SSE clients, seat-map rendering.
 - `apps/apigateway/`: Go public HTTP API, auth boundary, rate limiting, validation, and gRPC orchestration.
 - `apps/orderservice/`: Go order state, idempotency, reservation tokens, payments, and PostgreSQL outbox.
 - `apps/inventoryservice/`: Rust Tokio inventory validator, event store integration, Kafka consumers/producers.
@@ -19,7 +19,7 @@ Project Velox is specified as a high-scale event ticket marketplace using Svelte
 No executable project scaffolding exists yet. Add commands here when services are created. Use the local `rtk` wrapper for shell commands:
 
 ```bash
-rtk npm run dev        # Svelte app
+rtk npm run dev        # SvelteKit app
 rtk go test ./...      # Go services
 rtk cargo test         # Rust services
 rtk docker compose up  # Local infrastructure, once added
@@ -27,7 +27,7 @@ rtk docker compose up  # Local infrastructure, once added
 
 ## Coding Style & Naming Conventions
 
-Use stack-native formatting: `prettier`/`eslint` for Svelte and TypeScript, `gofmt`/`go vet` for Go, and `rustfmt`/`clippy` for Rust. Use `kebab-case` for docs and frontend assets, idiomatic Go package names, and `snake_case` Rust modules. Kafka topic and event names should be explicit, for example `order.events.v1` and `SeatReservationHeld`.
+Use stack-native formatting: `prettier`/`eslint` for Svelte and TypeScript, `gofmt`/`go vet` for Go, and `rustfmt`/`clippy` for Rust. Build frontend UI with Tailwind utilities, DaisyUI components where they fit, and Lucide icons for actions and navigation. Use `kebab-case` for docs and frontend assets, idiomatic Go package names, and `snake_case` Rust modules. Kafka topic and event names should be explicit, for example `order.events.v1` and `SeatReservationHeld`.
 
 ## Architecture & Service Boundaries
 

@@ -2,7 +2,7 @@
 set -eu
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-K8S_DIR="${ROOT_DIR}/deploy/k8s"
+K8S_DIR="${ROOT_DIR}/deploy"
 KUBECTL="${KUBECTL:-rtk kubectl}"
 DRY_RUN="${DRY_RUN:-}"
 
