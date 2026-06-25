@@ -22,8 +22,8 @@ ROLL_OUT_INFRA=(
 ROLL_OUT_APPS=(
   deployment/apigateway
   deployment/orderservice
-  deployment/inventoryservice
-  deployment/projectionservice
+  deployment/seatservice
+  deployment/viewservice
   deployment/frontend
 )
 

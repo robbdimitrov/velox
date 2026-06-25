@@ -15,8 +15,8 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "service": "projectionservice"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "service": "viewservice"})
 	})
-	log.Printf("projectionservice placeholder listening on %s", addr)
+	log.Printf("viewservice placeholder listening on %s", addr)
 	log.Fatal(http.ListenAndServe(addr, mux))
 }

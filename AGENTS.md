@@ -7,8 +7,8 @@ Project Velox is specified as a high-scale event ticket marketplace using Svelte
 - `apps/frontend/`: SvelteKit SSR frontend with Svelte 5, Tailwind, DaisyUI, Lucide icons, Runes state, WebSocket/SSE clients, seat-map rendering.
 - `apps/apigateway/`: Go public HTTP API, auth boundary, rate limiting, validation, and gRPC orchestration.
 - `apps/orderservice/`: Go order state, idempotency, reservation tokens, payments, and PostgreSQL outbox.
-- `apps/inventoryservice/`: Rust Tokio inventory validator, event store integration, Kafka consumers/producers.
-- `apps/projectionservice/`: Go Kafka projection workers, read APIs, and WebSocket/SSE fanout.
+- `apps/seatservice/`: Rust Tokio inventory validator, event store integration, Kafka consumers/producers.
+- `apps/viewservice/`: Go Kafka projection workers, read APIs, and WebSocket/SSE fanout.
 - `apps/database/`: PostgreSQL migrations and database bootstrap assets.
 - `pkg/`: shared generated transport contracts such as `pkg/pb`.
 - `deploy/`: Kafka, PostgreSQL, Redis, Elasticsearch/MongoDB, observability, and application manifests.
@@ -33,7 +33,7 @@ Use stack-native formatting: `prettier`/`eslint` for Svelte and TypeScript, `gof
 
 ## Architecture & Service Boundaries
 
-Keep services independently deployable and stateless. State shared across requests or replicas belongs in PostgreSQL, Redis, Kafka, the Inventory event store, or another durable shared system. `apigateway` owns public command ingress, authentication boundaries, request limits, and safe error mapping. `orderservice` owns order state, idempotency checks, payment orchestration, and transactional outbox writes. `inventoryservice` owns seat availability, reservation expiry, event-sourced stream versions, and double-allocation prevention. `projectionservice` owns read-model materialization and must not become a write-path authority.
+Keep services independently deployable and stateless. State shared across requests or replicas belongs in PostgreSQL, Redis, Kafka, the Inventory event store, or another durable shared system. `apigateway` owns public command ingress, authentication boundaries, request limits, and safe error mapping. `orderservice` owns order state, idempotency checks, payment orchestration, and transactional outbox writes. `seatservice` owns seat availability, reservation expiry, event-sourced stream versions, and double-allocation prevention. `viewservice` owns read-model materialization and must not become a write-path authority.
 
 Treat API, gRPC, and Kafka messages as transport DTOs. Map them deliberately at service boundaries instead of leaking generated or wire-format types into domain code. Change event schemas compatibly: preserve field meaning, add rather than repurpose fields, version breaking changes, and keep consumers tolerant of duplicates. Every network call needs an explicit timeout and safe error mapping. Retries require bounded policy and an operation known to be idempotent.
 

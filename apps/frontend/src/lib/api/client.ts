@@ -276,7 +276,7 @@ function mapWallet(body: { orders: GatewayOrder[] }): WalletResponse {
             {
               event_type: 'TicketIssued',
               timestamp: new Date().toISOString(),
-              actor: 'inventoryservice',
+              actor: 'seatservice',
               correlation_id: order.id
             }
           ]

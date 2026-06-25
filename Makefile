@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := all
 
 .PHONY: all help proto proto-check db-check k8s-check format lint test build \
-	apigateway-image orderservice-image inventoryservice-image projectionservice-image frontend-image database-image \
+	apigateway-image orderservice-image seatservice-image viewservice-image frontend-image database-image \
 	deploy deploy-dry-run
 
 KUBECTL ?= kubectl
@@ -9,7 +9,7 @@ IMAGE_REGISTRY ?= ghcr.io/example/velox
 IMAGE_TAG ?= dev
 PUBLIC_GATEWAY_BASE_URL ?= http://localhost:8081
 
-all: apigateway-image orderservice-image inventoryservice-image projectionservice-image frontend-image database-image
+all: apigateway-image orderservice-image seatservice-image viewservice-image frontend-image database-image
 
 help:
 	@printf 'Velox support targets:\n'
@@ -43,29 +43,29 @@ k8s-check:
 	@$(KUBECTL) apply --dry-run=client -f deploy/services.yaml
 
 format:
-	@gofmt -w apps/apigateway/main.go apps/apigateway/internal/*.go apps/orderservice/internal/*.go apps/projectionservice/internal/*.go
-	@cargo fmt --manifest-path apps/inventoryservice/Cargo.toml
+	@gofmt -w apps/apigateway/main.go apps/apigateway/internal/*.go apps/orderservice/internal/*.go apps/viewservice/internal/*.go
+	@cargo fmt --manifest-path apps/seatservice/Cargo.toml
 
 lint: proto-check db-check
 	@sh -n scripts/deploy.sh
 	@cd apps/apigateway && go test ./... >/dev/null
 	@cd apps/orderservice && go test ./... >/dev/null
-	@cd apps/projectionservice && go test ./... >/dev/null
-	@cargo test --manifest-path apps/inventoryservice/Cargo.toml >/dev/null
+	@cd apps/viewservice && go test ./... >/dev/null
+	@cargo test --manifest-path apps/seatservice/Cargo.toml >/dev/null
 	@cd apps/frontend && npm run check >/dev/null
 	@cd apps/frontend && npm run lint >/dev/null
 
 test:
 	@cd apps/apigateway && go test ./...
 	@cd apps/orderservice && go test ./...
-	@cd apps/projectionservice && go test ./...
-	@cargo test --manifest-path apps/inventoryservice/Cargo.toml
+	@cd apps/viewservice && go test ./...
+	@cargo test --manifest-path apps/seatservice/Cargo.toml
 
 build:
 	@cd apps/apigateway && go build ./...
 	@cd apps/orderservice && go test ./...
-	@cd apps/projectionservice && go test ./...
-	@cargo test --manifest-path apps/inventoryservice/Cargo.toml
+	@cd apps/viewservice && go test ./...
+	@cargo test --manifest-path apps/seatservice/Cargo.toml
 	@cd apps/frontend && npm run build
 
 frontend-image:
@@ -80,11 +80,11 @@ apigateway-image:
 orderservice-image:
 	@docker build -t $(IMAGE_REGISTRY)-orderservice:$(IMAGE_TAG) apps/orderservice
 
-inventoryservice-image:
-	@docker build -t $(IMAGE_REGISTRY)-inventoryservice:$(IMAGE_TAG) apps/inventoryservice
+seatservice-image:
+	@docker build -t $(IMAGE_REGISTRY)-seatservice:$(IMAGE_TAG) apps/seatservice
 
-projectionservice-image:
-	@docker build -t $(IMAGE_REGISTRY)-projectionservice:$(IMAGE_TAG) apps/projectionservice
+viewservice-image:
+	@docker build -t $(IMAGE_REGISTRY)-viewservice:$(IMAGE_TAG) apps/viewservice
 
 deploy-dry-run:
 	@DRY_RUN=1 scripts/deploy.sh

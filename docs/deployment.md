@@ -11,7 +11,7 @@ The reservation MVP transport contract lives in `pkg/pb/velox.proto`. It covers:
 - signed Kafka event envelopes with correlation, causation, aggregate version,
   schema version, and occurrence time metadata;
 - order, payment, reservation, ticket, and seat-delta messages used by the
-  order, inventory, and projection services.
+  order, inventory, and view services.
 
 Generated language bindings are not committed yet.
 
@@ -41,7 +41,7 @@ Manifests live in `deploy/` and create:
 - Redpanda StatefulSet and service;
 - Dragonfly Deployment and service;
 - service Deployments for `frontend`, `apigateway`, `orderservice`,
-  `inventoryservice`, and `projectionservice`.
+  `seatservice`, and `viewservice`.
 
 Secrets are referenced, not committed. Create them outside the repository before
 starting pods:

@@ -4,7 +4,7 @@
 
 ## Architecture Summary
 
-Velox uses CQRS and event-driven choreography. Commands enter through `apigateway`, order writes are persisted by `orderservice` with a PostgreSQL transactional outbox, and durable events are streamed to Kafka. `inventoryservice` validates seat availability with event-sourced optimistic concurrency and publishes immutable inventory events. `projectionservice` flattens Kafka events into Elasticsearch or MongoDB read models consumed by the Svelte UI through fast read APIs, WebSockets, and SSE streams.
+Velox uses CQRS and event-driven choreography. Commands enter through `apigateway`, order writes are persisted by `orderservice` with a PostgreSQL transactional outbox, and durable events are streamed to Kafka. `seatservice` validates seat availability with event-sourced optimistic concurrency and publishes immutable inventory events. `viewservice` flattens Kafka events into Elasticsearch or MongoDB read models consumed by the Svelte UI through fast read APIs, WebSockets, and SSE streams.
 
 ```text
 SvelteKit SSR Client
@@ -13,10 +13,10 @@ SvelteKit SSR Client
 apigateway -> orderservice -> PostgreSQL Outbox -> CDC -> Kafka
                                              |
                                              v
-inventoryservice -> Event Store -> Kafka inventory events
+seatservice -> Event Store -> Kafka inventory events
                                              |
                                              v
-projectionservice -> Elasticsearch/MongoDB -> Read API/WebSockets
+viewservice -> Elasticsearch/MongoDB -> Read API/WebSockets
 ```
 
 ## Docs
@@ -36,8 +36,8 @@ Architectural specs live in [`docs/`](docs/):
 | `apps/frontend/` | TypeScript | SvelteKit SSR app with Svelte 5, Tailwind, DaisyUI, Lucide icons, Runes client state, live event discovery, seat selector, checkout, wallet. |
 | `apps/apigateway/` | Go | Public HTTP API, auth boundary, rate limiting, request validation, gRPC orchestration. |
 | `apps/orderservice/` | Go | Order state, idempotency, reservation tokens, payment orchestration, transactional outbox. |
-| `apps/inventoryservice/` | Rust | Tokio Kafka consumers, event store append logic, reservation expiry, seat stream concurrency. |
-| `apps/projectionservice/` | Go | Kafka consumers, read-model materializers, read APIs, WebSocket/SSE fanout. |
+| `apps/seatservice/` | Rust | Tokio Kafka consumers, event store append logic, reservation expiry, seat stream concurrency. |
+| `apps/viewservice/` | Go | Kafka consumers, read-model materializers, read APIs, WebSocket/SSE fanout. |
 | `apps/database/` | PostgreSQL | Versioned schema migrations for service-owned relational stores. |
 | `pkg/` | Protobuf | Shared generated transport contracts such as `pkg/pb`. |
 | `deploy/` | Kubernetes | Kafka, Redis, PostgreSQL, Elasticsearch or MongoDB, observability, and application manifests. |

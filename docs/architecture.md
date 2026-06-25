@@ -18,10 +18,10 @@ PostgreSQL Outbox
 Kafka
   | order.events.v1, inventory.events.v1, payment.events.v1
   v
-inventoryservice <-> Append-Only Event Store
+seatservice <-> Append-Only Event Store
   |
   v
-projectionservice -> Elasticsearch/MongoDB -> Read API/WebSockets/SSE
+viewservice -> Elasticsearch/MongoDB -> Read API/WebSockets/SSE
 ```
 
 Each service owns its database. Cross-service joins are forbidden on the write path. Kafka is the append-only integration log for choreography, projections, audit, and replay.
@@ -61,7 +61,7 @@ auth -> rate limit -> schema validation -> gRPC -> idempotency check -> DB trans
 
 Never publish directly to Kafka from the same request transaction. Kafka publication must flow through the outbox relay.
 
-## Rust Service: `inventoryservice`
+## Rust Service: `seatservice`
 
 Responsibilities:
 
@@ -93,14 +93,14 @@ SeatTicketUpgraded
 
 ## Storage Profiles
 
-- `inventoryservice`: append-only event store, backed by PostgreSQL event table or RocksDB segments with durable WAL.
+- `seatservice`: append-only event store, backed by PostgreSQL event table or RocksDB segments with durable WAL.
 - `orderservice`: PostgreSQL tables for orders, payments, and `outbox_events`.
 - Read model: Elasticsearch for search-heavy discovery or MongoDB for document-oriented wallet and seat snapshots.
 - Redis: idempotency keys, token buckets, hot layout locks, and short-lived fanout coordination.
 
 ## Event Sourcing and CQRS Mutation
 
-`inventoryservice` mutations append events only:
+`seatservice` mutations append events only:
 
 ```text
 OrderCreated -> SeatReservationHeld
@@ -109,7 +109,7 @@ PaymentConfirmed -> SeatTicketPurchased
 PaymentFailed -> SeatReservationExpired
 ```
 
-`projectionservice` workers consume Kafka and flatten immutable facts into read documents:
+`viewservice` workers consume Kafka and flatten immutable facts into read documents:
 
 ```text
 inventory.events.v1 -> seat_snapshot[event_id, seat_id]
@@ -117,7 +117,7 @@ inventory.events.v1 -> wallet_ticket[ticket_id]
 order.events.v1     -> order_summary[user_id, order_id]
 ```
 
-`projectionservice` writes must be idempotent by `event_id`. Store the last applied event version per aggregate.
+`viewservice` writes must be idempotent by `event_id`. Store the last applied event version per aggregate.
 
 ## Choreographed Saga Lifecycle
 
@@ -127,29 +127,29 @@ Successful path:
 1. Client POST /reservations idempotency_key=K seat=A-12
 2. `orderservice` inserts order PENDING and outbox OrderCreated
 3. Outbox relay publishes OrderCreated to Kafka
-4. `inventoryservice` consumes OrderCreated
-5. `inventoryservice` appends SeatReservationHeld expected_version=N
-6. `inventoryservice` publishes SeatReservationHeld
-7. `projectionservice` updates seat as HELD and WebSocket broadcasts
+4. `seatservice` consumes OrderCreated
+5. `seatservice` appends SeatReservationHeld expected_version=N
+6. `seatservice` publishes SeatReservationHeld
+7. `viewservice` updates seat as HELD and WebSocket broadcasts
 8. Client POST /reservations/{reservation_id}/confirm idempotency_key=K2
 9. Payment succeeds and PaymentConfirmed is published
-10. `inventoryservice` appends SeatTicketPurchased
-11. `projectionservice` marks seat SOLD and wallet ticket ISSUED
+10. `seatservice` appends SeatTicketPurchased
+11. `viewservice` marks seat SOLD and wallet ticket ISSUED
 12. `orderservice` observes PaymentConfirmed and marks CONFIRMED
 ```
 
 Payment rejection path:
 
 ```text
-PaymentFailed -> `inventoryservice` appends SeatReservationExpired -> `projectionservice` marks AVAILABLE -> `orderservice` marks FAILED
+PaymentFailed -> `seatservice` appends SeatReservationExpired -> `viewservice` marks AVAILABLE -> `orderservice` marks FAILED
 ```
 
 Timeout path:
 
 ```text
 reservation deadline reached -> expiry scheduler emits ReservationTimeoutDue
-`inventoryservice` appends SeatReservationExpired if not purchased
-`projectionservice` marks AVAILABLE
+`seatservice` appends SeatReservationExpired if not purchased
+`viewservice` marks AVAILABLE
 `orderservice` marks EXPIRED
 ```
 

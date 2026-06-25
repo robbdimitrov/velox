@@ -5,6 +5,6 @@ COPY src ./src
 RUN cargo build --release
 
 FROM alpine:3.20
-COPY --from=builder /src/target/release/velox-inventoryservice /inventoryservice
+COPY --from=builder /src/target/release/velox-seatservice /seatservice
 EXPOSE 8080
-CMD ["/inventoryservice"]
+CMD ["/seatservice"]

@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "velox-inventoryservice"
+name = "velox-seatservice"
 version = "0.1.0"
