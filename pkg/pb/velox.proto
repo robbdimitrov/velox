@@ -1,0 +1,226 @@
+syntax = "proto3";
+
+package velox.v1;
+
+option go_package = "github.com/velox/pkg/pb;veloxpb";
+
+import "google/protobuf/timestamp.proto";
+
+message EventMetadata {
+  string event_id = 1;
+  string correlation_id = 2;
+  string causation_id = 3;
+  string aggregate_id = 4;
+  uint32 aggregate_version = 5;
+  uint32 schema_version = 6;
+  google.protobuf.Timestamp occurred_at = 7;
+  string producer = 8;
+  bytes signature = 9;
+}
+
+message Money {
+  string currency = 1;
+  int64 amount_minor = 2;
+}
+
+message SeatRef {
+  string event_id = 1;
+  string section_id = 2;
+  string seat_id = 3;
+}
+
+message ReservationToken {
+  string reservation_id = 1;
+  string order_id = 2;
+  string user_id = 3;
+  repeated SeatRef seats = 4;
+  google.protobuf.Timestamp expires_at = 5;
+  bytes signature = 6;
+}
+
+enum OrderStatus {
+  ORDER_STATUS_UNSPECIFIED = 0;
+  ORDER_STATUS_PENDING = 1;
+  ORDER_STATUS_AWAITING_PAYMENT = 2;
+  ORDER_STATUS_CONFIRMED = 3;
+  ORDER_STATUS_FAILED = 4;
+  ORDER_STATUS_EXPIRED = 5;
+}
+
+enum PaymentStatus {
+  PAYMENT_STATUS_UNSPECIFIED = 0;
+  PAYMENT_STATUS_PENDING = 1;
+  PAYMENT_STATUS_CONFIRMED = 2;
+  PAYMENT_STATUS_FAILED = 3;
+}
+
+enum SeatStatus {
+  SEAT_STATUS_UNSPECIFIED = 0;
+  SEAT_STATUS_AVAILABLE = 1;
+  SEAT_STATUS_HELD = 2;
+  SEAT_STATUS_SOLD = 3;
+  SEAT_STATUS_TRANSFERRED = 4;
+  SEAT_STATUS_USED = 5;
+}
+
+message CreateReservationRequest {
+  string user_id = 1;
+  string idempotency_key = 2;
+  repeated SeatRef seats = 3;
+  string correlation_id = 4;
+}
+
+message CreateReservationResponse {
+  string order_id = 1;
+  OrderStatus status = 2;
+  ReservationToken reservation_token = 3;
+}
+
+message ConfirmReservationRequest {
+  string user_id = 1;
+  string idempotency_key = 2;
+  ReservationToken reservation_token = 3;
+  string correlation_id = 4;
+}
+
+message ConfirmReservationResponse {
+  string order_id = 1;
+  OrderStatus status = 2;
+  PaymentStatus payment_status = 3;
+}
+
+message GetOrderRequest {
+  string user_id = 1;
+  string order_id = 2;
+}
+
+message GetOrderResponse {
+  string order_id = 1;
+  string user_id = 2;
+  OrderStatus status = 3;
+  repeated SeatRef seats = 4;
+  Money total = 5;
+}
+
+service OrderService {
+  rpc CreateReservation(CreateReservationRequest) returns (CreateReservationResponse);
+  rpc ConfirmReservation(ConfirmReservationRequest) returns (ConfirmReservationResponse);
+  rpc GetOrder(GetOrderRequest) returns (GetOrderResponse);
+}
+
+message OrderCreated {
+  EventMetadata metadata = 1;
+  string order_id = 2;
+  string user_id = 3;
+  repeated SeatRef seats = 4;
+  string idempotency_key = 5;
+}
+
+message PaymentConfirmed {
+  EventMetadata metadata = 1;
+  string order_id = 2;
+  string payment_id = 3;
+  Money amount = 4;
+}
+
+message PaymentFailed {
+  EventMetadata metadata = 1;
+  string order_id = 2;
+  string payment_id = 3;
+  string reason_code = 4;
+}
+
+message ReservationTimeoutDue {
+  EventMetadata metadata = 1;
+  string reservation_id = 2;
+  string order_id = 3;
+}
+
+message SeatReservationHeld {
+  EventMetadata metadata = 1;
+  string reservation_id = 2;
+  string order_id = 3;
+  string user_id = 4;
+  SeatRef seat = 5;
+  google.protobuf.Timestamp expires_at = 6;
+  int64 expires_at_server_ms = 7;
+}
+
+message SeatReservationFailed {
+  EventMetadata metadata = 1;
+  string order_id = 2;
+  string user_id = 3;
+  SeatRef seat = 4;
+  string reason_code = 5;
+}
+
+message SeatReservationExpired {
+  EventMetadata metadata = 1;
+  string reservation_id = 2;
+  string order_id = 3;
+  SeatRef seat = 4;
+}
+
+message SeatTicketPurchased {
+  EventMetadata metadata = 1;
+  string ticket_id = 2;
+  string reservation_id = 3;
+  string order_id = 4;
+  string user_id = 5;
+  SeatRef seat = 6;
+}
+
+message SeatTicketTransferred {
+  EventMetadata metadata = 1;
+  string ticket_id = 2;
+  string from_user_id = 3;
+  string to_user_id = 4;
+  SeatRef seat = 5;
+}
+
+message SeatTicketUsed {
+  EventMetadata metadata = 1;
+  string ticket_id = 2;
+  string user_id = 3;
+  SeatRef seat = 4;
+  google.protobuf.Timestamp scanned_at = 5;
+}
+
+message SeatTicketUpgraded {
+  EventMetadata metadata = 1;
+  string ticket_id = 2;
+  SeatRef original_seat = 3;
+  SeatRef upgraded_seat = 4;
+  Money price_delta = 5;
+}
+
+message KafkaEvent {
+  oneof event {
+    OrderCreated order_created = 1;
+    PaymentConfirmed payment_confirmed = 2;
+    PaymentFailed payment_failed = 3;
+    ReservationTimeoutDue reservation_timeout_due = 4;
+    SeatReservationHeld seat_reservation_held = 5;
+    SeatReservationFailed seat_reservation_failed = 6;
+    SeatReservationExpired seat_reservation_expired = 7;
+    SeatTicketPurchased seat_ticket_purchased = 8;
+    SeatTicketTransferred seat_ticket_transferred = 9;
+    SeatTicketUsed seat_ticket_used = 10;
+    SeatTicketUpgraded seat_ticket_upgraded = 11;
+  }
+}
+
+message SeatDelta {
+  SeatRef seat = 1;
+  SeatStatus status = 2;
+  uint32 version = 3;
+  string reservation_id = 4;
+  google.protobuf.Timestamp expires_at = 5;
+}
+
+message SeatDeltaBatch {
+  string event_id = 1;
+  string section_id = 2;
+  repeated SeatDelta changes = 3;
+  int64 projection_lag_ms = 4;
+}
