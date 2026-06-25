@@ -1,7 +1,7 @@
 # Deployment Support
 
-Velox support artifacts are intentionally limited to contracts, logical data
-schemas, and Kubernetes manifests until runtime services are scaffolded.
+Velox deployment artifacts now include runtime images, database initialization,
+Kubernetes manifests, and a local deploy script for the reservation MVP.
 
 ## Protobuf
 
@@ -28,8 +28,9 @@ PostgreSQL schemas:
   wallet tickets.
 
 `apps/database/seeds/001_demo_reservation_mvp.sql` adds a small demo event seat
-set for local smoke testing. The current Go gateway also carries an in-memory
-seed so the reservation flow can be exercised before PostgreSQL wiring is added.
+set for local smoke testing. The local database image copies migrations and
+seeds into Postgres' `docker-entrypoint-initdb.d` directory, so a fresh volume is
+initialized on first startup.
 
 ## Kubernetes
 

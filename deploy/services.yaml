@@ -52,6 +52,13 @@ spec:
           env:
             - name: ORDER_SERVICE_ADDR
               value: orderservice.velox.svc.cluster.local:9000
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: velox-postgres-secret
+                  key: password
+            - name: DATABASE_URL
+              value: postgres://velox:$(POSTGRES_PASSWORD)@postgres.velox.svc.cluster.local:5432/velox?sslmode=disable
             - name: VELOX_SESSION_SECRET
               valueFrom:
                 secretKeyRef:

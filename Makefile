@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := all
 
 .PHONY: all help proto proto-check db-check k8s-check format lint test build \
-	apigateway-image orderservice-image inventoryservice-image projectionservice-image frontend-image \
+	apigateway-image orderservice-image inventoryservice-image projectionservice-image frontend-image database-image \
 	deploy deploy-dry-run
 
 KUBECTL ?= kubectl
@@ -9,7 +9,7 @@ IMAGE_REGISTRY ?= ghcr.io/example/velox
 IMAGE_TAG ?= dev
 PUBLIC_GATEWAY_BASE_URL ?= http://localhost:8081
 
-all: apigateway-image orderservice-image inventoryservice-image projectionservice-image frontend-image
+all: apigateway-image orderservice-image inventoryservice-image projectionservice-image frontend-image database-image
 
 help:
 	@printf 'Velox support targets:\n'
@@ -70,6 +70,9 @@ build:
 
 frontend-image:
 	@docker build --build-arg PUBLIC_GATEWAY_BASE_URL=$(PUBLIC_GATEWAY_BASE_URL) -t $(IMAGE_REGISTRY)-frontend:$(IMAGE_TAG) apps/frontend
+
+database-image:
+	@docker build -t $(IMAGE_REGISTRY)-database:$(IMAGE_TAG) apps/database
 
 apigateway-image:
 	@docker build -t $(IMAGE_REGISTRY)-apigateway:$(IMAGE_TAG) apps/apigateway

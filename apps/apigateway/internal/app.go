@@ -89,6 +89,7 @@ type Server struct {
 	seats       map[string]map[string]map[string]*Seat
 	orders      map[string]*Order
 	idempotency map[string]idempotencyRecord
+	store       *PostgresStore
 }
 
 type idempotencyRecord struct {
@@ -101,6 +102,10 @@ type apiError struct {
 }
 
 func NewServer(secret string) *Server {
+	return NewServerWithStore(secret, nil)
+}
+
+func NewServerWithStore(secret string, store *PostgresStore) *Server {
 	s := &Server{
 		secret:      []byte(secret),
 		now:         time.Now,
@@ -110,6 +115,7 @@ func NewServer(secret string) *Server {
 		seats:       map[string]map[string]map[string]*Seat{},
 		orders:      map[string]*Order{},
 		idempotency: map[string]idempotencyRecord{},
+		store:       store,
 	}
 	s.seed()
 	return s
@@ -227,6 +233,17 @@ func (s *Server) handleEvent(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSeats(w http.ResponseWriter, r *http.Request) {
 	eventID, sectionID := r.PathValue("eventId"), r.PathValue("sectionId")
+	if s.store != nil {
+		seats, err := s.store.ListSeats(r.Context(), eventID, sectionID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "seat_snapshot_unavailable")
+			return
+		}
+		if len(seats) > 0 {
+			writeJSON(w, http.StatusOK, map[string]any{"seats": seats, "snapshot_age_ms": 0})
+			return
+		}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	section, ok := s.seats[eventID][sectionID]
@@ -272,8 +289,8 @@ func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request,
 	idemKey := "reserve:" + user.ID + ":" + key
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if rec, exists := s.idempotency[idemKey]; exists {
+		s.mu.Unlock()
 		if rec.Hash != hash {
 			writeError(w, http.StatusConflict, "idempotency_key_conflict")
 			return
@@ -283,20 +300,49 @@ func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request,
 	}
 	section, ok := s.seats[req.EventID][req.SectionID]
 	if !ok {
+		s.mu.Unlock()
 		writeError(w, http.StatusNotFound, "section_not_found")
 		return
 	}
+	selectedSeats := make([]Seat, 0, len(req.SeatIDs))
 	for _, seatID := range req.SeatIDs {
 		seat, ok := section[seatID]
 		if !ok {
+			s.mu.Unlock()
 			writeError(w, http.StatusNotFound, "seat_not_found")
 			return
 		}
 		s.expireSeatIfNeededLocked(seat)
-		if seat.Status != StatusAvailable {
+		if s.store == nil && seat.Status != StatusAvailable {
+			s.mu.Unlock()
 			writeError(w, http.StatusConflict, "seat_not_available")
 			return
 		}
+		selectedSeats = append(selectedSeats, *seat)
+	}
+	if s.store != nil {
+		s.mu.Unlock()
+		order, idemHit, err := s.store.CreateReservation(
+			r.Context(),
+			user,
+			key,
+			hash,
+			ReservationRequest{EventID: req.EventID, SectionID: req.SectionID, SeatIDs: append([]string(nil), req.SeatIDs...)},
+			selectedSeats,
+			s.now(),
+			s.holdTTL,
+		)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		s.applyOrderHold(order)
+		if idemHit {
+			writeJSON(w, http.StatusOK, map[string]any{"order": order})
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"order": order})
+		return
 	}
 	now := s.now()
 	orderID := fmt.Sprintf("ord_%d", now.UnixNano())
@@ -317,11 +363,22 @@ func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request,
 	}
 	s.orders[order.ID] = order
 	s.idempotency[idemKey] = idempotencyRecord{Hash: hash, Response: *order}
+	s.mu.Unlock()
 	writeJSON(w, http.StatusCreated, map[string]any{"order": order})
 }
 
 func (s *Server) handleConfirmReservation(w http.ResponseWriter, r *http.Request, user User) {
 	reservationID := r.PathValue("reservationId")
+	if s.store != nil {
+		order, err := s.store.ConfirmReservation(r.Context(), user, reservationID, s.now())
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		s.applyOrderSold(order)
+		writeJSON(w, http.StatusOK, map[string]any{"order": order})
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	order, ok := s.orderByReservationLocked(reservationID)
@@ -358,6 +415,15 @@ func (s *Server) handleConfirmReservation(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) handleOrders(w http.ResponseWriter, r *http.Request, user User) {
+	if s.store != nil {
+		orders, err := s.store.ListOrders(r.Context(), user)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "orders_unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"orders": orders})
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	orders := make([]Order, 0)
@@ -374,6 +440,15 @@ func (s *Server) handleOrders(w http.ResponseWriter, r *http.Request, user User)
 }
 
 func (s *Server) handleOrder(w http.ResponseWriter, r *http.Request, user User) {
+	if s.store != nil {
+		order, err := s.store.GetOrder(r.Context(), user, r.PathValue("orderId"))
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"order": order})
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	order, ok := s.orders[r.PathValue("orderId")]
@@ -603,6 +678,52 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, apiError{Error: msg})
+}
+
+func writeStoreError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, ErrStoreIdempotencyConflict):
+		writeError(w, http.StatusConflict, "idempotency_key_conflict")
+	case errors.Is(err, ErrStoreConflict):
+		writeError(w, http.StatusConflict, "seat_not_available")
+	case errors.Is(err, ErrStoreExpired):
+		writeError(w, http.StatusConflict, "reservation_expired")
+	case errors.Is(err, ErrStoreNotFound):
+		writeError(w, http.StatusNotFound, "not_found")
+	default:
+		writeError(w, http.StatusInternalServerError, "store_unavailable")
+	}
+}
+
+func (s *Server) applyOrderHold(order Order) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	section := s.seats[order.EventID][order.SectionID]
+	for _, seatID := range order.SeatIDs {
+		if seat := section[seatID]; seat != nil {
+			seat.Status = StatusHeld
+			seat.Version++
+			seat.HeldByOrderID = order.ID
+			seat.ExpiresAtServerMS = order.ExpiresAtServerMS
+		}
+	}
+	copied := order
+	s.orders[order.ID] = &copied
+}
+
+func (s *Server) applyOrderSold(order Order) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	section := s.seats[order.EventID][order.SectionID]
+	for _, seatID := range order.SeatIDs {
+		if seat := section[seatID]; seat != nil {
+			seat.Status = StatusSold
+			seat.Version++
+			seat.ExpiresAtServerMS = 0
+		}
+	}
+	copied := order
+	s.orders[order.ID] = &copied
 }
 
 func limitBody(next http.Handler, n int64) http.Handler {
