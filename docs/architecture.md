@@ -1,4 +1,4 @@
-# Architecture and Consistency Specification
+# Architecture
 
 ## System Topology
 
@@ -6,7 +6,10 @@
 Svelte 5 Client
   | POST /orders, /checkout
   v
-Go Order Service
+apigateway
+  | gRPC
+  v
+orderservice
   | ACID write: orders + outbox
   v
 PostgreSQL Outbox
@@ -15,10 +18,10 @@ PostgreSQL Outbox
 Kafka
   | order.events.v1, inventory.events.v1, payment.events.v1
   v
-Rust Inventory Service <-> Append-Only Event Store
+inventoryservice <-> Append-Only Event Store
   |
   v
-Go Projection Workers -> Elasticsearch/MongoDB -> Read API/WebSockets/SSE
+projectionservice -> Elasticsearch/MongoDB -> Read API/WebSockets/SSE
 ```
 
 Each service owns its database. Cross-service joins are forbidden on the write path. Kafka is the append-only integration log for choreography, projections, audit, and replay.
@@ -29,14 +32,19 @@ Each service owns its database. Cross-service joins are forbidden on the write p
 - Use Canvas for individual seat nodes once a section exceeds 1,000 seats; use SVG for low-density sections and semantic outlines.
 - Maintain a local `seatVersionById` map. Apply only monotonic updates.
 - Route all queries through read APIs or edge-cached endpoints.
-- Route all mutations through command endpoints on Go services.
+- Route all mutations through command endpoints on `apigateway`.
 
-## Go Order Service
+## Go Services: `apigateway` and `orderservice`
 
-Responsibilities:
+`apigateway` responsibilities:
 
 - Terminate HTTP/gRPC command ingress.
-- Validate JWTs, scopes, payload size, idempotency headers, and reservation tokens.
+- Validate JWTs, scopes, request size, rate limits, and public API schemas.
+- Map public HTTP errors safely and orchestrate bounded gRPC calls to backend services.
+
+`orderservice` responsibilities:
+
+- Validate idempotency headers, reservation tokens, and order command payloads.
 - Use bounded goroutine worker pools for validation and external payment calls.
 - Store orders in PostgreSQL with states `PENDING`, `AWAITING_PAYMENT`, `CONFIRMED`, `FAILED`, `EXPIRED`.
 - Write outbox rows in the same transaction as order state transitions.
@@ -44,12 +52,12 @@ Responsibilities:
 Ingress pipeline:
 
 ```text
-auth -> rate limit -> schema validation -> idempotency check -> DB transaction -> outbox insert -> response
+auth -> rate limit -> schema validation -> gRPC -> idempotency check -> DB transaction -> outbox insert -> response
 ```
 
 Never publish directly to Kafka from the same request transaction. Kafka publication must flow through the outbox relay.
 
-## Rust Inventory Service
+## Rust Service: `inventoryservice`
 
 Responsibilities:
 
@@ -81,14 +89,14 @@ SeatTicketUpgraded
 
 ## Storage Profiles
 
-- Inventory: append-only event store, backed by PostgreSQL event table or RocksDB segments with durable WAL.
-- Order: PostgreSQL tables for orders, payments, and `outbox_events`.
+- `inventoryservice`: append-only event store, backed by PostgreSQL event table or RocksDB segments with durable WAL.
+- `orderservice`: PostgreSQL tables for orders, payments, and `outbox_events`.
 - Read model: Elasticsearch for search-heavy discovery or MongoDB for document-oriented wallet and seat snapshots.
 - Redis: idempotency keys, token buckets, hot layout locks, and short-lived fanout coordination.
 
 ## Event Sourcing and CQRS Mutation
 
-Inventory mutations append events only:
+`inventoryservice` mutations append events only:
 
 ```text
 OrderCreated -> SeatReservationHeld
@@ -97,7 +105,7 @@ PaymentConfirmed -> SeatTicketPurchased
 PaymentFailed -> SeatReservationExpired
 ```
 
-Projection workers consume Kafka and flatten immutable facts into read documents:
+`projectionservice` workers consume Kafka and flatten immutable facts into read documents:
 
 ```text
 inventory.events.v1 -> seat_snapshot[event_id, seat_id]
@@ -105,7 +113,7 @@ inventory.events.v1 -> wallet_ticket[ticket_id]
 order.events.v1     -> order_summary[user_id, order_id]
 ```
 
-Projection writes must be idempotent by `event_id`. Store the last applied event version per aggregate.
+`projectionservice` writes must be idempotent by `event_id`. Store the last applied event version per aggregate.
 
 ## Choreographed Saga Lifecycle
 
@@ -113,32 +121,32 @@ Successful path:
 
 ```text
 1. Client POST /orders idempotency_key=K seat=A-12
-2. Order Service inserts order PENDING and outbox OrderCreated
+2. `orderservice` inserts order PENDING and outbox OrderCreated
 3. Outbox relay publishes OrderCreated to Kafka
-4. Inventory consumes OrderCreated
-5. Inventory appends SeatReservationHeld expected_version=N
-6. Inventory publishes SeatReservationHeld
-7. Projection updates seat as HELD and WebSocket broadcasts
+4. `inventoryservice` consumes OrderCreated
+5. `inventoryservice` appends SeatReservationHeld expected_version=N
+6. `inventoryservice` publishes SeatReservationHeld
+7. `projectionservice` updates seat as HELD and WebSocket broadcasts
 8. Client POST /checkout idempotency_key=K2 reservation_id=R
 9. Payment succeeds and PaymentConfirmed is published
-10. Inventory appends SeatTicketPurchased
-11. Projection marks seat SOLD and wallet ticket ISSUED
-12. Order Service observes PaymentConfirmed and marks CONFIRMED
+10. `inventoryservice` appends SeatTicketPurchased
+11. `projectionservice` marks seat SOLD and wallet ticket ISSUED
+12. `orderservice` observes PaymentConfirmed and marks CONFIRMED
 ```
 
 Payment rejection path:
 
 ```text
-PaymentFailed -> Inventory appends SeatReservationExpired -> Projection marks AVAILABLE -> Order marks FAILED
+PaymentFailed -> `inventoryservice` appends SeatReservationExpired -> `projectionservice` marks AVAILABLE -> `orderservice` marks FAILED
 ```
 
 Timeout path:
 
 ```text
 reservation deadline reached -> expiry scheduler emits ReservationTimeoutDue
-Inventory appends SeatReservationExpired if not purchased
-Projection marks AVAILABLE
-Order marks EXPIRED
+`inventoryservice` appends SeatReservationExpired if not purchased
+`projectionservice` marks AVAILABLE
+`orderservice` marks EXPIRED
 ```
 
 Every event must carry `event_id`, `correlation_id`, `causation_id`, `aggregate_id`, `schema_version`, `occurred_at`, and `signature`.

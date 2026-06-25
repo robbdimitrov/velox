@@ -2,13 +2,17 @@
 
 ## Project Structure & Module Organization
 
-Project Velox is specified as a high-scale event ticket marketplace using Svelte 5, Go, Rust, Kafka, and isolated persistence per service. Keep product and architecture documents in `docs/`. Expected implementation layout:
+Project Velox is specified as a high-scale event ticket marketplace using Svelte 5, Go, Rust, Kafka, and isolated persistence per service. Keep product and architecture documents in `docs/`. Match the sibling project structure:
 
-- `apps/web/`: Svelte 5 frontend, Runes state, WebSocket/SSE clients, seat-map rendering.
-- `services/order-go/`: Go HTTP/gRPC ingress, JWT validation, PostgreSQL outbox, payment orchestration.
-- `services/inventory-rust/`: Rust Tokio inventory validator, event store integration, Kafka consumers/producers.
-- `services/projection-go/`: Kafka projection workers and read APIs backed by Elasticsearch or MongoDB.
-- `infra/`: Kafka, PostgreSQL, Redis, Elasticsearch/MongoDB, observability, and local compose manifests.
+- `apps/frontend/`: Svelte 5 frontend, Runes state, WebSocket/SSE clients, seat-map rendering.
+- `apps/apigateway/`: Go public HTTP API, auth boundary, rate limiting, validation, and gRPC orchestration.
+- `apps/orderservice/`: Go order state, idempotency, reservation tokens, payments, and PostgreSQL outbox.
+- `apps/inventoryservice/`: Rust Tokio inventory validator, event store integration, Kafka consumers/producers.
+- `apps/projectionservice/`: Go Kafka projection workers, read APIs, and WebSocket/SSE fanout.
+- `apps/database/`: PostgreSQL migrations and database bootstrap assets.
+- `pkg/`: shared generated transport contracts such as `pkg/pb`.
+- `deploy/`: Kafka, PostgreSQL, Redis, Elasticsearch/MongoDB, observability, and application manifests.
+- `scripts/`: local development, deployment, and maintenance automation.
 
 ## Build, Test, and Development Commands
 
@@ -27,7 +31,7 @@ Use stack-native formatting: `prettier`/`eslint` for Svelte and TypeScript, `gof
 
 ## Architecture & Service Boundaries
 
-Keep services independently deployable and stateless. State shared across requests or replicas belongs in PostgreSQL, Redis, Kafka, the Inventory event store, or another durable shared system. The Go Order Service owns public command ingress, authentication boundaries, request limits, idempotency checks, and transactional outbox writes. The Rust Inventory Service owns seat availability, reservation expiry, event-sourced stream versions, and double-allocation prevention. Projection services own read-model materialization and must not become write-path authorities.
+Keep services independently deployable and stateless. State shared across requests or replicas belongs in PostgreSQL, Redis, Kafka, the Inventory event store, or another durable shared system. `apigateway` owns public command ingress, authentication boundaries, request limits, and safe error mapping. `orderservice` owns order state, idempotency checks, payment orchestration, and transactional outbox writes. `inventoryservice` owns seat availability, reservation expiry, event-sourced stream versions, and double-allocation prevention. `projectionservice` owns read-model materialization and must not become a write-path authority.
 
 Treat API, gRPC, and Kafka messages as transport DTOs. Map them deliberately at service boundaries instead of leaking generated or wire-format types into domain code. Change event schemas compatibly: preserve field meaning, add rather than repurpose fields, version breaking changes, and keep consumers tolerant of duplicates. Every network call needs an explicit timeout and safe error mapping. Retries require bounded policy and an operation known to be idempotent.
 

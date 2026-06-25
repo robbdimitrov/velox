@@ -1,38 +1,52 @@
-# Project Velox
+# Velox
 
-Project Velox is a high-scale event ticket marketplace designed for flash-sale traffic spikes where hundreds of thousands of users contend for the same venue inventory at once. The target stack is Svelte 5 on the frontend, Go and Rust backend microservices, Apache Kafka as the event backbone, and isolated databases per service.
+**Velox** is a high-scale event ticket marketplace designed for flash-sale traffic spikes where hundreds of thousands of users contend for the same venue inventory at once. The target stack is a Svelte 5 frontend, Go and Rust backend microservices, Apache Kafka as the event backbone, and isolated databases per service.
 
 ## Architecture Summary
 
-Velox uses CQRS and event-driven choreography. Commands enter through the Go Order Service, are persisted with a PostgreSQL transactional outbox, and are streamed to Kafka. The Rust Inventory Service validates seat availability with event-sourced optimistic concurrency and publishes immutable inventory events. Go projection workers flatten Kafka events into Elasticsearch or MongoDB read models consumed by the Svelte UI through fast read APIs, WebSockets, and SSE streams.
+Velox uses CQRS and event-driven choreography. Commands enter through `apigateway`, order writes are persisted by `orderservice` with a PostgreSQL transactional outbox, and durable events are streamed to Kafka. `inventoryservice` validates seat availability with event-sourced optimistic concurrency and publishes immutable inventory events. `projectionservice` flattens Kafka events into Elasticsearch or MongoDB read models consumed by the Svelte UI through fast read APIs, WebSockets, and SSE streams.
 
 ```text
 Svelte 5 Client
   | commands
   v
-Go Order Service -> PostgreSQL Outbox -> CDC -> Kafka
+apigateway -> orderservice -> PostgreSQL Outbox -> CDC -> Kafka
                                              |
                                              v
-Rust Inventory Service -> Event Store -> Kafka inventory events
+inventoryservice -> Event Store -> Kafka inventory events
                                              |
                                              v
-Go Projection Workers -> Elasticsearch/MongoDB -> Read API/WebSockets
+projectionservice -> Elasticsearch/MongoDB -> Read API/WebSockets
 ```
 
-## Specification Index
+## Docs
 
-- [Thematic and Functional Blueprint](docs/thematic-functional-blueprint.md)
-- [Architecture and Consistency Specification](docs/architecture-consistency-security.md)
-- [Operational Edge Cases and Failure Modes](docs/operational-edge-cases.md)
+Architectural specs live in [`docs/`](docs/):
+
+| Doc | Contents |
+|---|---|
+| [architecture.md](docs/architecture.md) | Service topology, consistency model, event choreography, security controls |
+| [frontend.md](docs/frontend.md) | UI direction, discovery, seat selection, checkout, wallet flows |
+| [infrastructure.md](docs/infrastructure.md) | Operational edge cases, Kafka failure modes, cache behavior, backpressure |
 
 ## Initial Service Boundaries
 
-- `apps/web/`: Svelte 5 UI, Runes client state, live event discovery, seat selector, checkout, wallet.
-- `services/order-go/`: HTTP/gRPC ingress, JWT validation, rate limiting, idempotency, transactional outbox.
-- `services/inventory-rust/`: Tokio Kafka consumers, event store append logic, reservation expiry, seat stream concurrency.
-- `services/projection-go/`: Kafka consumers, read-model materializers, WebSocket/SSE fanout.
-- `infra/`: Kafka, Redis, PostgreSQL, Elasticsearch or MongoDB, observability, deployment manifests.
+| Component | Language | Description |
+|---|---|---|
+| `apps/frontend/` | TypeScript | Svelte 5 UI, Runes client state, live event discovery, seat selector, checkout, wallet. |
+| `apps/apigateway/` | Go | Public HTTP API, auth boundary, rate limiting, request validation, gRPC orchestration. |
+| `apps/orderservice/` | Go | Order state, idempotency, reservation tokens, payment orchestration, transactional outbox. |
+| `apps/inventoryservice/` | Rust | Tokio Kafka consumers, event store append logic, reservation expiry, seat stream concurrency. |
+| `apps/projectionservice/` | Go | Kafka consumers, read-model materializers, read APIs, WebSocket/SSE fanout. |
+| `apps/database/` | PostgreSQL | Versioned schema migrations for service-owned relational stores. |
+| `pkg/` | Protobuf | Shared generated transport contracts such as `pkg/pb`. |
+| `deploy/` | Kubernetes | Kafka, Redis, PostgreSQL, Elasticsearch or MongoDB, observability, and application manifests. |
+| `scripts/` | Shell | Local development, deployment, and maintenance automation. |
 
 ## Current Status
 
 This repository currently contains initial documentation only. No runtime service scaffolding, package manifests, CI, or local infrastructure files have been added yet.
+
+## License
+
+Licensed under the [MIT](LICENSE) License.

@@ -1,4 +1,4 @@
-# Thematic and Functional Blueprint
+# Frontend
 
 ## Design Direction
 
@@ -25,7 +25,7 @@ Layout:
 
 Implementation rules:
 
-- Query only read models. Never call Order or Inventory from discovery.
+- Query only read models. Never call `orderservice` or `inventoryservice` from discovery.
 - Cache hot discovery responses at the CDN for 1 second with stale-while-revalidate.
 - `EventCard.svelte` derives scarcity badges from streamed read data using Svelte 5 Runes.
 - `LiveTicker.svelte` consumes SSE and appends bounded messages into an in-memory ring buffer.

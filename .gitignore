@@ -2,7 +2,7 @@
 .DS_Store
 Thumbs.db
 
-# Build & Compilation
+# Build
 dist/
 build/
 .svelte-kit/
@@ -32,7 +32,7 @@ coverage/
 .env.*
 !.env.example
 
-# Editor & IDEs
+# Editors
 .vscode/
 *.code-workspace
 .idea/

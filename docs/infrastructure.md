@@ -1,4 +1,4 @@
-# Operational Edge Cases and Failure Modes
+# Infrastructure
 
 ## Cache Stampede on Hot Stadium Layouts
 
@@ -92,8 +92,8 @@ Failure mode:
 
 Required controls:
 
-1. The Inventory Service owns reservation deadlines.
-2. `SeatReservationHeld` stores `expires_at_server_ms` computed by Inventory using a monotonic clock plus persisted wall timestamp.
+1. `inventoryservice` owns reservation deadlines.
+2. `SeatReservationHeld` stores `expires_at_server_ms` computed by `inventoryservice` using a monotonic clock plus persisted wall timestamp.
 3. Clients display countdown from server time offset, but cannot extend or validate holds.
 4. Expiry append uses compare-and-append:
 
@@ -158,6 +158,6 @@ Ingress must preserve correctness over availability for mutation endpoints.
 Rules:
 
 - Discovery endpoints can serve stale cached data.
-- Reservation endpoints return `429` or `503` when Redis, Kafka, or Inventory health is degraded.
+- Reservation endpoints return `429` or `503` when Redis, Kafka, or `inventoryservice` health is degraded.
 - Checkout must fail closed if idempotency storage is unavailable.
 - WebSocket gateways should drop nonessential ticker messages before seat-state messages.
