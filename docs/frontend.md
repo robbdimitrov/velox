@@ -1,5 +1,15 @@
 # Frontend
 
+## Stack
+
+| Item | Value |
+|---|---|
+| Framework | SvelteKit SSR, Svelte 5 |
+| Language | TypeScript |
+| Styling | Tailwind |
+| Components | DaisyUI |
+| Icons | Lucide |
+
 ## Design Direction
 
 Velox uses brutalist-clean minimalism for live entertainment under extreme demand. The base surface is deep carbon `#0F0F11`; interface structure uses thin slate lines, square geometry, dense grids, and high-contrast typography. State color must be functional, not decorative:

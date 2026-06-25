@@ -3,8 +3,8 @@
 ## System Topology
 
 ```text
-Svelte 5 Client
-  | POST /orders, /checkout
+SvelteKit SSR Client
+  | POST /reservations, /reservations/{reservation_id}/confirm
   v
 apigateway
   | gRPC
@@ -26,9 +26,13 @@ projectionservice -> Elasticsearch/MongoDB -> Read API/WebSockets/SSE
 
 Each service owns its database. Cross-service joins are forbidden on the write path. Kafka is the append-only integration log for choreography, projections, audit, and replay.
 
-## Frontend UI: Svelte 5
+## Frontend UI
 
-- Use Runes for local reactive primitives: selected seats, filter state, countdown offsets, and WebSocket deltas.
+- Use SvelteKit SSR as the browser-facing application boundary.
+- Use Svelte 5 with Runes for selected seats, filter state, countdown offsets, and WebSocket deltas.
+- Use Tailwind for layout and utility styling.
+- Use DaisyUI for accessible, themeable controls where it fits the product UI.
+- Use Lucide icons for actions, navigation, and tool buttons.
 - Use Canvas for individual seat nodes once a section exceeds 1,000 seats; use SVG for low-density sections and semantic outlines.
 - Maintain a local `seatVersionById` map. Apply only monotonic updates.
 - Route all queries through read APIs or edge-cached endpoints.
@@ -120,14 +124,14 @@ order.events.v1     -> order_summary[user_id, order_id]
 Successful path:
 
 ```text
-1. Client POST /orders idempotency_key=K seat=A-12
+1. Client POST /reservations idempotency_key=K seat=A-12
 2. `orderservice` inserts order PENDING and outbox OrderCreated
 3. Outbox relay publishes OrderCreated to Kafka
 4. `inventoryservice` consumes OrderCreated
 5. `inventoryservice` appends SeatReservationHeld expected_version=N
 6. `inventoryservice` publishes SeatReservationHeld
 7. `projectionservice` updates seat as HELD and WebSocket broadcasts
-8. Client POST /checkout idempotency_key=K2 reservation_id=R
+8. Client POST /reservations/{reservation_id}/confirm idempotency_key=K2
 9. Payment succeeds and PaymentConfirmed is published
 10. `inventoryservice` appends SeatTicketPurchased
 11. `projectionservice` marks seat SOLD and wallet ticket ISSUED
@@ -178,7 +182,7 @@ Rules:
 
 ## Idempotency Protocol
 
-The frontend generates UUIDv7 or UUIDv4 keys for reserve and checkout commands.
+The frontend generates UUIDv7 or UUIDv4 keys for reserve and confirmation commands.
 
 Redis key format:
 
@@ -200,7 +204,7 @@ Payment providers must receive the same idempotency key to prevent duplicate cha
 - Validate JWT issuer, audience, expiry, subject, and scopes at ingress.
 - Never trust user-supplied price, seat status, expiry, or fee totals.
 - Use Redis token buckets per IP, account, device fingerprint, event, and endpoint.
-- Apply stricter buckets to `/orders` and `/checkout` than discovery reads.
+- Apply stricter buckets to `/reservations` and reservation confirmation than discovery reads.
 - Sign Kafka events with service credentials. Consumers verify signature, schema version, and producer identity before applying events.
 - Encrypt secrets through deployment secret stores. Do not place secrets in repo files.
 - Log correlation IDs, not card data or raw tokens.

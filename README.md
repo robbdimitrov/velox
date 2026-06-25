@@ -1,13 +1,13 @@
 # Velox
 
-**Velox** is a high-scale event ticket marketplace designed for flash-sale traffic spikes where hundreds of thousands of users contend for the same venue inventory at once. The target stack is a Svelte 5 frontend, Go and Rust backend microservices, Apache Kafka as the event backbone, and isolated databases per service.
+**Velox** is a high-scale event ticket marketplace designed for flash-sale traffic spikes where hundreds of thousands of users contend for the same venue inventory at once. The target stack is SvelteKit SSR with Svelte 5, Tailwind, DaisyUI, and Lucide icons on the frontend, Go and Rust backend microservices, Apache Kafka as the event backbone, and isolated databases per service.
 
 ## Architecture Summary
 
 Velox uses CQRS and event-driven choreography. Commands enter through `apigateway`, order writes are persisted by `orderservice` with a PostgreSQL transactional outbox, and durable events are streamed to Kafka. `inventoryservice` validates seat availability with event-sourced optimistic concurrency and publishes immutable inventory events. `projectionservice` flattens Kafka events into Elasticsearch or MongoDB read models consumed by the Svelte UI through fast read APIs, WebSockets, and SSE streams.
 
 ```text
-Svelte 5 Client
+SvelteKit SSR Client
   | commands
   v
 apigateway -> orderservice -> PostgreSQL Outbox -> CDC -> Kafka
@@ -33,7 +33,7 @@ Architectural specs live in [`docs/`](docs/):
 
 | Component | Language | Description |
 |---|---|---|
-| `apps/frontend/` | TypeScript | Svelte 5 UI, Runes client state, live event discovery, seat selector, checkout, wallet. |
+| `apps/frontend/` | TypeScript | SvelteKit SSR app with Svelte 5, Tailwind, DaisyUI, Lucide icons, Runes client state, live event discovery, seat selector, checkout, wallet. |
 | `apps/apigateway/` | Go | Public HTTP API, auth boundary, rate limiting, request validation, gRPC orchestration. |
 | `apps/orderservice/` | Go | Order state, idempotency, reservation tokens, payment orchestration, transactional outbox. |
 | `apps/inventoryservice/` | Rust | Tokio Kafka consumers, event store append logic, reservation expiry, seat stream concurrency. |

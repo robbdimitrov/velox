@@ -1,0 +1,250 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: velox-service-config
+  namespace: velox
+data:
+  KAFKA_BROKERS: redpanda.velox.svc.cluster.local:9092
+  REDIS_ADDR: dragonfly.velox.svc.cluster.local:6379
+  ORDER_EVENTS_TOPIC: order.events.v1
+  INVENTORY_EVENTS_TOPIC: inventory.events.v1
+  PAYMENT_EVENTS_TOPIC: payment.events.v1
+  POSTGRES_DB: velox
+  POSTGRES_USER: velox
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: velox-runtime
+  namespace: velox
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apigateway
+  namespace: velox
+  labels:
+    app.kubernetes.io/name: apigateway
+    app.kubernetes.io/part-of: velox
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: apigateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: apigateway
+        app.kubernetes.io/part-of: velox
+    spec:
+      serviceAccountName: velox-runtime
+      containers:
+        - name: apigateway
+          image: ghcr.io/example/velox-apigateway:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: velox-service-config
+          env:
+            - name: ORDER_SERVICE_ADDR
+              value: orderservice.velox.svc.cluster.local:9000
+            - name: JWT_ISSUER
+              valueFrom:
+                secretKeyRef:
+                  name: velox-auth-secret
+                  key: issuer
+            - name: JWT_AUDIENCE
+              valueFrom:
+                secretKeyRef:
+                  name: velox-auth-secret
+                  key: audience
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: apigateway
+  namespace: velox
+spec:
+  selector:
+    app.kubernetes.io/name: apigateway
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orderservice
+  namespace: velox
+  labels:
+    app.kubernetes.io/name: orderservice
+    app.kubernetes.io/part-of: velox
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: orderservice
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: orderservice
+        app.kubernetes.io/part-of: velox
+    spec:
+      serviceAccountName: velox-runtime
+      containers:
+        - name: orderservice
+          image: ghcr.io/example/velox-orderservice:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: grpc
+              containerPort: 9000
+          envFrom:
+            - configMapRef:
+                name: velox-service-config
+          env:
+            - name: DATABASE_HOST
+              value: postgres.velox.svc.cluster.local
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: velox-postgres-secret
+                  key: password
+            - name: KAFKA_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: velox-kafka-signing-secret
+                  key: key
+          readinessProbe:
+            grpc:
+              port: 9000
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orderservice
+  namespace: velox
+spec:
+  selector:
+    app.kubernetes.io/name: orderservice
+  ports:
+    - name: grpc
+      port: 9000
+      targetPort: grpc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventoryservice
+  namespace: velox
+  labels:
+    app.kubernetes.io/name: inventoryservice
+    app.kubernetes.io/part-of: velox
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: inventoryservice
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: inventoryservice
+        app.kubernetes.io/part-of: velox
+    spec:
+      serviceAccountName: velox-runtime
+      containers:
+        - name: inventoryservice
+          image: ghcr.io/example/velox-inventoryservice:dev
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: velox-service-config
+          env:
+            - name: DATABASE_HOST
+              value: postgres.velox.svc.cluster.local
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: velox-postgres-secret
+                  key: password
+            - name: KAFKA_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: velox-kafka-signing-secret
+                  key: key
+            - name: KAFKA_VERIFYING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: velox-kafka-signing-secret
+                  key: key
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: projectionservice
+  namespace: velox
+  labels:
+    app.kubernetes.io/name: projectionservice
+    app.kubernetes.io/part-of: velox
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: projectionservice
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: projectionservice
+        app.kubernetes.io/part-of: velox
+    spec:
+      serviceAccountName: velox-runtime
+      containers:
+        - name: projectionservice
+          image: ghcr.io/example/velox-projectionservice:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: velox-service-config
+          env:
+            - name: DATABASE_HOST
+              value: postgres.velox.svc.cluster.local
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: velox-postgres-secret
+                  key: password
+            - name: KAFKA_VERIFYING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: velox-kafka-signing-secret
+                  key: key
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: projectionservice
+  namespace: velox
+spec:
+  selector:
+    app.kubernetes.io/name: projectionservice
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
