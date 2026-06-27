@@ -4,7 +4,7 @@
 
 ## Features
 
-- **Buyer reservations**: Seeded buyer login, event discovery, SVG seat map, multi-seat hold, countdown, confirm flow, and order history.
+- **Seat reservations**: Seeded reserver login, event discovery, SVG seat map, multi-seat hold, countdown, confirm flow, and order history.
 - **Vendor dashboard**: Seeded vendor login, owned event view, live inventory counts, active holds, and confirmed orders.
 - **Idempotent commands**: Reservation requests require `Idempotency-Key`; duplicate matching requests return the original order while conflicting bodies are rejected.
 - **Seat correctness**: Seat holds are locked in PostgreSQL for the MVP, with reservation ownership checks before confirmation and stale hold cleanup before reuse.
@@ -15,7 +15,7 @@
 ## Architecture
 
 ```mermaid
-graph LR
+graph TD
     Browser["Browser"]
 
     subgraph cluster ["Kubernetes Cluster"]
@@ -54,19 +54,21 @@ graph LR
     Views --> DB
 
     %% Standardized Accessible Color Palette
-    classDef frontend fill:#0284c7,stroke:#0369a1,stroke-width:2px,color:#fff
-    classDef gateway fill:#4f46e5,stroke:#4338ca,stroke-width:2px,color:#fff
-    classDef backend fill:#059669,stroke:#047857,stroke-width:2px,color:#fff
-    classDef database fill:#d97706,stroke:#b45309,stroke-width:2px,color:#fff
+    classDef frontend fill:#0ea5e9,stroke:#0284c7,stroke-width:2px,color:#fff
+    classDef gateway fill:#6366f1,stroke:#4f46e5,stroke-width:2px,color:#fff
+    classDef backend fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff
+    classDef database fill:#f59e0b,stroke:#d97706,stroke-width:2px,color:#fff
     classDef cache fill:#dc2626,stroke:#b91c1c,stroke-width:2px,color:#fff
-    classDef broker fill:#ea580c,stroke:#c2410c,stroke-width:2px,color:#fff
-    classDef storage fill:#7c3aed,stroke:#6d28d9,stroke-width:2px,color:#fff
-    classDef relay fill:#475569,stroke:#334155,stroke-width:2px,color:#fff
+    classDef broker fill:#06b6d4,stroke:#0891b2,stroke-width:2px,color:#fff
+
+    style cluster fill:transparent,stroke:#64748b
+    style services fill:transparent,stroke:transparent
+    style data fill:transparent,stroke:transparent
 ```
 
 | Service | Language | Description |
 | --- | --- | --- |
-| [frontend](apps/frontend) | TypeScript | SvelteKit SSR buyer and vendor UI with Tailwind, DaisyUI, Lucide icons, live seat state, and checkout. |
+| [frontend](apps/frontend) | TypeScript | SvelteKit SSR reserver and vendor UI with Tailwind, DaisyUI, Lucide icons, live seat state, and checkout. |
 | [apigateway](apps/apigateway) | Go | Public HTTP API, dev login, JWT session cookies, role checks, request bounds, and reservation orchestration. |
 | [orderservice](apps/orderservice) | Go | Order state, idempotency, reservation confirmation, and transactional outbox behavior. |
 | [seatservice](apps/seatservice) | Rust | Seat stream concurrency rules, version checks, hold expiry, and ticket issuing rules. |

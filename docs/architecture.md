@@ -85,7 +85,7 @@ Core event types:
 SeatReservationHeld
 SeatReservationFailed
 SeatReservationExpired
-SeatTicketPurchased
+SeatReservationConfirmed
 SeatTicketTransferred
 SeatTicketUsed
 SeatTicketUpgraded
@@ -105,7 +105,7 @@ SeatTicketUpgraded
 ```text
 OrderCreated -> SeatReservationHeld
 hold expires -> SeatReservationExpired
-PaymentConfirmed -> SeatTicketPurchased
+PaymentConfirmed -> SeatReservationConfirmed
 PaymentFailed -> SeatReservationExpired
 ```
 
@@ -133,7 +133,7 @@ Successful path:
 7. `viewservice` updates seat as HELD and WebSocket broadcasts
 8. Client POST /reservations/{reservation_id}/confirm idempotency_key=K2
 9. Payment succeeds and PaymentConfirmed is published
-10. `seatservice` appends SeatTicketPurchased
+10. `seatservice` appends SeatReservationConfirmed
 11. `viewservice` marks seat SOLD and wallet ticket ISSUED
 12. `orderservice` observes PaymentConfirmed and marks CONFIRMED
 ```
@@ -148,7 +148,7 @@ Timeout path:
 
 ```text
 reservation deadline reached -> expiry scheduler emits ReservationTimeoutDue
-`seatservice` appends SeatReservationExpired if not purchased
+`seatservice` appends SeatReservationExpired if not confirmed
 `viewservice` marks AVAILABLE
 `orderservice` marks EXPIRED
 ```

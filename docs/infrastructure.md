@@ -118,7 +118,7 @@ Kafka partition keys must preserve ordering for a seat aggregate:
 key = event_id + ":" + section_id + ":" + seat_id
 ```
 
-This ensures `SeatReservationHeld`, `SeatReservationExpired`, and `SeatTicketPurchased` are consumed in sequence for the same seat. For event-wide projections, consumers must handle cross-seat ordering as eventually consistent.
+This ensures `SeatReservationHeld`, `SeatReservationExpired`, and `SeatReservationConfirmed` are consumed in sequence for the same seat. For event-wide projections, consumers must handle cross-seat ordering as eventually consistent.
 
 ## Projection Lag and User Experience
 
