@@ -141,6 +141,7 @@ ensure_dev_secrets() {
 apply_manifests() {
   log "applying manifests"
   apply_file "$DEPLOY_DIR/namespace.yaml"
+  apply_file "$DEPLOY_DIR/networkpolicies.yaml"
   if [[ -z "$DRY_RUN" ]]; then
     ensure_namespace
   fi

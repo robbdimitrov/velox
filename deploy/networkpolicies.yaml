@@ -1,0 +1,179 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: velox
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-ingress
+  namespace: velox
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: frontend
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: apigateway-ingress
+  namespace: velox
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: apigateway
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: frontend
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: orderservice-ingress
+  namespace: velox
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: orderservice
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: apigateway
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: viewservice-ingress
+  namespace: velox
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: viewservice
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: apigateway
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: seatservice-ingress
+  namespace: velox
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: seatservice
+  policyTypes:
+    - Ingress
+  ingress: [] # Seatservice receives NO synchronous HTTP traffic from other pods
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-ingress
+  namespace: velox
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: apigateway
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: orderservice
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: seatservice
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: viewservice
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redpanda-ingress
+  namespace: velox
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: redpanda
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: orderservice
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: seatservice
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: viewservice
+      ports:
+        - protocol: TCP
+          port: 9092
+        - protocol: TCP
+          port: 9644
+        - protocol: TCP
+          port: 8081
+        - protocol: TCP
+          port: 8082
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dragonfly-ingress
+  namespace: velox
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: dragonfly
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: apigateway
+      ports:
+        - protocol: TCP
+          port: 6379
