@@ -1,7 +1,11 @@
 package api
 
 import (
+	"context"
+	"log/slog"
 	"net/http"
+
+	"github.com/google/uuid"
 )
 
 func (s *Server) Routes() http.Handler {
@@ -22,5 +26,34 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /vendor/events", s.requireRole(RoleVendor, s.handleVendorEvents))
 	mux.HandleFunc("GET /vendor/events/{eventId}/orders", s.requireRole(RoleVendor, s.handleVendorOrders))
 	mux.HandleFunc("GET /vendor/events/{eventId}/inventory", s.requireRole(RoleVendor, s.handleVendorInventory))
-	return limitBody(mux, 1<<20)
+	mux.HandleFunc("GET /vendor/metrics/stream", s.requireRole(RoleVendor, s.handleVendorMetricsStream))
+	handler := limitBody(mux, 1<<20)
+	return tracingMiddleware(handler)
+}
+
+type contextKey string
+
+const RequestIDKey contextKey = "request_id"
+
+func tracingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqID := r.Header.Get("X-Request-ID")
+		if reqID == "" {
+			reqID = uuid.NewString()
+		}
+
+		ctx := context.WithValue(r.Context(), RequestIDKey, reqID)
+		r = r.WithContext(ctx)
+
+		w.Header().Set("X-Request-ID", reqID)
+
+		slog.Info("incoming request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"request_id", reqID,
+			"remote_addr", r.RemoteAddr,
+		)
+
+		next.ServeHTTP(w, r)
+	})
 }

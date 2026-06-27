@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -23,10 +23,11 @@ func main() {
 		var err error
 		store, err = api.OpenPostgresStore(context.Background(), databaseURL)
 		if err != nil {
-			log.Fatalf("open postgres store: %v", err)
+			slog.Error("open postgres store failed", "error", err)
+			os.Exit(1)
 		}
 		defer store.Close()
-		log.Print("apigateway using PostgreSQL reservation store")
+		slog.Info("apigateway using PostgreSQL reservation store")
 	}
 	server := api.NewServerWithStore(secret, store)
 
@@ -34,6 +35,9 @@ func main() {
 		server.SetOrderServiceURL("http://" + os.Getenv("ORDER_SERVICE_ADDR") + "/orders")
 	}
 
-	log.Printf("apigateway listening on %s", addr)
-	log.Fatal(http.ListenAndServe(addr, server.Routes()))
+	slog.Info("apigateway listening", "addr", addr)
+	if err := http.ListenAndServe(addr, server.Routes()); err != nil {
+		slog.Error("server error", "error", err)
+		os.Exit(1)
+	}
 }

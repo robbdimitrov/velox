@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -19,16 +19,29 @@ func main() {
 	}
 	dbURL := os.Getenv("VELOX_DATABASE_URL")
 	if dbURL == "" {
-		dbURL = "postgres://postgres:postgres@localhost:5432/velox?sslmode=disable"
+		dbURL = os.Getenv("DATABASE_URL")
+		if dbURL == "" {
+			dbHost := os.Getenv("DATABASE_HOST")
+			dbPass := os.Getenv("POSTGRES_PASSWORD")
+			if dbHost != "" && dbPass != "" {
+				dbURL = "postgres://velox:" + dbPass + "@" + dbHost + ":5432/velox?sslmode=disable"
+			} else {
+				dbURL = "postgres://velox:velox@localhost:5432/velox?sslmode=disable"
+			}
+		}
 	}
 	kafkaBrokers := os.Getenv("VELOX_KAFKA_BROKERS")
 	if kafkaBrokers == "" {
-		kafkaBrokers = "localhost:9092"
+		kafkaBrokers = os.Getenv("KAFKA_BROKERS")
+		if kafkaBrokers == "" {
+			kafkaBrokers = "localhost:9092"
+		}
 	}
 
 	store, err := internal.NewStore(dbURL)
 	if err != nil {
-		log.Fatalf("failed to connect to db: %v", err)
+		slog.Error("failed", "error", err)
+		os.Exit(1)
 	}
 	defer store.Close()
 
@@ -38,7 +51,8 @@ func main() {
 		kgo.ConsumerGroup("orderservice"),
 	)
 	if err != nil {
-		log.Fatalf("failed to create kafka client: %v", err)
+		slog.Error("failed", "error", err)
+		os.Exit(1)
 	}
 	defer cl.Close()
 
@@ -57,6 +71,29 @@ func main() {
 	})
 	mux.HandleFunc("POST /orders", api.HandleCreateOrder)
 
-	log.Printf("orderservice listening on %s", addr)
-	log.Fatal(http.ListenAndServe(addr, mux))
+	slog.Info("orderservice listening", "addr", addr)
+	if err := http.ListenAndServe(addr, tracingMiddleware(mux)); err != nil {
+		slog.Error("server error", "error", err)
+		os.Exit(1)
+	}
+}
+
+const RequestIDKey string = "request_id"
+
+func tracingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqID := r.Header.Get("X-Request-ID")
+		if reqID != "" {
+			ctx := context.WithValue(r.Context(), RequestIDKey, reqID)
+			r = r.WithContext(ctx)
+		}
+
+		slog.Info("incoming request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"request_id", reqID,
+		)
+
+		next.ServeHTTP(w, r)
+	})
 }

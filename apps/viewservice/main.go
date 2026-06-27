@@ -38,7 +38,10 @@ func main() {
 	}
 	kafkaBrokers := os.Getenv("VELOX_KAFKA_BROKERS")
 	if kafkaBrokers == "" {
-		kafkaBrokers = "localhost:9092"
+		kafkaBrokers = os.Getenv("KAFKA_BROKERS")
+		if kafkaBrokers == "" {
+			kafkaBrokers = "localhost:9092"
+		}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -127,15 +130,23 @@ func consumeEvents(ctx context.Context, cl *kgo.Client, store EventStore, wg *sy
 		}
 
 		fetches.EachRecord(func(record *kgo.Record) {
+			var reqID string
+			for _, h := range record.Headers {
+				if h.Key == "X-Request-ID" {
+					reqID = string(h.Value)
+				}
+			}
+
 			var event internal.Event
 			if err := json.Unmarshal(record.Value, &event); err != nil {
-				slog.Error("failed to unmarshal event", "error", err)
+				slog.Error("failed to unmarshal event", "error", err, "request_id", reqID)
 				return
 			}
 			
+			slog.Info("processing event", "topic", record.Topic, "type", event.Type, "request_id", reqID)
 			err := store.ApplyEvent(ctx, event, record.Topic, record.Partition, record.Offset)
 			if err != nil {
-				slog.Error("failed to apply event", "topic", record.Topic, "offset", record.Offset, "error", err)
+				slog.Error("failed to apply event", "topic", record.Topic, "offset", record.Offset, "error", err, "request_id", reqID)
 			} else {
 				// Manually commit offsets after successful processing
 				cl.CommitRecords(ctx, record)

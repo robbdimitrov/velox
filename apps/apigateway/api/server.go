@@ -20,8 +20,9 @@ type Server struct {
 	idempotency map[string]idempotencyRecord
 	loginFails  map[string]loginFailure
 	store       *PostgresStore
-	seatClients map[string]map[chan string]struct{}
-	httpClient  *http.Client
+	seatClients   map[string]map[chan string]struct{}
+	vendorClients map[string]map[chan string]struct{}
+	httpClient    *http.Client
 	orderSvcURL string
 }
 
@@ -37,11 +38,13 @@ func NewServerWithStore(secret string, store *PostgresStore) *Server {
 		idempotency: map[string]idempotencyRecord{},
 		loginFails:  map[string]loginFailure{},
 		store:       store,
-		seatClients: map[string]map[chan string]struct{}{},
-		httpClient:  http.DefaultClient,
+		seatClients:   map[string]map[chan string]struct{}{},
+		vendorClients: map[string]map[chan string]struct{}{},
+		httpClient:    http.DefaultClient,
 	}
 	if store != nil {
 		go s.listenSeatUpdates()
+		go s.listenVendorUpdates()
 	}
 	s.seed()
 	return s
@@ -120,4 +123,27 @@ func (s *Server) seed() {
 		}
 	}
 	s.events[event.ID] = event
+}
+
+func (s *Server) listenVendorUpdates() {
+	for {
+		err := s.store.ListenVendorUpdates(context.Background(), func(payload string) {
+			var msg struct {
+				EventID string `json:"event_id"`
+			}
+			if err := json.Unmarshal([]byte(payload), &msg); err == nil && msg.EventID != "" {
+				s.mu.Lock()
+				for ch := range s.vendorClients[msg.EventID] {
+					select {
+					case ch <- payload:
+					default:
+					}
+				}
+				s.mu.Unlock()
+			}
+		})
+		if err != nil {
+			time.Sleep(1 * time.Second)
+		}
+	}
 }
