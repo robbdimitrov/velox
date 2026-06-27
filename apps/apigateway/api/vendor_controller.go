@@ -1,7 +1,10 @@
 package api
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"time"
 )
 
 func (s *Server) handleVendorEvents(w http.ResponseWriter, r *http.Request, user User) {
@@ -65,4 +68,75 @@ func (s *Server) vendorOwnsEvent(eventID string, user User) bool {
 	defer s.mu.Unlock()
 	event, ok := s.events[eventID]
 	return ok && event.VendorID == user.VendorID
+}
+
+func (s *Server) handleVendorMetricsStream(w http.ResponseWriter, r *http.Request, user User) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "streaming_unsupported")
+		return
+	}
+
+	// For simplicity, we listen to all events for this vendor or a specific event if eventId is query param?
+	// The frontend connects to `/vendor/metrics/stream` (no event ID). We'll assume the first event for the vendor.
+	
+	s.mu.Lock()
+	var eventID string
+	for _, event := range s.events {
+		if event.VendorID == user.VendorID {
+			eventID = event.ID
+			break
+		}
+	}
+	s.mu.Unlock()
+
+	if eventID == "" {
+		writeError(w, http.StatusNotFound, "event_not_found")
+		return
+	}
+
+	sendMetrics := func() {
+		if s.store != nil {
+			metrics, err := s.store.GetVendorMetrics(r.Context(), eventID)
+			if err == nil {
+				payload, _ := json.Marshal(metrics)
+				fmt.Fprintf(w, "data: %s\n\n", payload)
+				flusher.Flush()
+			}
+		}
+	}
+
+	sendMetrics()
+
+	ch := make(chan string, 10)
+	s.mu.Lock()
+	if s.vendorClients[eventID] == nil {
+		s.vendorClients[eventID] = make(map[chan string]struct{})
+	}
+	s.vendorClients[eventID][ch] = struct{}{}
+	s.mu.Unlock()
+
+	defer func() {
+		s.mu.Lock()
+		delete(s.vendorClients[eventID], ch)
+		s.mu.Unlock()
+	}()
+
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ch:
+			sendMetrics()
+		case <-ticker.C:
+			// Heartbeat can just re-send metrics
+			sendMetrics()
+		}
+	}
 }

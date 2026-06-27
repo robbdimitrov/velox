@@ -31,7 +31,8 @@ type Order struct {
 	OrderID string
 	UserID  string
 	EventID string
-	Status  string
+	Status           string
+	TotalAmountMinor int64 `json:"total_amount_minor"`
 }
 
 type Projector struct {

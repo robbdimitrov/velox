@@ -112,17 +112,35 @@ func (s *PostgresStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 			return err
 		}
 
+		vendorNotificationPayload, err := json.Marshal(map[string]interface{}{
+			"event_id": event.Seat.EventID,
+		})
+		if err == nil {
+			_, _ = tx.ExecContext(ctx, fmt.Sprintf("NOTIFY vendor_updates, '%s'", string(vendorNotificationPayload)))
+		}
+
 	case "OrderCreated", "OrderConfirmed", "OrderExpired":
 		// Handle Order projection
 		_, err = tx.ExecContext(ctx, `
-			INSERT INTO projection.order_summaries (order_id, user_id, status, total_amount_minor, currency)
-			VALUES ($1, $2, $3, 0, 'USD')
+			INSERT INTO projection.order_summaries (order_id, user_id, status, total_amount_minor, currency, event_id)
+			VALUES ($1, $2, $3, $4, 'USD', $5)
 			ON CONFLICT (order_id) DO UPDATE SET
 				status = EXCLUDED.status,
+				total_amount_minor = EXCLUDED.total_amount_minor,
+				event_id = EXCLUDED.event_id,
 				updated_at = now()
-		`, event.Order.OrderID, event.Order.UserID, event.Order.Status)
+		`, event.Order.OrderID, event.Order.UserID, event.Order.Status, event.Order.TotalAmountMinor, event.Order.EventID)
 		if err != nil {
 			return err
+		}
+		
+		if event.Order.EventID != "" {
+			vendorNotificationPayload, err := json.Marshal(map[string]interface{}{
+				"event_id": event.Order.EventID,
+			})
+			if err == nil {
+				_, _ = tx.ExecContext(ctx, fmt.Sprintf("NOTIFY vendor_updates, '%s'", string(vendorNotificationPayload)))
+			}
 		}
 	}
 

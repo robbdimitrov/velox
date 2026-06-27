@@ -76,6 +76,9 @@ func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	if reqID, ok := r.Context().Value(RequestIDKey).(string); ok {
+		httpReq.Header.Set("X-Request-ID", reqID)
+	}
 
 	resp, err := s.httpClient.Do(httpReq)
 	if err != nil {
@@ -94,8 +97,8 @@ func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request,
 	}
 
 	var upstreamOrder struct {
-		OrderID string `json:"OrderID"`
-		Status  string `json:"Status"`
+		OrderID string `json:"order_id"`
+		Status  string `json:"status"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&upstreamOrder); err != nil {
 		writeError(w, http.StatusInternalServerError, "upstream_error")

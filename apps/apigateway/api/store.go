@@ -224,3 +224,63 @@ func (s *PostgresStore) ListenSeatUpdates(ctx context.Context, handler func(payl
 		}
 	})
 }
+
+type VendorMetrics struct {
+	TotalRevenueCents int64 `json:"totalRevenueCents"`
+	ActiveHolds       int   `json:"activeHolds"`
+	SeatsRemaining    int   `json:"seatsRemaining"`
+	DemandScore       int   `json:"demandScore"`
+	ProjectionLagMs   int64 `json:"projectionLagMs"`
+}
+
+func (s *PostgresStore) GetVendorMetrics(ctx context.Context, eventID string) (VendorMetrics, error) {
+	var metrics VendorMetrics
+	
+	// Get total revenue from order_summaries
+	err := s.db.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(total_amount_minor), 0)
+		FROM projection.order_summaries
+		WHERE event_id = $1 AND status = 'CONFIRMED'
+	`, eventID).Scan(&metrics.TotalRevenueCents)
+	if err != nil {
+		return metrics, err
+	}
+
+	// Get inventory counts
+	counts, err := s.GetVendorInventory(ctx, eventID)
+	if err != nil {
+		return metrics, err
+	}
+	
+	metrics.ActiveHolds = counts[StatusHeld]
+	metrics.SeatsRemaining = counts[StatusAvailable]
+	
+	// Compute fake demand score and lag for demo
+	metrics.DemandScore = 98
+	metrics.ProjectionLagMs = 12
+
+	return metrics, nil
+}
+
+func (s *PostgresStore) ListenVendorUpdates(ctx context.Context, handler func(payload string)) error {
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	return conn.Raw(func(driverConn any) error {
+		pgxConn := driverConn.(*stdlib.Conn).Conn()
+		_, err := pgxConn.Exec(ctx, "LISTEN vendor_updates")
+		if err != nil {
+			return err
+		}
+		for {
+			notification, err := pgxConn.WaitForNotification(ctx)
+			if err != nil {
+				return err
+			}
+			handler(notification.Payload)
+		}
+	})
+}

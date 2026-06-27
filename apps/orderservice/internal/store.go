@@ -106,22 +106,36 @@ func (s *Store) CreateOrder(ctx context.Context, req OrderRequest) (string, erro
 		}
 	}
 
-	eventPayload := OrderEvent{
-		OrderID:   orderID,
-		UserID:    req.UserID,
-		EventID:   req.EventID,
-		SectionID: req.SectionID,
-		SeatIDs:   req.SeatIDs,
-		Status:    "PENDING",
-		CreatedAt: time.Now(),
+
+	envelope := map[string]any{
+		"Type": "OrderCreated",
+		"Order": map[string]any{
+			"order_id":       orderID,
+			"user_id":        req.UserID,
+			"event_id":       req.EventID,
+			"section_id":     req.SectionID,
+			"seat_ids":       req.SeatIDs,
+			"reservation_id": orderID,
+			"status":             "PENDING",
+			"total_amount_minor": total,
+			"created_at":         time.Now(),
+		},
 	}
-	payloadBytes, _ := json.Marshal(eventPayload)
+	payloadBytes, _ := json.Marshal(envelope)
 	eventID := uuid.New().String()
 
+	headers := map[string]string{}
+	// Since we are in orderservice package 'internal', we don't have access to 'main.RequestIDKey'
+	// Wait, I will use a string key or define it in 'internal'
+	if reqID, ok := ctx.Value("request_id").(string); ok && reqID != "" {
+		headers["X-Request-ID"] = reqID
+	}
+	headersBytes, _ := json.Marshal(headers)
+
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO orders.outbox_events (id, aggregate_type, aggregate_id, event_type, payload)
-		VALUES ($1, 'order', $2, 'OrderCreated', $3)
-	`, eventID, orderID, payloadBytes)
+		INSERT INTO orders.outbox_events (id, aggregate_type, aggregate_id, event_type, payload, headers)
+		VALUES ($1, 'order', $2, 'OrderCreated', $3, $4)
+	`, eventID, orderID, payloadBytes, headersBytes)
 	if err != nil {
 		return "", err
 	}
