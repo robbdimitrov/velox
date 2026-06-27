@@ -21,7 +21,8 @@
 
   let { data } = $props();
   const seatState = new SeatSelectionState();
-  let reserving = $state(false);
+  let reservingStatus = $state('');
+  let reserving = $derived(reservingStatus !== '');
   let error = $state('');
   let sectionID = $state('');
   let loadedSnapshot = $state(false);
@@ -37,23 +38,23 @@
   });
 
   onMount(() => {
-    if (typeof WebSocket === 'undefined') return;
-    const socket = new WebSocket(data.seatSocketURL);
-    socket.onmessage = (message) => {
-      const delta = JSON.parse(message.data) as SeatDelta;
+    if (typeof EventSource === 'undefined') return;
+    const source = new EventSource(data.seatSseURL);
+    source.onmessage = (event) => {
+      const delta = JSON.parse(event.data) as SeatDelta;
       seatState.applyDelta(delta);
       eventLog = [
         `${delta.seat_id} ${delta.status} v${delta.version}`,
         ...eventLog
       ].slice(0, 6);
     };
-    socket.onerror = () => socket.close();
-    return () => socket.close();
+    source.onerror = () => source.close();
+    return () => source.close();
   });
 
   async function reserve() {
     if (!seatState.selectedSeats.length) return;
-    reserving = true;
+    reservingStatus = 'Holding Seat...';
     error = '';
 
     const client = createGatewayClient(fetch, data.gatewayBaseURL);
@@ -67,6 +68,15 @@
         },
         createIdempotencyKey()
       );
+
+      reservingStatus = 'Confirming Payment...';
+
+      // Simulate slight delay to show the saga transition for demo purposes
+      await new Promise((r) => setTimeout(r, 800));
+
+      reservingStatus = 'Reserved!';
+      await new Promise((r) => setTimeout(r, 400));
+
       checkoutState.load(reservation);
       await goto('/checkout');
     } catch (requestError) {
@@ -74,6 +84,11 @@
         requestError instanceof Error &&
         data.snapshot.event_id.startsWith('evt_')
       ) {
+        reservingStatus = 'Confirming Payment...';
+        await new Promise((r) => setTimeout(r, 800));
+        reservingStatus = 'Reserved!';
+        await new Promise((r) => setTimeout(r, 400));
+
         const reservation = makeMockReservation(
           seatState.selectedSeats.map((seat) => seat.seat_id)
         );
@@ -83,8 +98,7 @@
       }
       error =
         'Reservation rejected by gateway. Refresh seat state and try again.';
-    } finally {
-      reserving = false;
+      reservingStatus = '';
     }
   }
 </script>
@@ -200,7 +214,7 @@
         onclick={reserve}
       >
         <TicketCheck size={17} />
-        {reserving ? 'Holding' : 'Reserve'}
+        {reserving ? reservingStatus : 'Reserve'}
       </button>
     </div>
   </aside>

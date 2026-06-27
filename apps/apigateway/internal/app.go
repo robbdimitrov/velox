@@ -19,7 +19,7 @@ import (
 
 const (
 	RoleReserver = "reserver"
-	RoleVendor = "vendor"
+	RoleVendor   = "vendor"
 
 	StatusAvailable = "AVAILABLE"
 	StatusHeld      = "HELD"
@@ -92,6 +92,7 @@ type Server struct {
 	idempotency map[string]idempotencyRecord
 	loginFails  map[string]loginFailure
 	store       *PostgresStore
+	seatClients map[string]map[chan string]struct{}
 }
 
 type idempotencyRecord struct {
@@ -124,9 +125,42 @@ func NewServerWithStore(secret string, store *PostgresStore) *Server {
 		idempotency: map[string]idempotencyRecord{},
 		loginFails:  map[string]loginFailure{},
 		store:       store,
+		seatClients: map[string]map[chan string]struct{}{},
+	}
+	if store != nil {
+		go s.listenSeatUpdates()
 	}
 	s.seed()
 	return s
+}
+
+func (s *Server) listenSeatUpdates() {
+	for {
+		err := s.store.ListenSeatUpdates(context.Background(), func(payload string) {
+			var update struct {
+				EventID string `json:"event_id"`
+			}
+			if err := json.Unmarshal([]byte(payload), &update); err != nil {
+				return
+			}
+			s.mu.Lock()
+			clients := s.seatClients[update.EventID]
+			var active []chan string
+			for c := range clients {
+				active = append(active, c)
+			}
+			s.mu.Unlock()
+			for _, c := range active {
+				select {
+				case c <- payload:
+				default:
+				}
+			}
+		})
+		if err != nil {
+			time.Sleep(time.Second)
+		}
+	}
 }
 
 func (s *Server) Routes() http.Handler {
@@ -298,7 +332,46 @@ func (s *Server) handleSeats(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSeatStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
-	fmt.Fprintf(w, "event: heartbeat\ndata: {\"event_id\":%q}\n\n", r.PathValue("eventId"))
+	w.Header().Set("Connection", "keep-alive")
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "streaming_unsupported")
+		return
+	}
+
+	eventID := r.PathValue("eventId")
+	fmt.Fprintf(w, "event: heartbeat\ndata: {\"event_id\":%q}\n\n", eventID)
+	flusher.Flush()
+
+	ch := make(chan string, 10)
+	s.mu.Lock()
+	if s.seatClients[eventID] == nil {
+		s.seatClients[eventID] = make(map[chan string]struct{})
+	}
+	s.seatClients[eventID][ch] = struct{}{}
+	s.mu.Unlock()
+
+	defer func() {
+		s.mu.Lock()
+		delete(s.seatClients[eventID], ch)
+		s.mu.Unlock()
+	}()
+
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case payload := <-ch:
+			fmt.Fprintf(w, "event: update\ndata: %s\n\n", payload)
+			flusher.Flush()
+		case <-ticker.C:
+			fmt.Fprintf(w, "event: heartbeat\ndata: {\"event_id\":%q}\n\n", eventID)
+			flusher.Flush()
+		}
+	}
 }
 
 func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request, user User) {
@@ -527,6 +600,15 @@ func (s *Server) handleVendorInventory(w http.ResponseWriter, r *http.Request, u
 	eventID := r.PathValue("eventId")
 	if !s.vendorOwnsEvent(eventID, user) {
 		writeError(w, http.StatusNotFound, "event_not_found")
+		return
+	}
+	if s.store != nil {
+		counts, err := s.store.GetVendorInventory(r.Context(), eventID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "inventory_unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"inventory": counts, "active_holds": counts[StatusHeld]})
 		return
 	}
 	s.mu.Lock()

@@ -11,7 +11,7 @@ import (
 	"sort"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jackc/pgx/v5/stdlib"
 )
 
 var (
@@ -365,6 +365,29 @@ func (s *PostgresStore) ListSeats(ctx context.Context, eventID, sectionID string
 	return seats, rows.Err()
 }
 
+func (s *PostgresStore) GetVendorInventory(ctx context.Context, eventID string) (map[string]int, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT status, COUNT(*)
+		FROM projection.seat_snapshots
+		WHERE event_id = $1
+		GROUP BY status
+	`, eventID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	counts := map[string]int{StatusAvailable: 0, StatusHeld: 0, StatusSold: 0}
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, err
+		}
+		counts[status] = count
+	}
+	return counts, rows.Err()
+}
+
 func loadOrderAndCommit(ctx context.Context, tx *sql.Tx, orderID string) (Order, error) {
 	order, err := loadOrderTx(ctx, tx, orderID)
 	if err != nil {
@@ -541,4 +564,27 @@ func splitSeatLabel(seatID string) (string, int) {
 		return "", 0
 	}
 	return row, number
+}
+
+func (s *PostgresStore) ListenSeatUpdates(ctx context.Context, handler func(payload string)) error {
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	return conn.Raw(func(driverConn any) error {
+		pgxConn := driverConn.(*stdlib.Conn).Conn()
+		_, err := pgxConn.Exec(ctx, "LISTEN seat_updates")
+		if err != nil {
+			return err
+		}
+		for {
+			notification, err := pgxConn.WaitForNotification(ctx)
+			if err != nil {
+				return err
+			}
+			handler(notification.Payload)
+		}
+	})
 }

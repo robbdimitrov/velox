@@ -108,9 +108,8 @@ export function createGatewayClient(
     tickerURL(params = new URLSearchParams()) {
       return `${apiBase}/events/evt_neon_riot/stream?${params.toString()}`;
     },
-    seatSocketURL(eventID: string, sectionID: string) {
+    seatSseURL(eventID: string, sectionID: string) {
       const url = new URL(apiBase);
-      url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
       url.pathname = `/events/${encodeURIComponent(eventID)}/stream`;
       url.searchParams.set('section_id', sectionID);
       return url.toString();

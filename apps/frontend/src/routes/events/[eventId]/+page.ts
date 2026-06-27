@@ -16,7 +16,7 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
         mockDiscovery.events.find((item) => item.id === params.eventId) ??
         mockDiscovery.events[0],
       snapshot: await client.getSeatSnapshot(params.eventId, sectionID),
-      seatSocketURL: client.seatSocketURL(params.eventId, sectionID),
+      seatSseURL: client.seatSseURL(params.eventId, sectionID),
       gatewayBaseURL: client.apiBase
     };
   } catch {
@@ -25,7 +25,7 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
         mockDiscovery.events.find((item) => item.id === params.eventId) ??
         mockDiscovery.events[0],
       snapshot: makeMockSeatSnapshot(params.eventId, sectionID),
-      seatSocketURL: client.seatSocketURL(params.eventId, sectionID),
+      seatSseURL: client.seatSseURL(params.eventId, sectionID),
       gatewayBaseURL: client.apiBase
     };
   }

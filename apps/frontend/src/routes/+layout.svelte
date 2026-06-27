@@ -6,6 +6,7 @@
     ShieldCheck,
     Ticket
   } from '@lucide/svelte';
+  import { authState } from '$lib/state/auth-state.svelte';
 
   let { children } = $props();
 </script>
@@ -26,18 +27,32 @@
           placeholder="Search events, venues, cities"
         />
       </label>
-      <a
-        class="btn btn-sm border-line bg-transparent text-ink hover:border-signal hover:bg-panel"
-        href="/wallet"
-      >
-        <ShieldCheck size={16} /> Wallet
-      </a>
-      <a
-        class="btn btn-sm border-line bg-transparent text-ink hover:border-signal hover:bg-panel"
-        href="/vendor"
-      >
-        <BriefcaseBusiness size={16} /> Vendor
-      </a>
+
+      <div class="flex items-center gap-4">
+        <select
+          class="select select-bordered select-sm border-line bg-carbon"
+          bind:value={authState.role}
+        >
+          <option value="reserver">Reserver View</option>
+          <option value="vendor">Vendor View</option>
+        </select>
+
+        {#if authState.role === 'reserver'}
+          <a
+            class="btn btn-sm border-line bg-transparent text-ink hover:border-signal hover:bg-panel"
+            href="/wallet"
+          >
+            <ShieldCheck size={16} /> Wallet
+          </a>
+        {:else}
+          <a
+            class="btn btn-sm border-line bg-transparent text-ink hover:border-signal hover:bg-panel"
+            href="/vendor"
+          >
+            <BriefcaseBusiness size={16} /> Dashboard
+          </a>
+        {/if}
+      </div>
     </nav>
   </header>
   {@render children()}
