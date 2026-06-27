@@ -21,7 +21,6 @@ graph TD
     subgraph cluster ["Kubernetes Cluster"]
         Frontend["Frontend<br>(SvelteKit)"]:::frontend
         Gateway["API Gateway<br>(Go)"]:::gateway
-        Cache[("Dragonfly")]:::cache
 
         subgraph services ["Core Services"]
             Orders["Order Service<br>(Go)"]:::backend
@@ -30,35 +29,21 @@ graph TD
         end
 
         subgraph data ["Data & Storage"]
-            DB[("PostgreSQL<br>schemas")]:::database
-            Redpanda[("Redpanda<br>Kafka API")]:::broker
+            DB[("PostgreSQL<br>(source of truth)")]:::database
+            Redpanda[("Redpanda<br>(event broker)")]:::broker
         end
     end
 
     Browser --> Frontend
     Frontend --> Gateway
-    Gateway --> Cache
-    
-    %% CQRS Command Path
-    Gateway --> Orders
-    Orders --> DB
-    Orders --> Redpanda
-    
-    %% Choreography
-    Seats <--> DB
-    Redpanda <--> Seats
-    
-    %% CQRS Read Path
-    Gateway --> Views
-    Redpanda --> Views
-    Views --> DB
+    Gateway --> Orders & Views
+    Orders & Seats & Views --> DB & Redpanda
 
     %% Standardized Accessible Color Palette
     classDef frontend fill:#0ea5e9,stroke:#0284c7,stroke-width:2px,color:#fff
     classDef gateway fill:#6366f1,stroke:#4f46e5,stroke-width:2px,color:#fff
     classDef backend fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff
     classDef database fill:#f59e0b,stroke:#d97706,stroke-width:2px,color:#fff
-    classDef cache fill:#dc2626,stroke:#b91c1c,stroke-width:2px,color:#fff
     classDef broker fill:#06b6d4,stroke:#0891b2,stroke-width:2px,color:#fff
 
     style cluster fill:transparent,stroke:#64748b
