@@ -14,7 +14,7 @@ Dependencies are declared in `package.json`; this scaffold intentionally does no
 
 ## Gateway Configuration
 
-Set `PUBLIC_GATEWAY_BASE_URL` to the public `apigateway` origin. When the gateway is unavailable, route loads fall back to local mock projection data so the UI remains navigable during frontend development.
+The UI will fetch from the internal gateway. When the gateway is unavailable, route loads fall back to local mock projection data so the UI remains navigable during frontend development.
 
 Implemented public gateway client calls:
 

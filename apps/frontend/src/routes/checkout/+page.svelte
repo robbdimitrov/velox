@@ -34,10 +34,7 @@
     checkoutState.error = '';
 
     try {
-      const client = createGatewayClient(
-        fetch,
-        env.PUBLIC_GATEWAY_BASE_URL || 'http://localhost:8080'
-      );
+      const client = createGatewayClient(fetch, '/api');
       const result = await client.checkout(
         {
           reservation_id: checkoutState.reservation.reservation_id,

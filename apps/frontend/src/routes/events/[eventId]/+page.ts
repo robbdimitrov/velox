@@ -1,14 +1,10 @@
-import { env } from '$env/dynamic/public';
 import { createGatewayClient } from '$lib/api/client';
 import { makeMockSeatSnapshot, mockDiscovery } from '$lib/api/mock';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ fetch, params, url }) => {
   const sectionID = url.searchParams.get('section_id') ?? 'A';
-  const client = createGatewayClient(
-    fetch,
-    env.PUBLIC_GATEWAY_BASE_URL || 'http://localhost:8080'
-  );
+  const client = createGatewayClient(fetch, '/api');
 
   try {
     return {

@@ -1,9 +1,10 @@
+import { SvelteSet, SvelteMap } from 'svelte/reactivity';
 import type { Seat, SeatDelta } from '$lib/api/types';
 
 export class SeatSelectionState {
   seats = $state<Seat[]>([]);
-  selectedSeatIDs = $state<Set<string>>(new Set());
-  seatVersionByID = $state<Map<string, number>>(new Map());
+  selectedSeatIDs = new SvelteSet<string>();
+  seatVersionByID = new SvelteMap<string, number>();
   serverOffsetMs = $state(0);
 
   selectedSeats = $derived(
@@ -15,9 +16,10 @@ export class SeatSelectionState {
 
   load(seats: Seat[], serverTimeMs: number) {
     this.seats = seats;
-    this.seatVersionByID = new Map(
-      seats.map((seat) => [seat.seat_id, seat.version])
-    );
+    this.seatVersionByID.clear();
+    for (const seat of seats) {
+      this.seatVersionByID.set(seat.seat_id, seat.version);
+    }
     this.serverOffsetMs = serverTimeMs - Date.now();
     this.selectedSeatIDs.clear();
   }
@@ -26,13 +28,11 @@ export class SeatSelectionState {
     if (seat.status !== 'AVAILABLE' && !this.selectedSeatIDs.has(seat.seat_id))
       return;
 
-    const next = new Set(this.selectedSeatIDs);
-    if (next.has(seat.seat_id)) {
-      next.delete(seat.seat_id);
+    if (this.selectedSeatIDs.has(seat.seat_id)) {
+      this.selectedSeatIDs.delete(seat.seat_id);
     } else {
-      next.add(seat.seat_id);
+      this.selectedSeatIDs.add(seat.seat_id);
     }
-    this.selectedSeatIDs = next;
   }
 
   applyDelta(delta: SeatDelta) {
@@ -52,9 +52,7 @@ export class SeatSelectionState {
     );
 
     if (delta.status !== 'AVAILABLE') {
-      const next = new Set(this.selectedSeatIDs);
-      next.delete(delta.seat_id);
-      this.selectedSeatIDs = next;
+      this.selectedSeatIDs.delete(delta.seat_id);
     }
   }
 

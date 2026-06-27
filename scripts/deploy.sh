@@ -7,12 +7,9 @@ NS="${NS:-velox}"
 KUBECTL="${KUBECTL:-kubectl}"
 IMAGE_REGISTRY="${IMAGE_REGISTRY:-ghcr.io/example/velox}"
 IMAGE_TAG="${IMAGE_TAG:-dev}"
-LOCAL_FRONTEND_PORT="${LOCAL_FRONTEND_PORT:-8080}"
-LOCAL_GATEWAY_PORT="${LOCAL_GATEWAY_PORT:-8081}"
+LOCAL_FRONTEND_PORT="${LOCAL_FRONTEND_PORT:-8085}"
 FRONTEND_PORT_FORWARD_LOG="${FRONTEND_PORT_FORWARD_LOG:-/tmp/velox-frontend-port-forward-${LOCAL_FRONTEND_PORT}.log}"
-GATEWAY_PORT_FORWARD_LOG="${GATEWAY_PORT_FORWARD_LOG:-/tmp/velox-gateway-port-forward-${LOCAL_GATEWAY_PORT}.log}"
 FRONTEND_PORT_FORWARD_PID_FILE="${FRONTEND_PORT_FORWARD_PID_FILE:-/tmp/velox-frontend-port-forward-${LOCAL_FRONTEND_PORT}.pid}"
-GATEWAY_PORT_FORWARD_PID_FILE="${GATEWAY_PORT_FORWARD_PID_FILE:-/tmp/velox-gateway-port-forward-${LOCAL_GATEWAY_PORT}.pid}"
 DRY_RUN="${DRY_RUN:-}"
 
 ROLL_OUT_INFRA=(
@@ -38,7 +35,6 @@ Environment:
   IMAGE_REGISTRY=${IMAGE_REGISTRY}
   IMAGE_TAG=${IMAGE_TAG}
   LOCAL_FRONTEND_PORT=${LOCAL_FRONTEND_PORT}
-  LOCAL_GATEWAY_PORT=${LOCAL_GATEWAY_PORT}
 EOF
 }
 
@@ -122,6 +118,10 @@ ensure_namespace() {
 ensure_secret() {
   local name="$1"
   shift
+  if $KUBECTL -n "$NS" get secret "$name" >/dev/null 2>&1; then
+    log "secret $name already exists, skipping"
+    return
+  fi
   $KUBECTL -n "$NS" create secret generic "$name" "$@" --dry-run=client -o yaml | $KUBECTL apply -f -
 }
 
@@ -216,11 +216,9 @@ print_summary() {
 ==> Velox local runtime is starting
 
   Frontend   http://localhost:${LOCAL_FRONTEND_PORT}
-  Gateway    http://localhost:${LOCAL_GATEWAY_PORT}
   Namespace  ${NS}
 
   Frontend port-forward pid: $(cat "$FRONTEND_PORT_FORWARD_PID_FILE" 2>/dev/null || echo unknown)
-  Gateway port-forward pid:  $(cat "$GATEWAY_PORT_FORWARD_PID_FILE" 2>/dev/null || echo unknown)
 
   Pods:      kubectl -n ${NS} get pods
   Logs:      kubectl -n ${NS} logs deployment/<service> --tail=100
@@ -233,5 +231,4 @@ apply_manifests
 wait_for_rollouts "${ROLL_OUT_INFRA[@]}"
 wait_for_rollouts "${ROLL_OUT_APPS[@]}"
 start_port_forward frontend "$LOCAL_FRONTEND_PORT" 80 "$FRONTEND_PORT_FORWARD_LOG" "$FRONTEND_PORT_FORWARD_PID_FILE"
-start_port_forward apigateway "$LOCAL_GATEWAY_PORT" 80 "$GATEWAY_PORT_FORWARD_LOG" "$GATEWAY_PORT_FORWARD_PID_FILE"
 print_summary

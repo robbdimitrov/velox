@@ -1,7 +1,6 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
-ARG PUBLIC_GATEWAY_BASE_URL=http://localhost:8081
-ENV PUBLIC_GATEWAY_BASE_URL=${PUBLIC_GATEWAY_BASE_URL}
+
 COPY package*.json ./
 RUN npm install
 COPY . .
