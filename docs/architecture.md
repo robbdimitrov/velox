@@ -24,16 +24,20 @@ seatservice <-> Append-Only Event Store
 viewservice -> Elasticsearch/MongoDB -> Read API/WebSockets/SSE
 ```
 
-Each service owns its database. Cross-service joins are forbidden on the write path. Kafka is the append-only integration log for choreography, projections, audit, and replay.
+Each service owns its database. Cross-service joins are forbidden on the write
+path. Kafka is the append-only integration log for choreography, projections,
+audit, and replay.
 
 ## Frontend UI
 
 - Use SvelteKit SSR as the browser-facing application boundary.
-- Use Svelte 5 with Runes for selected seats, filter state, countdown offsets, and WebSocket deltas.
+- Use Svelte 5 with Runes for selected seats, filter state, countdown offsets,
+  and WebSocket deltas.
 - Use Tailwind for layout and utility styling.
 - Use DaisyUI for accessible, themeable controls where it fits the product UI.
 - Use Lucide icons for actions, navigation, and tool buttons.
-- Use Canvas for individual seat nodes once a section exceeds 1,000 seats; use SVG for low-density sections and semantic outlines.
+- Use Canvas for individual seat nodes once a section exceeds 1,000 seats; use
+  SVG for low-density sections and semantic outlines.
 - Maintain a local `seatVersionById` map. Apply only monotonic updates.
 - Route all queries through read APIs or edge-cached endpoints.
 - Route all mutations through command endpoints on `apigateway`.
@@ -44,13 +48,15 @@ Each service owns its database. Cross-service joins are forbidden on the write p
 
 - Terminate HTTP/gRPC command ingress.
 - Validate JWTs, scopes, request size, rate limits, and public API schemas.
-- Map public HTTP errors safely and orchestrate bounded gRPC calls to backend services.
+- Map public HTTP errors safely and orchestrate bounded gRPC calls to backend
+  services.
 
 `orderservice` responsibilities:
 
 - Validate idempotency headers, reservation tokens, and order command payloads.
 - Use bounded goroutine worker pools for validation and external payment calls.
-- Store orders in PostgreSQL with states `PENDING`, `AWAITING_PAYMENT`, `CONFIRMED`, `FAILED`, `EXPIRED`.
+- Store orders in PostgreSQL with states `PENDING`, `AWAITING_PAYMENT`,
+  `CONFIRMED`, `FAILED`, `EXPIRED`.
 - Write outbox rows in the same transaction as order state transitions.
 
 Ingress pipeline:
@@ -59,14 +65,17 @@ Ingress pipeline:
 auth -> rate limit -> schema validation -> gRPC -> idempotency check -> DB transaction -> outbox insert -> response
 ```
 
-Never publish directly to Kafka from the same request transaction. Kafka publication must flow through the outbox relay.
+Never publish directly to Kafka from the same request transaction. Kafka
+publication must flow through the outbox relay.
 
 ## Rust Service: `seatservice`
 
 Responsibilities:
 
-- Consume `OrderCreated`, `PaymentConfirmed`, `PaymentFailed`, and timeout control events.
-- Validate seat availability through event stream replay or cached stream snapshots.
+- Consume `OrderCreated`, `PaymentConfirmed`, `PaymentFailed`, and timeout
+  control events.
+- Validate seat availability through event stream replay or cached stream
+  snapshots.
 - Append immutable inventory events with expected stream version.
 - Publish resulting events to Kafka after durable append.
 
@@ -77,7 +86,8 @@ Event store rules:
 - `VersionMismatch` rejects double allocation.
 - No mutable seat status table is the source of truth.
 - Use Tokio for async Kafka and event-store I/O.
-- Keep command validation allocation-bounded: parse once, borrow where possible, avoid cloning payload maps.
+- Keep command validation allocation-bounded: parse once, borrow where possible,
+  avoid cloning payload maps.
 
 Core event types:
 
@@ -93,10 +103,13 @@ SeatTicketUpgraded
 
 ## Storage Profiles
 
-- `seatservice`: append-only event store, backed by PostgreSQL event table or RocksDB segments with durable WAL.
+- `seatservice`: append-only event store, backed by PostgreSQL event table or
+  RocksDB segments with durable WAL.
 - `orderservice`: PostgreSQL tables for orders, payments, and `outbox_events`.
-- Read model: Elasticsearch for search-heavy discovery or MongoDB for document-oriented wallet and seat snapshots.
-- Redis: idempotency keys, token buckets, hot layout locks, and short-lived fanout coordination.
+- Read model: Elasticsearch for search-heavy discovery or MongoDB for
+  document-oriented wallet and seat snapshots.
+- Redis: idempotency keys, token buckets, hot layout locks, and short-lived
+  fanout coordination.
 
 ## Event Sourcing and CQRS Mutation
 
@@ -109,7 +122,8 @@ PaymentConfirmed -> SeatReservationConfirmed
 PaymentFailed -> SeatReservationExpired
 ```
 
-`viewservice` workers consume Kafka and flatten immutable facts into read documents:
+`viewservice` workers consume Kafka and flatten immutable facts into read
+documents:
 
 ```text
 inventory.events.v1 -> seat_snapshot[event_id, seat_id]
@@ -117,7 +131,8 @@ inventory.events.v1 -> wallet_ticket[ticket_id]
 order.events.v1     -> order_summary[user_id, order_id]
 ```
 
-`viewservice` writes must be idempotent by `event_id`. Store the last applied event version per aggregate.
+`viewservice` writes must be idempotent by `event_id`. Store the last applied
+event version per aggregate.
 
 ## Choreographed Saga Lifecycle
 
@@ -153,7 +168,8 @@ reservation deadline reached -> expiry scheduler emits ReservationTimeoutDue
 `orderservice` marks EXPIRED
 ```
 
-Every event must carry `event_id`, `correlation_id`, `causation_id`, `aggregate_id`, `schema_version`, `occurred_at`, and `signature`.
+Every event must carry `event_id`, `correlation_id`, `causation_id`,
+`aggregate_id`, `schema_version`, `occurred_at`, and `signature`.
 
 ## Transactional Outbox Pattern
 
@@ -182,7 +198,8 @@ Rules:
 
 ## Idempotency Protocol
 
-The frontend generates UUIDv7 or UUIDv4 keys for reserve and confirmation commands.
+The frontend generates UUIDv7 or UUIDv4 keys for reserve and confirmation
+commands.
 
 Redis key format:
 
@@ -197,14 +214,19 @@ Processing:
 3. If key exists with same request hash, return the original result.
 4. If key exists with a different hash, return `409 IdempotencyKeyConflict`.
 
-Payment providers must receive the same idempotency key to prevent duplicate charges.
+Payment providers must receive the same idempotency key to prevent duplicate
+charges.
 
 ## Zero-Trust Security and Rate Limiting
 
 - Validate JWT issuer, audience, expiry, subject, and scopes at ingress.
 - Never trust user-supplied price, seat status, expiry, or fee totals.
-- Use Redis token buckets per IP, account, device fingerprint, event, and endpoint.
-- Apply stricter buckets to `/reservations` and reservation confirmation than discovery reads.
-- Sign Kafka events with service credentials. Consumers verify signature, schema version, and producer identity before applying events.
-- Encrypt secrets through deployment secret stores. Do not place secrets in repo files.
+- Use Redis token buckets per IP, account, device fingerprint, event, and
+  endpoint.
+- Apply stricter buckets to `/reservations` and reservation confirmation than
+  discovery reads.
+- Sign Kafka events with service credentials. Consumers verify signature, schema
+  version, and producer identity before applying events.
+- Encrypt secrets through deployment secret stores. Do not place secrets in repo
+  files.
 - Log correlation IDs, not card data or raw tokens.

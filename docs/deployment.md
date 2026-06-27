@@ -29,8 +29,8 @@ PostgreSQL schemas:
 
 `apps/database/seeds/001_demo_reservation_mvp.sql` adds a small demo event seat
 set for local smoke testing. The local database image copies migrations and
-seeds into Postgres' `docker-entrypoint-initdb.d` directory, so a fresh volume is
-initialized on first startup.
+seeds into Postgres' `docker-entrypoint-initdb.d` directory, so a fresh volume
+is initialized on first startup.
 
 ## Kubernetes
 

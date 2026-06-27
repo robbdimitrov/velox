@@ -1,16 +1,30 @@
 # Velox
 
-**Velox** is a Kubernetes-first event ticket marketplace MVP built for flash-sale contention: many buyers competing for the same reserved seats while vendors watch live inventory and order state. It combines a SvelteKit SSR frontend with Go and Rust backend services, PostgreSQL-owned stores, Redpanda-compatible Kafka event flow, and Dragonfly-backed coordination.
+**Velox** is a Kubernetes-first event ticket marketplace MVP built for
+flash-sale contention: many buyers competing for the same reserved seats while
+vendors watch live inventory and order state. It combines a SvelteKit SSR
+frontend with Go and Rust backend services, PostgreSQL-owned stores,
+Redpanda-compatible Kafka event flow, and Dragonfly-backed coordination.
 
 ## Features
 
-- **Seat reservations**: Seeded reserver login, event discovery, SVG seat map, multi-seat hold, countdown, confirm flow, and order history.
-- **Vendor dashboard**: Seeded vendor login, owned event view, live inventory counts, active holds, and confirmed orders.
-- **Idempotent commands**: Reservation requests require `Idempotency-Key`; duplicate matching requests return the original order while conflicting bodies are rejected.
-- **Seat correctness**: Seat holds are locked in PostgreSQL for the MVP, with reservation ownership checks before confirmation and stale hold cleanup before reuse.
-- **Transactional events**: Order lifecycle changes write an outbox row in the same transaction as order state.
-- **Read models**: Seat snapshots, order summaries, and vendor-facing inventory are materialized behind the gateway and ready for Kafka-backed expansion.
-- **Kubernetes runtime**: Manifests and `scripts/deploy.sh` build images, create development secrets, apply resources, wait for rollouts, and port-forward the frontend and gateway.
+- **Seat reservations**: Seeded reserver login, event discovery, SVG seat map,
+  multi-seat hold, countdown, confirm flow, and order history.
+- **Vendor dashboard**: Seeded vendor login, owned event view, live inventory
+  counts, active holds, and confirmed orders.
+- **Idempotent commands**: Reservation requests require `Idempotency-Key`;
+  duplicate matching requests return the original order while conflicting bodies
+  are rejected.
+- **Seat correctness**: Seat holds are locked in PostgreSQL for the MVP, with
+  reservation ownership checks before confirmation and stale hold cleanup before
+  reuse.
+- **Transactional events**: Order lifecycle changes write an outbox row in the
+  same transaction as order state.
+- **Read models**: Seat snapshots, order summaries, and vendor-facing inventory
+  are materialized behind the gateway and ready for Kafka-backed expansion.
+- **Kubernetes runtime**: Manifests and `scripts/deploy.sh` build images, create
+  development secrets, apply resources, wait for rollouts, and port-forward the
+  frontend and gateway.
 
 ## Architecture
 
@@ -51,34 +65,37 @@ graph TD
     style data fill:transparent,stroke:transparent
 ```
 
-| Service | Language | Description |
-| --- | --- | --- |
-| [frontend](apps/frontend) | TypeScript | SvelteKit SSR reserver and vendor UI with Tailwind, DaisyUI, Lucide icons, live seat state, and checkout. |
-| [apigateway](apps/apigateway) | Go | Public HTTP API, dev login, JWT session cookies, role checks, request bounds, and reservation orchestration. |
-| [orderservice](apps/orderservice) | Go | Order state, idempotency, reservation confirmation, and transactional outbox behavior. |
-| [seatservice](apps/seatservice) | Rust | Seat stream concurrency rules, version checks, hold expiry, and ticket issuing rules. |
-| [viewservice](apps/viewservice) | Go | Idempotent projection helpers for read models and vendor-facing state. |
-| [database](apps/database) | PostgreSQL | Versioned schema migrations and demo seed data for service-owned schemas. |
+| Service                           | Language   | Description                                                                                                  |
+| --------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------ |
+| [frontend](apps/frontend)         | TypeScript | SvelteKit SSR reserver and vendor UI with Tailwind, DaisyUI, Lucide icons, live seat state, and checkout.    |
+| [apigateway](apps/apigateway)     | Go         | Public HTTP API, dev login, JWT session cookies, role checks, request bounds, and reservation orchestration. |
+| [orderservice](apps/orderservice) | Go         | Order state, idempotency, reservation confirmation, and transactional outbox behavior.                       |
+| [seatservice](apps/seatservice)   | Rust       | Seat stream concurrency rules, version checks, hold expiry, and ticket issuing rules.                        |
+| [viewservice](apps/viewservice)   | Go         | Idempotent projection helpers for read models and vendor-facing state.                                       |
+| [database](apps/database)         | PostgreSQL | Versioned schema migrations and demo seed data for service-owned schemas.                                    |
 
 ## Infrastructure
 
 Four in-cluster stateful dependencies support the MVP:
 
-- **PostgreSQL** — One local instance with isolated logical schemas for orders, inventory, and projections.
+- **PostgreSQL** — One local instance with isolated logical schemas for orders,
+  inventory, and projections.
 - **Redpanda** — Kafka-compatible broker for order and inventory events.
-- **Dragonfly** — Redis-protocol cache intended for rate limits, hot coordination, and fanout state.
-- **Kubernetes** — First supported runtime via `kind` or any active cluster context.
+- **Dragonfly** — Redis-protocol cache intended for rate limits, hot
+  coordination, and fanout state.
+- **Kubernetes** — First supported runtime via `kind` or any active cluster
+  context.
 
 ## Docs
 
 Architectural specs live in [`docs/`](docs/):
 
-| Doc | Contents |
-| --- | --- |
-| [architecture.md](docs/architecture.md) | Service topology, event choreography, consistency model, and security boundaries |
-| [deployment.md](docs/deployment.md) | Kubernetes local runtime, generated secrets, port-forwarding, and smoke checks |
-| [frontend.md](docs/frontend.md) | Buyer and vendor route map, UI behavior, live updates, and accessibility |
-| [infrastructure.md](docs/infrastructure.md) | Kafka failure modes, reservation expiry, cache behavior, and backpressure |
+| Doc                                         | Contents                                                                         |
+| ------------------------------------------- | -------------------------------------------------------------------------------- |
+| [architecture.md](docs/architecture.md)     | Service topology, event choreography, consistency model, and security boundaries |
+| [deployment.md](docs/deployment.md)         | Kubernetes local runtime, generated secrets, port-forwarding, and smoke checks   |
+| [frontend.md](docs/frontend.md)             | Buyer and vendor route map, UI behavior, live updates, and accessibility         |
+| [infrastructure.md](docs/infrastructure.md) | Kafka failure modes, reservation expiry, cache behavior, and backpressure        |
 
 ## Deploy
 
@@ -88,7 +105,8 @@ Deploy Velox to the active Kubernetes context:
 ./scripts/deploy.sh
 ```
 
-The script builds images, creates or updates generated development secrets, applies manifests from `deploy/`, waits for rollouts, and starts port-forwards:
+The script builds images, creates or updates generated development secrets,
+applies manifests from `deploy/`, waits for rollouts, and starts port-forwards:
 
 - Frontend: http://localhost:8080
 - Gateway: http://localhost:8081
