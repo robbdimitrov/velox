@@ -15,49 +15,53 @@
 ## Architecture
 
 ```mermaid
-graph TD
+graph LR
     Browser["Browser"]
 
     subgraph cluster ["Kubernetes Cluster"]
-        Frontend["Frontend<br>(SvelteKit SSR)"]:::frontend
+        Frontend["Frontend<br>(SvelteKit)"]:::frontend
         Gateway["API Gateway<br>(Go)"]:::gateway
+        Cache[("Dragonfly")]:::cache
 
-        subgraph services ["Services"]
-            Orders["Order Service<br>(Go)"]:::service
-            Seats["Seat Service<br>(Rust)"]:::service
-            Views["View Service<br>(Go)"]:::service
+        subgraph services ["Core Services"]
+            Orders["Order Service<br>(Go)"]:::backend
+            Seats["Seat Service<br>(Rust)"]:::backend
+            Views["View Service<br>(Go)"]:::backend
         end
 
-        subgraph data ["Data & Messaging"]
-            DB[("PostgreSQL<br>service-owned schemas")]:::database
-            Cache[("Dragonfly<br>Redis protocol")]:::cache
+        subgraph data ["Data & Storage"]
+            DB[("PostgreSQL<br>schemas")]:::database
             Redpanda[("Redpanda<br>Kafka API")]:::broker
         end
     end
 
     Browser --> Frontend
     Frontend --> Gateway
+    Gateway --> Cache
+    
+    %% CQRS Command Path
     Gateway --> Orders
-    Gateway --> Views
     Orders --> DB
     Orders --> Redpanda
-    Seats --> DB
-    Seats --> Redpanda
-    Redpanda --> Seats
+    
+    %% Choreography
+    Seats <--> DB
+    Redpanda <--> Seats
+    
+    %% CQRS Read Path
+    Gateway --> Views
     Redpanda --> Views
     Views --> DB
-    Gateway --> Cache
 
-    classDef frontend fill:#0ea5e9,stroke:#0284c7,stroke-width:2px,color:#fff
-    classDef gateway fill:#6366f1,stroke:#4f46e5,stroke-width:2px,color:#fff
-    classDef service fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff
-    classDef database fill:#f59e0b,stroke:#d97706,stroke-width:2px,color:#fff
-    classDef cache fill:#ef4444,stroke:#dc2626,stroke-width:2px,color:#fff
-    classDef broker fill:#8b5cf6,stroke:#7c3aed,stroke-width:2px,color:#fff
-
-    style cluster fill:transparent,stroke:#64748b
-    style services fill:transparent,stroke:transparent
-    style data fill:transparent,stroke:transparent
+    %% Standardized Accessible Color Palette
+    classDef frontend fill:#0284c7,stroke:#0369a1,stroke-width:2px,color:#fff
+    classDef gateway fill:#4f46e5,stroke:#4338ca,stroke-width:2px,color:#fff
+    classDef backend fill:#059669,stroke:#047857,stroke-width:2px,color:#fff
+    classDef database fill:#d97706,stroke:#b45309,stroke-width:2px,color:#fff
+    classDef cache fill:#dc2626,stroke:#b91c1c,stroke-width:2px,color:#fff
+    classDef broker fill:#ea580c,stroke:#c2410c,stroke-width:2px,color:#fff
+    classDef storage fill:#7c3aed,stroke:#6d28d9,stroke-width:2px,color:#fff
+    classDef relay fill:#475569,stroke:#334155,stroke-width:2px,color:#fff
 ```
 
 | Service | Language | Description |

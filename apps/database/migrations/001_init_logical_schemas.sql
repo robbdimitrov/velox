@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS inventory.reservations (
     reservation_id text PRIMARY KEY,
     order_id uuid NOT NULL,
     user_id text NOT NULL,
-    status text NOT NULL CHECK (status IN ('HELD', 'EXPIRED', 'PURCHASED')),
+    status text NOT NULL CHECK (status IN ('HELD', 'EXPIRED', 'CONFIRMED')),
     expires_at timestamptz NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()

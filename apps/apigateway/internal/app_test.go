@@ -9,10 +9,10 @@ import (
 	"time"
 )
 
-func TestBuyerCanReserveAndConfirmSeat(t *testing.T) {
+func TestReserverCanReserveAndConfirmSeat(t *testing.T) {
 	server := NewServer("test")
 	client := newTestClient(server)
-	cookie := client.login(t, "buyer@velox.local", "buyer")
+	cookie := client.login(t, "reserver@velox.local", "reserver")
 
 	order := client.reserve(t, cookie, "idem-1", []string{"A-01"}, http.StatusCreated)
 	if order.Status != OrderPending {
@@ -30,7 +30,7 @@ func TestBuyerCanReserveAndConfirmSeat(t *testing.T) {
 func TestRejectsDuplicateReservationForHeldSeat(t *testing.T) {
 	server := NewServer("test")
 	client := newTestClient(server)
-	cookie := client.login(t, "buyer@velox.local", "buyer")
+	cookie := client.login(t, "reserver@velox.local", "reserver")
 	client.reserve(t, cookie, "idem-1", []string{"A-02"}, http.StatusCreated)
 	client.reserve(t, cookie, "idem-2", []string{"A-02"}, http.StatusConflict)
 }
@@ -38,7 +38,7 @@ func TestRejectsDuplicateReservationForHeldSeat(t *testing.T) {
 func TestIdempotencyKeyConflict(t *testing.T) {
 	server := NewServer("test")
 	client := newTestClient(server)
-	cookie := client.login(t, "buyer@velox.local", "buyer")
+	cookie := client.login(t, "reserver@velox.local", "reserver")
 	client.reserve(t, cookie, "same-key", []string{"A-03"}, http.StatusCreated)
 	client.reserve(t, cookie, "same-key", []string{"A-04"}, http.StatusConflict)
 }
@@ -46,15 +46,15 @@ func TestIdempotencyKeyConflict(t *testing.T) {
 func TestRoleChecks(t *testing.T) {
 	server := NewServer("test")
 	client := newTestClient(server)
-	buyerCookie := client.login(t, "buyer@velox.local", "buyer")
+	reserverCookie := client.login(t, "reserver@velox.local", "reserver")
 	vendorCookie := client.login(t, "vendor@velox.local", "vendor")
 
 	req := httptest.NewRequest(http.MethodGet, "/vendor/events", nil)
-	req.AddCookie(buyerCookie)
+	req.AddCookie(reserverCookie)
 	rr := httptest.NewRecorder()
 	server.Routes().ServeHTTP(rr, req)
 	if rr.Code != http.StatusForbidden {
-		t.Fatalf("buyer vendor status = %d", rr.Code)
+		t.Fatalf("reserver vendor status = %d", rr.Code)
 	}
 
 	req = httptest.NewRequest(http.MethodPost, "/reservations", bytes.NewReader([]byte(`{"event_id":"evt_neon_riot","section_id":"A","seat_ids":["A-05"]}`)))
@@ -71,9 +71,9 @@ func TestLoginAttemptsAreRateLimited(t *testing.T) {
 	server := NewServer("test")
 	client := newTestClient(server)
 	for range 5 {
-		client.loginStatus(t, "buyer@velox.local", "wrong", http.StatusUnauthorized)
+		client.loginStatus(t, "reserver@velox.local", "wrong", http.StatusUnauthorized)
 	}
-	client.loginStatus(t, "buyer@velox.local", "buyer", http.StatusTooManyRequests)
+	client.loginStatus(t, "reserver@velox.local", "reserver", http.StatusTooManyRequests)
 }
 
 func TestExpiredHoldReleasesSeat(t *testing.T) {
@@ -81,7 +81,7 @@ func TestExpiredHoldReleasesSeat(t *testing.T) {
 	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
 	server.now = func() time.Time { return now }
 	client := newTestClient(server)
-	cookie := client.login(t, "buyer@velox.local", "buyer")
+	cookie := client.login(t, "reserver@velox.local", "reserver")
 	client.reserve(t, cookie, "idem-1", []string{"A-06"}, http.StatusCreated)
 	now = now.Add(server.holdTTL + time.Second)
 	client.reserve(t, cookie, "idem-2", []string{"A-06"}, http.StatusCreated)

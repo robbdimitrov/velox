@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	RoleBuyer  = "buyer"
+	RoleReserver = "reserver"
 	RoleVendor = "vendor"
 
 	StatusAvailable = "AVAILABLE"
@@ -140,10 +140,10 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /events/{eventId}", s.handleEvent)
 	mux.HandleFunc("GET /events/{eventId}/sections/{sectionId}/seats", s.handleSeats)
 	mux.HandleFunc("GET /events/{eventId}/stream", s.handleSeatStream)
-	mux.HandleFunc("POST /reservations", s.requireRole(RoleBuyer, s.handleCreateReservation))
-	mux.HandleFunc("POST /reservations/{reservationId}/confirm", s.requireRole(RoleBuyer, s.handleConfirmReservation))
-	mux.HandleFunc("GET /orders", s.requireRole(RoleBuyer, s.handleOrders))
-	mux.HandleFunc("GET /orders/{orderId}", s.requireRole(RoleBuyer, s.handleOrder))
+	mux.HandleFunc("POST /reservations", s.requireRole(RoleReserver, s.handleCreateReservation))
+	mux.HandleFunc("POST /reservations/{reservationId}/confirm", s.requireRole(RoleReserver, s.handleConfirmReservation))
+	mux.HandleFunc("GET /orders", s.requireRole(RoleReserver, s.handleOrders))
+	mux.HandleFunc("GET /orders/{orderId}", s.requireRole(RoleReserver, s.handleOrder))
 	mux.HandleFunc("GET /vendor/events", s.requireRole(RoleVendor, s.handleVendorEvents))
 	mux.HandleFunc("GET /vendor/events/{eventId}/orders", s.requireRole(RoleVendor, s.handleVendorOrders))
 	mux.HandleFunc("GET /vendor/events/{eventId}/inventory", s.requireRole(RoleVendor, s.handleVendorInventory))
@@ -151,7 +151,7 @@ func (s *Server) Routes() http.Handler {
 }
 
 func (s *Server) seed() {
-	s.users["buyer@velox.local"] = User{ID: "usr_buyer_1", Email: "buyer@velox.local", Password: "buyer", Role: RoleBuyer}
+	s.users["reserver@velox.local"] = User{ID: "usr_reserver_1", Email: "reserver@velox.local", Password: "reserver", Role: RoleReserver}
 	s.users["vendor@velox.local"] = User{ID: "usr_vendor_1", Email: "vendor@velox.local", Password: "vendor", Role: RoleVendor, VendorID: "ven_northstar"}
 	event := Event{
 		ID:          "evt_neon_riot",

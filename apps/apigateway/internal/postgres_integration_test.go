@@ -23,7 +23,7 @@ func TestPostgresReservationSmoke(t *testing.T) {
 
 	server := NewServerWithStore("test", store)
 	client := newTestClient(server)
-	cookie := client.login(t, "buyer@velox.local", "buyer")
+	cookie := client.login(t, "reserver@velox.local", "reserver")
 	order := client.reserve(t, cookie, "pg-smoke-reserve", []string{"A-09"}, http.StatusCreated)
 
 	req := httptest.NewRequest(http.MethodPost, "/reservations/"+order.ReservationID+"/confirm", nil)
@@ -57,7 +57,7 @@ func TestPostgresConfirmReservationIsIdempotent(t *testing.T) {
 
 	server := NewServerWithStore("test", store)
 	client := newTestClient(server)
-	cookie := client.login(t, "buyer@velox.local", "buyer")
+	cookie := client.login(t, "reserver@velox.local", "reserver")
 	order := client.reserve(t, cookie, "pg-confirm-idem", []string{"A-10"}, http.StatusCreated)
 
 	for i := 0; i < 2; i++ {
@@ -87,7 +87,7 @@ func TestPostgresExpiredHoldUpdatesOrderAndInventory(t *testing.T) {
 	server := NewServerWithStore("test", store)
 	server.now = func() time.Time { return now }
 	client := newTestClient(server)
-	cookie := client.login(t, "buyer@velox.local", "buyer")
+	cookie := client.login(t, "reserver@velox.local", "reserver")
 	expiredOrder := client.reserve(t, cookie, "pg-expire-old", []string{"A-08"}, http.StatusCreated)
 
 	now = now.Add(server.holdTTL + time.Second)

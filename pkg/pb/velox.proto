@@ -161,7 +161,7 @@ message SeatReservationExpired {
   SeatRef seat = 4;
 }
 
-message SeatTicketPurchased {
+message SeatReservationConfirmed {
   EventMetadata metadata = 1;
   string ticket_id = 2;
   string reservation_id = 3;
@@ -203,7 +203,7 @@ message KafkaEvent {
     SeatReservationHeld seat_reservation_held = 5;
     SeatReservationFailed seat_reservation_failed = 6;
     SeatReservationExpired seat_reservation_expired = 7;
-    SeatTicketPurchased seat_ticket_purchased = 8;
+    SeatReservationConfirmed seat_reservation_confirmed = 8;
     SeatTicketTransferred seat_ticket_transferred = 9;
     SeatTicketUsed seat_ticket_used = 10;
     SeatTicketUpgraded seat_ticket_upgraded = 11;

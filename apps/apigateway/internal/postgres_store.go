@@ -277,7 +277,7 @@ func (s *PostgresStore) ConfirmReservation(ctx context.Context, user User, reser
 	}
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE inventory.reservations
-		SET status = 'PURCHASED', updated_at = $2
+		SET status = 'CONFIRMED', updated_at = $2
 		WHERE reservation_id = $1
 	`, reservationID, now); err != nil {
 		return Order{}, err
