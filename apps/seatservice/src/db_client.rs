@@ -186,6 +186,7 @@ impl DbClient {
                 aggregate_id: stream_key.clone(),
                 aggregate_version: version as u64,
                 event_type: "SeatReserved".into(),
+                correlation_id: order.order_id.clone(),
                 seat: SeatDto {
                     event_id: order.event_id.clone(),
                     section_id: order.section_id.clone(),

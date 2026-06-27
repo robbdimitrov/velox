@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"strings"
 
 	"github.com/google/uuid"
@@ -18,20 +18,29 @@ func StartConsumer(ctx context.Context, db *sql.DB, cl *kgo.Client) {
 			return
 		}
 		fetches.EachError(func(t string, p int32, err error) {
-			log.Printf("fetch error %s:%d - %v", t, p, err)
+			slog.Error("fetch error", "topic", t, "partition", p, "error", err)
 		})
 
 		fetches.EachRecord(func(r *kgo.Record) {
 			var eventType string
+			var reqID string
 			for _, h := range r.Headers {
 				if h.Key == "event_type" {
 					eventType = string(h.Value)
 				}
+				if h.Key == "X-Request-ID" {
+					reqID = string(h.Value)
+				}
+			}
+
+			recordCtx := ctx
+			if reqID != "" {
+				recordCtx = context.WithValue(ctx, "request_id", reqID)
 			}
 
 			var payload map[string]interface{}
 			if err := json.Unmarshal(r.Value, &payload); err != nil {
-				log.Printf("invalid payload JSON: %v", err)
+				slog.Error("invalid payload JSON", "error", err)
 				return
 			}
 
@@ -62,10 +71,11 @@ func StartConsumer(ctx context.Context, db *sql.DB, cl *kgo.Client) {
 			}
 
 			if orderID != "" {
-				if eventType == "SeatReserved" {
-					handleSeatReserved(ctx, db, orderID)
-				} else if eventType == "SeatReservationFailed" {
-					handleSeatReservationFailed(ctx, db, orderID)
+				switch eventType {
+				case "SeatReserved":
+					handleSeatReserved(recordCtx, db, orderID)
+				case "SeatReservationFailed":
+					handleSeatReservationFailed(recordCtx, db, orderID)
 				}
 			}
 		})
@@ -75,28 +85,54 @@ func StartConsumer(ctx context.Context, db *sql.DB, cl *kgo.Client) {
 func handleSeatReserved(ctx context.Context, db *sql.DB, orderID string) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		log.Printf("failed to begin tx: %v", err)
+		slog.Error("failed to begin tx", "error", err)
 		return
 	}
 	defer tx.Rollback()
 
-	// Simulate payment success, then update to CONFIRMED
+	var totalAmount int64
+	var eventIDStr string
+	err = tx.QueryRowContext(ctx, `
+		SELECT o.total_amount_minor, s.event_id 
+		FROM orders.orders o 
+		JOIN orders.order_seats s ON s.order_id = o.id 
+		WHERE o.id = $1 LIMIT 1
+	`, orderID).Scan(&totalAmount, &eventIDStr)
+	if err != nil {
+		slog.Error("failed to get order total amount and event id", "error", err)
+		return
+	}
+
 	_, err = tx.ExecContext(ctx, `UPDATE orders.orders SET status = 'CONFIRMED', updated_at = now() WHERE id = $1`, orderID)
 	if err != nil {
-		log.Printf("failed to update CONFIRMED: %v", err)
+		slog.Error("failed to update CONFIRMED", "error", err)
 		return
 	}
 
 	eventID := uuid.New().String()
-	payload := map[string]string{"order_id": orderID, "status": "CONFIRMED"}
-	payloadBytes, _ := json.Marshal(payload)
+	envelope := map[string]any{
+		"Type": "OrderConfirmed",
+		"Order": map[string]any{
+			"order_id":           orderID,
+			"event_id":           eventIDStr,
+			"status":             "CONFIRMED",
+			"total_amount_minor": totalAmount,
+		},
+	}
+	payloadBytes, _ := json.Marshal(envelope)
+
+	headers := map[string]string{}
+	if reqID, ok := ctx.Value("request_id").(string); ok && reqID != "" {
+		headers["X-Request-ID"] = reqID
+	}
+	headersBytes, _ := json.Marshal(headers)
 
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO orders.outbox_events (id, aggregate_type, aggregate_id, event_type, payload)
-		VALUES ($1, 'order', $2, 'OrderConfirmed', $3)
-	`, eventID, orderID, payloadBytes)
+		INSERT INTO orders.outbox_events (id, aggregate_type, aggregate_id, event_type, payload, headers)
+		VALUES ($1, 'order', $2, 'OrderConfirmed', $3, $4)
+	`, eventID, orderID, payloadBytes, headersBytes)
 	if err != nil {
-		log.Printf("failed to insert outbox event: %v", err)
+		slog.Error("failed to insert outbox event", "error", err)
 		return
 	}
 
@@ -106,6 +142,6 @@ func handleSeatReserved(ctx context.Context, db *sql.DB, orderID string) {
 func handleSeatReservationFailed(ctx context.Context, db *sql.DB, orderID string) {
 	_, err := db.ExecContext(ctx, `UPDATE orders.orders SET status = 'FAILED', updated_at = now() WHERE id = $1`, orderID)
 	if err != nil {
-		log.Printf("failed to update FAILED: %v", err)
+		slog.Error("failed to update FAILED", "error", err)
 	}
 }

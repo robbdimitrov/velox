@@ -41,6 +41,7 @@ pub struct SeatReservedEvent {
     pub aggregate_version: u64,
     #[serde(rename = "type")]
     pub event_type: String, // "SeatReserved"
+    pub correlation_id: String, // Maps to order_id
     pub seat: SeatDto,
     pub occurred_at: DateTime<Utc>,
 }

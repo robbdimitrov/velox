@@ -4,15 +4,20 @@ use chrono::Utc;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use std::time::Duration;
 use tracing::{error, info, warn};
+use tracing::Instrument;
 
-pub async fn process_message(db: &DbClient, producer: &FutureProducer, payload_bytes: &[u8]) {
-    let envelope: EventEnvelope = match serde_json::from_slice(payload_bytes) {
-        Ok(e) => e,
-        Err(err) => {
-            warn!(error = %err, "Failed to deserialize event envelope");
-            return;
-        }
-    };
+pub async fn process_message(db: &DbClient, producer: &FutureProducer, payload_bytes: &[u8], request_id: Option<String>) {
+    let req_id_str = request_id.clone().unwrap_or_else(|| "unknown".to_string());
+    let span = tracing::info_span!("process_message", request_id = %req_id_str);
+    
+    async move {
+        let envelope: EventEnvelope = match serde_json::from_slice(payload_bytes) {
+            Ok(e) => e,
+            Err(err) => {
+                warn!(error = %err, "Failed to deserialize event envelope");
+                return;
+            }
+        };
 
     if envelope.event_type == "OrderCreated" {
         let payload_val = match envelope.payload {
@@ -55,14 +60,23 @@ pub async fn process_message(db: &DbClient, producer: &FutureProducer, payload_b
                         }
                     };
 
-                    let produce_result = producer
-                        .send(
-                            FutureRecord::to("inventory.events.v1")
-                                .payload(&msg_str)
-                                .key(&event.aggregate_id),
-                            Duration::from_secs(5),
-                        )
-                        .await;
+                    let mut record = FutureRecord::to("inventory.events.v1")
+                        .payload(&msg_str)
+                        .key(&event.aggregate_id);
+                    let mut headers = rdkafka::message::OwnedHeaders::new();
+                    headers = headers.insert(rdkafka::message::Header {
+                        key: "event_type",
+                        value: Some("SeatReserved"),
+                    });
+                    if let Some(ref rid) = request_id {
+                        headers = headers.insert(rdkafka::message::Header {
+                            key: "X-Request-ID",
+                            value: Some(rid),
+                        });
+                    }
+                    record = record.headers(headers);
+
+                    let produce_result = producer.send(record, Duration::from_secs(5)).await;
 
                     if let Err((e, _)) = produce_result {
                         error!(error = %e, "Failed to produce SeatReservedEvent");
@@ -79,16 +93,28 @@ pub async fn process_message(db: &DbClient, producer: &FutureProducer, payload_b
                 };
 
                 if let Ok(msg_str) = serde_json::to_string(&failed_event) {
-                    let _ = producer
-                        .send(
-                            FutureRecord::to("inventory.events.v1")
-                                .payload(&msg_str)
-                                .key(&order.order_id),
-                            Duration::from_secs(5),
-                        )
-                        .await;
+                    let mut record = FutureRecord::to("inventory.events.v1")
+                        .payload(&msg_str)
+                        .key(&order.order_id);
+                    let mut headers = rdkafka::message::OwnedHeaders::new();
+                    headers = headers.insert(rdkafka::message::Header {
+                        key: "event_type",
+                        value: Some("SeatReservationFailed"),
+                    });
+                    if let Some(ref rid) = request_id {
+                        headers = headers.insert(rdkafka::message::Header {
+                            key: "X-Request-ID",
+                            value: Some(rid),
+                        });
+                    }
+                    record = record.headers(headers);
+
+                    let _ = producer.send(record, Duration::from_secs(5)).await;
                 }
             }
         }
     }
+    }
+    .instrument(span)
+    .await;
 }

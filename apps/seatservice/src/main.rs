@@ -71,8 +71,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     match result {
                         Err(e) => error!(error = %e, "Kafka consumer error"),
                         Ok(m) => {
+                            use rdkafka::message::Message;
+                            let mut req_id = None;
+                            if let Some(headers) = m.headers() {
+                                use rdkafka::message::Headers;
+                                for i in 0..headers.count() {
+                                    let h = headers.get(i);
+                                    if h.key == "X-Request-ID" {
+                                            if let Some(v) = h.value {
+                                                req_id = Some(String::from_utf8_lossy(v).into_owned());
+                                            }
+                                        }
+                                    }
+                                }
                             if let Some(payload) = m.payload() {
-                                processor::process_message(&db_client, &producer, payload).await;
+                                processor::process_message(&db_client, &producer, payload, req_id).await;
                             }
                         }
                     }
