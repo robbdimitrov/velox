@@ -43,7 +43,7 @@ k8s-check:
 	@$(KUBECTL) apply --dry-run=client -f deploy/services.yaml
 
 format:
-	@gofmt -w apps/apigateway/main.go apps/apigateway/internal/*.go apps/orderservice/internal/*.go apps/viewservice/internal/*.go
+	@gofmt -w apps/apigateway/main.go apps/apigateway/api/*.go apps/apigateway/internal/*.go apps/orderservice/internal/*.go apps/viewservice/internal/*.go
 	@cargo fmt --manifest-path apps/seatservice/Cargo.toml
 
 lint: proto-check db-check

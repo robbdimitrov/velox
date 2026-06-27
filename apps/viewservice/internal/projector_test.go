@@ -30,3 +30,21 @@ func TestRejectsLowerAggregateVersion(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestOrderEvents(t *testing.T) {
+	p := NewProjector()
+	order := Order{OrderID: "order1", UserID: "user1", EventID: "event1", Status: "PENDING"}
+	event := Event{EventID: "evt1", AggregateID: "order1", AggregateVersion: 1, Type: "OrderCreated", Order: order}
+
+	if err := p.Apply(event); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := p.Orders["order1"].Status; got != "PENDING" {
+		t.Fatalf("expected status PENDING, got %s", got)
+	}
+
+	if len(p.VendorOrderIDs["event1"]) != 1 || p.VendorOrderIDs["event1"][0] != "order1" {
+		t.Fatalf("expected vendor order ID to be recorded")
+	}
+}

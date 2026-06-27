@@ -3,10 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -16,13 +17,24 @@ import (
 )
 
 func main() {
+	setupLogger()
+
 	addr := os.Getenv("VELOX_HTTP_ADDR")
 	if addr == "" {
 		addr = ":8080"
 	}
 	dbURL := os.Getenv("VELOX_DATABASE_URL")
 	if dbURL == "" {
-		dbURL = "postgres://velox:velox@localhost:5432/velox"
+		dbURL = os.Getenv("DATABASE_URL")
+		if dbURL == "" {
+			dbHost := os.Getenv("DATABASE_HOST")
+			dbPass := os.Getenv("POSTGRES_PASSWORD")
+			if dbHost != "" && dbPass != "" {
+				dbURL = "postgres://velox:" + dbPass + "@" + dbHost + ":5432/velox"
+			} else {
+				dbURL = "postgres://velox:velox@postgres.velox.svc.cluster.local:5432/velox"
+			}
+		}
 	}
 	kafkaBrokers := os.Getenv("VELOX_KAFKA_BROKERS")
 	if kafkaBrokers == "" {
@@ -34,7 +46,8 @@ func main() {
 
 	store, err := internal.OpenPostgresStore(ctx, dbURL)
 	if err != nil {
-		log.Fatalf("failed to connect to db: %v", err)
+		slog.Error("failed to connect to db", "error", err)
+		os.Exit(1)
 	}
 	defer store.Close()
 
@@ -45,11 +58,14 @@ func main() {
 		kgo.DisableAutoCommit(),
 	)
 	if err != nil {
-		log.Fatalf("failed to create kafka client: %v", err)
+		slog.Error("failed to create kafka client", "error", err)
+		os.Exit(1)
 	}
 	defer cl.Close()
 
-	go consumeEvents(ctx, cl, store)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go consumeEvents(ctx, cl, store, &wg)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -63,45 +79,63 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("viewservice listening on %s", addr)
+		slog.Info("viewservice listening", "addr", addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("http server error: %v", err)
+			slog.Error("http server error", "error", err)
+			os.Exit(1)
 		}
 	}()
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
-	log.Println("shutting down...")
+	slog.Info("shutting down...")
+
+	cancel() // Signal consumer to stop
 	
 	ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelShutdown()
 	if err := srv.Shutdown(ctxShutdown); err != nil {
-		log.Printf("http server shutdown error: %v", err)
+		slog.Error("http server shutdown error", "error", err)
 	}
+
+	wg.Wait()
 }
 
-func consumeEvents(ctx context.Context, cl *kgo.Client, store *internal.PostgresStore) {
+func setupLogger() {
+	level := slog.LevelInfo
+	if os.Getenv("LOG_LEVEL") == "debug" {
+		level = slog.LevelDebug
+	}
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})))
+}
+
+type EventStore interface {
+	ApplyEvent(ctx context.Context, event internal.Event, sourceTopic string, sourcePartition int32, sourceOffset int64) error
+}
+
+func consumeEvents(ctx context.Context, cl *kgo.Client, store EventStore, wg *sync.WaitGroup) {
+	defer wg.Done()
 	for {
 		fetches := cl.PollFetches(ctx)
-		if fetches.IsClientClosed() {
+		if fetches.IsClientClosed() || ctx.Err() != nil {
 			return
 		}
 		if errs := fetches.Errors(); len(errs) > 0 {
-			log.Printf("kafka fetch errors: %v", errs)
+			slog.Error("kafka fetch errors", "errors", errs)
 			continue
 		}
 
 		fetches.EachRecord(func(record *kgo.Record) {
 			var event internal.Event
 			if err := json.Unmarshal(record.Value, &event); err != nil {
-				log.Printf("failed to unmarshal event: %v", err)
+				slog.Error("failed to unmarshal event", "error", err)
 				return
 			}
 			
 			err := store.ApplyEvent(ctx, event, record.Topic, record.Partition, record.Offset)
 			if err != nil {
-				log.Printf("failed to apply event (topic=%s, offset=%d): %v", record.Topic, record.Offset, err)
+				slog.Error("failed to apply event", "topic", record.Topic, "offset", record.Offset, "error", err)
 			} else {
 				// Manually commit offsets after successful processing
 				cl.CommitRecords(ctx, record)

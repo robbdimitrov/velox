@@ -100,16 +100,30 @@ func (s *PostgresStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 		}
 
 		// Notify apigateway about projection update for SSE
-		notificationPayload, _ := json.Marshal(map[string]interface{}{
+		notificationPayload, err := json.Marshal(map[string]interface{}{
 			"event_id": event.Seat.EventID,
 		})
+		if err != nil {
+			return err
+		}
+
 		_, err = tx.ExecContext(ctx, fmt.Sprintf("NOTIFY seat_updates, '%s'", string(notificationPayload)))
 		if err != nil {
 			return err
 		}
 
 	case "OrderCreated", "OrderConfirmed", "OrderExpired":
-		// Handle Order projection if necessary
+		// Handle Order projection
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO projection.order_summaries (order_id, user_id, status, total_amount_minor, currency)
+			VALUES ($1, $2, $3, 0, 'USD')
+			ON CONFLICT (order_id) DO UPDATE SET
+				status = EXCLUDED.status,
+				updated_at = now()
+		`, event.Order.OrderID, event.Order.UserID, event.Order.Status)
+		if err != nil {
+			return err
+		}
 	}
 
 	return tx.Commit()
