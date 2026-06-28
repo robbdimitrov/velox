@@ -164,13 +164,20 @@ function mapDiscovery(body: {
   const events = body.events.map((event): EventSummary => {
     const bucket =
       event.seats_open < 20 ? 'LOW' : event.seats_open < 80 ? 'MEDIUM' : 'HIGH';
+    let image_url = '/event-midnight-array.svg';
+    if (event.id === 'evt_neon_riot' || event.id === 'evt_summer_fests') {
+      image_url = '/event-final-whistle.svg';
+    } else if (event.id === 'evt_north_pier' || event.id === 'evt_civic_bowl') {
+      image_url = '/event-zero-hour.svg';
+    }
+
     return {
       id: event.id,
       title: event.name,
       venue: event.venue,
       city: event.city,
       category: 'Live',
-      image_url: '/event-midnight-array.svg',
+      image_url,
       sale_starts_at: event.starts_at,
       remaining_bucket: bucket,
       demand_score: event.demand_score,

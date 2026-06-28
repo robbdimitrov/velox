@@ -27,7 +27,7 @@
   let reservingStatus = $state('');
   let reserving = $derived(reservingStatus !== '');
   let error = $state('');
-  let eventLog = $state<string[]>([]);
+  let eventLog: string[] = $state([]);
   let sectionID = $state('');
   let zoomLevel = $state(1);
   let accessibleOnly = $state(false);
