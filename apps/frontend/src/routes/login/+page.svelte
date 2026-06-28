@@ -47,7 +47,7 @@
         Welcome Back
       </h1>
       <p class="text-inkMuted mb-8 text-sm">
-        Sign in to access your tickets and reservations.
+        Log in to access your tickets and reservations.
       </p>
 
       {#if error}
@@ -103,7 +103,7 @@
           {#if loading}
             <span class="loading loading-spinner loading-sm"></span>
           {:else}
-            Sign In <ArrowRight size={18} />
+            Log In <ArrowRight size={18} />
           {/if}
         </button>
       </form>

@@ -171,7 +171,7 @@
         <a
           href="/login"
           class="text-signal hover:text-signal/80 font-semibold transition-colors"
-          >Sign in</a
+          >Log in</a
         >
       </p>
     </div>
