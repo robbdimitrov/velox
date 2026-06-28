@@ -61,7 +61,7 @@
               {event.status === 'published' ? '🟢 Published' : '⚪ Draft'}
             </div>
             <a
-              href={`/organizer/events/${event.id}`}
+              href={`/organizer/events/${event.id}/dashboard`}
               class="btn btn-xs btn-ghost text-info hover:bg-info/10 rounded"
             >
               Manage <ExternalLink size={14} />
