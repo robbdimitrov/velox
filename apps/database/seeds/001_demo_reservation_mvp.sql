@@ -2,11 +2,12 @@ BEGIN;
 
 WITH generated_seats AS (
     SELECT
-        'evt_neon_riot'::text AS event_id,
+        event_id,
         section_id,
         row_label || '-' || lpad(seat_number::text, 2, '0') AS seat_id,
         8500 + seat_number * 150 AS price_amount_minor
-    FROM unnest(ARRAY['A', 'B']) AS section_id
+    FROM unnest(ARRAY['evt_neon_riot', 'evt_north_pier', 'evt_civic_bowl', 'evt_summer_fests']) AS event_id
+    CROSS JOIN unnest(ARRAY['A', 'B']) AS section_id
     CROSS JOIN unnest(ARRAY['A', 'B', 'C', 'D']) AS row_label
     CROSS JOIN generate_series(1, 10) AS seat_number
 )
@@ -28,11 +29,12 @@ ON CONFLICT (stream_key) DO NOTHING;
 
 WITH generated_seats AS (
     SELECT
-        'evt_neon_riot'::text AS event_id,
+        event_id,
         section_id,
         row_label || '-' || lpad(seat_number::text, 2, '0') AS seat_id,
         8500 + seat_number * 150 AS price_amount_minor
-    FROM unnest(ARRAY['A', 'B']) AS section_id
+    FROM unnest(ARRAY['evt_neon_riot', 'evt_north_pier', 'evt_civic_bowl', 'evt_summer_fests']) AS event_id
+    CROSS JOIN unnest(ARRAY['A', 'B']) AS section_id
     CROSS JOIN unnest(ARRAY['A', 'B', 'C', 'D']) AS row_label
     CROSS JOIN generate_series(1, 10) AS seat_number
 )
