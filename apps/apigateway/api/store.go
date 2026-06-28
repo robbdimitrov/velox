@@ -137,7 +137,7 @@ func loadOrderTx(ctx context.Context, tx *sql.Tx, orderID string) (Order, error)
 	var expiresAt sql.NullTime
 	var createdAt, updatedAt time.Time
 	err := tx.QueryRowContext(ctx, `
-		SELECT id::text, reservation_id, user_id, status, COALESCE(total_amount_minor, 0), reservation_expires_at, created_at, updated_at
+		SELECT id::text, COALESCE(reservation_id, ''), user_id, status, COALESCE(total_amount_minor, 0), reservation_expires_at, created_at, updated_at
 		FROM orders.orders
 		WHERE id = $1
 	`, orderID).Scan(&order.ID, &order.ReservationID, &order.UserID, &order.Status, &order.TotalCents, &expiresAt, &createdAt, &updatedAt)
