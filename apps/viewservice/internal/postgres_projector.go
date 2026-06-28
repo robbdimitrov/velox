@@ -72,7 +72,7 @@ func (s *PostgresStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 	if err != nil {
 		return err
 	}
-	if currentVersion >= event.AggregateVersion {
+	if event.AggregateVersion > 0 && currentVersion >= event.AggregateVersion {
 		return ErrStaleAggregateVersion
 	}
 

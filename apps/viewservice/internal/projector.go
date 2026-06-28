@@ -61,7 +61,8 @@ func (p *Projector) Apply(event Event) error {
 	if _, ok := p.processed[event.EventID]; ok {
 		return nil
 	}
-	if last := p.aggregateVer[event.AggregateID]; last >= event.AggregateVersion {
+	last := p.aggregateVer[event.AggregateID]
+	if event.AggregateVersion > 0 && last >= event.AggregateVersion {
 		return ErrStaleAggregateVersion
 	}
 	p.processed[event.EventID] = struct{}{}
