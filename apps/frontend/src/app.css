@@ -13,14 +13,16 @@
 body {
   min-width: 320px;
   margin: 0;
-  background: radial-gradient(circle at top, #1E293B 0%, #050505 60%);
+  background: radial-gradient(circle at top, #1e293b 0%, #050505 60%);
   background-size: cover;
   background-attachment: fixed;
-  color: #F8FAFC;
+  color: #f8fafc;
   -webkit-font-smoothing: antialiased;
 }
 
-button, input, select {
+button,
+input,
+select {
   border-radius: 8px;
   transition: all 0.2s ease-in-out;
 }
@@ -39,7 +41,16 @@ button, input, select {
   font-family: 'Space Mono', monospace;
 }
 
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #1F2937; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #374151; }
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #1f2937;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #374151;
+}

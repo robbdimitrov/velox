@@ -239,15 +239,21 @@ function mapReservation(body: { order: GatewayOrder }): ReserveOrderResponse {
   };
 }
 
-function mapCheckout(reservationId: string, body: { order?: GatewayOrder; status?: string }): CheckoutResponse {
-  if (body.status === 'CONFIRMING' || (body.order && body.order.status === 'CONFIRMED')) {
+function mapCheckout(
+  reservationId: string,
+  body: { order?: GatewayOrder; status?: string }
+): CheckoutResponse {
+  if (
+    body.status === 'CONFIRMING' ||
+    (body.order && body.order.status === 'CONFIRMED')
+  ) {
     return {
       order_id: body.order?.id ?? reservationId.replace('res_', ''),
       status: 'CONFIRMED',
       wallet_ticket_ids: []
     };
   }
-  
+
   if (!body.order) {
     return {
       order_id: reservationId.replace('res_', ''),
@@ -256,11 +262,12 @@ function mapCheckout(reservationId: string, body: { order?: GatewayOrder; status
     };
   }
 
+  const order = body.order;
   return {
-    order_id: body.order.id,
-    status: body.order.status === 'EXPIRED' ? 'EXPIRED' : 'FAILED',
-    wallet_ticket_ids: body.order.seat_ids.map(
-      (seatID) => `tkt_${body.order.id}_${seatID}`
+    order_id: order.id,
+    status: order.status === 'EXPIRED' ? 'EXPIRED' : 'FAILED',
+    wallet_ticket_ids: order.seat_ids.map(
+      (seatID) => `tkt_${order.id}_${seatID}`
     )
   };
 }
