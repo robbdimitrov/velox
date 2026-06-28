@@ -78,7 +78,7 @@
               </li>
               <li>
                 <a
-                  href="/vendor"
+                  href="/organizer"
                   class="hover:bg-white/10 hover:text-info rounded-lg transition-colors flex items-center gap-2"
                   ><BriefcaseBusiness size={14} /> Host Events</a
                 >
