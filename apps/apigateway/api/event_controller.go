@@ -8,6 +8,13 @@ import (
 )
 
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
+	if s.store != nil {
+		events, err := s.store.GetEvents(r.Context())
+		if err == nil {
+			writeJSON(w, http.StatusOK, map[string]any{"events": events, "projection_lag_ms": 0})
+			return
+		}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	events := make([]Event, 0, len(s.events))
@@ -21,6 +28,13 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleEvent(w http.ResponseWriter, r *http.Request) {
 	eventID := r.PathValue("eventId")
+	if s.store != nil {
+		event, err := s.store.GetEvent(r.Context(), eventID)
+		if err == nil {
+			writeJSON(w, http.StatusOK, map[string]any{"event": event, "projection_lag_ms": 0})
+			return
+		}
+	}
 	s.mu.Lock()
 	event, ok := s.events[eventID]
 	if ok {

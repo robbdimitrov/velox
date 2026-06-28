@@ -109,27 +109,32 @@ func (s *PostgresStore) ListSeats(ctx context.Context, eventID, sectionID string
 	return seats, rows.Err()
 }
 
-func (s *PostgresStore) GetVendorInventory(ctx context.Context, eventID string) (map[string]int, error) {
+func (s *PostgresStore) GetVendorInventory(ctx context.Context, eventID string) (map[string]int, map[string]map[string]int, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT status, COUNT(*)
+		SELECT section_id, status, COUNT(*)
 		FROM projection.seat_snapshots
 		WHERE event_id = $1
-		GROUP BY status
+		GROUP BY section_id, status
 	`, eventID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
 	counts := map[string]int{StatusAvailable: 0, StatusHeld: 0, StatusSold: 0}
+	sectionCounts := make(map[string]map[string]int)
 	for rows.Next() {
-		var status string
+		var sectionID, status string
 		var count int
-		if err := rows.Scan(&status, &count); err != nil {
-			return nil, err
+		if err := rows.Scan(&sectionID, &status, &count); err != nil {
+			return nil, nil, err
 		}
-		counts[status] = count
+		counts[status] += count
+		if sectionCounts[sectionID] == nil {
+			sectionCounts[sectionID] = map[string]int{StatusAvailable: 0, StatusHeld: 0, StatusSold: 0}
+		}
+		sectionCounts[sectionID][status] = count
 	}
-	return counts, rows.Err()
+	return counts, sectionCounts, rows.Err()
 }
 
 func loadOrderTx(ctx context.Context, tx *sql.Tx, orderID string) (Order, error) {
@@ -226,34 +231,45 @@ func (s *PostgresStore) ListenSeatUpdates(ctx context.Context, handler func(payl
 }
 
 type VendorMetrics struct {
-	TotalRevenueCents int64 `json:"totalRevenueCents"`
-	ActiveHolds       int   `json:"activeHolds"`
-	SeatsRemaining    int   `json:"seatsRemaining"`
-	DemandScore       int   `json:"demandScore"`
-	ProjectionLagMs   int64 `json:"projectionLagMs"`
+	TotalReservations   int64          `json:"totalReservations"`
+	ActiveHolds         int            `json:"activeHolds"`
+	SeatsRemaining      int            `json:"seatsRemaining"`
+	DemandScore         int            `json:"demandScore"`
+	ProjectionLagMs     int64          `json:"projectionLagMs"`
+	SectionAvailability map[string]int `json:"sectionAvailability"`
 }
 
 func (s *PostgresStore) GetVendorMetrics(ctx context.Context, eventID string) (VendorMetrics, error) {
 	var metrics VendorMetrics
 	
-	// Get total revenue from order_summaries
+	// Get total reservations from order_summaries
 	err := s.db.QueryRowContext(ctx, `
-		SELECT COALESCE(SUM(total_amount_minor), 0)
+		SELECT COUNT(*)
 		FROM projection.order_summaries
 		WHERE event_id = $1 AND status = 'CONFIRMED'
-	`, eventID).Scan(&metrics.TotalRevenueCents)
+	`, eventID).Scan(&metrics.TotalReservations)
 	if err != nil {
 		return metrics, err
 	}
 
 	// Get inventory counts
-	counts, err := s.GetVendorInventory(ctx, eventID)
+	counts, sectionCounts, err := s.GetVendorInventory(ctx, eventID)
 	if err != nil {
 		return metrics, err
 	}
 	
 	metrics.ActiveHolds = counts[StatusHeld]
 	metrics.SeatsRemaining = counts[StatusAvailable]
+	
+	metrics.SectionAvailability = make(map[string]int)
+	for sec, sc := range sectionCounts {
+		total := sc[StatusAvailable] + sc[StatusHeld] + sc[StatusSold]
+		if total > 0 {
+			metrics.SectionAvailability[sec] = (sc[StatusAvailable] * 100) / total
+		} else {
+			metrics.SectionAvailability[sec] = 0
+		}
+	}
 	
 	// Compute fake demand score and lag for demo
 	metrics.DemandScore = 98
@@ -283,4 +299,186 @@ func (s *PostgresStore) ListenVendorUpdates(ctx context.Context, handler func(pa
 			handler(notification.Payload)
 		}
 	})
+}
+
+func (s *PostgresStore) CreateUser(ctx context.Context, id, email, passwordHash, role string) (User, error) {
+	var u User
+	err := s.db.QueryRowContext(ctx, `
+		INSERT INTO catalog.users (id, email, password_hash, role)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, email, password_hash, role, created_at
+	`, id, email, passwordHash, role).Scan(&u.ID, &u.Email, &u.Password, &u.Role, &u.CreatedAt)
+	return u, err
+}
+
+func (s *PostgresStore) GetUserByEmail(ctx context.Context, email string) (User, error) {
+	var u User
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, email, password_hash, role, created_at
+		FROM catalog.users
+		WHERE email = $1
+	`, email).Scan(&u.ID, &u.Email, &u.Password, &u.Role, &u.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return User{}, ErrStoreNotFound
+	}
+	return u, err
+}
+
+func (s *PostgresStore) GetUserByID(ctx context.Context, id string) (User, error) {
+	var u User
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, email, password_hash, role, created_at
+		FROM catalog.users
+		WHERE id = $1
+	`, id).Scan(&u.ID, &u.Email, &u.Password, &u.Role, &u.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return User{}, ErrStoreNotFound
+	}
+	return u, err
+}
+
+func (s *PostgresStore) GetVendorVenues(ctx context.Context, userID string) ([]Venue, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT v.id, v.name, v.city, v.address, v.capacity
+		FROM catalog.venues v
+		JOIN catalog.user_venues uv ON v.id = uv.venue_id
+		WHERE uv.user_id = $1
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var venues []Venue
+	for rows.Next() {
+		var v Venue
+		if err := rows.Scan(&v.ID, &v.Name, &v.City, &v.Address, &v.Capacity); err != nil {
+			return nil, err
+		}
+		venues = append(venues, v)
+	}
+	return venues, rows.Err()
+}
+
+func (s *PostgresStore) GetVenueStaff(ctx context.Context, venueID string) ([]User, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT u.id, u.email, u.role
+		FROM catalog.users u
+		JOIN catalog.user_venues uv ON u.id = uv.user_id
+		WHERE uv.venue_id = $1
+	`, venueID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var staff []User
+	for rows.Next() {
+		var u User
+		if err := rows.Scan(&u.ID, &u.Email, &u.Role); err != nil {
+			return nil, err
+		}
+		staff = append(staff, u)
+	}
+	return staff, rows.Err()
+}
+
+func (s *PostgresStore) CreateEvent(ctx context.Context, event Event) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer rollback(tx)
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO catalog.events (id, venue_id, name, starts_at, status)
+		VALUES ($1, $2, $3, $4, $5)
+	`, event.ID, event.VenueID, event.Name, event.StartsAt, event.Status)
+	if err != nil {
+		return err
+	}
+
+	rows, err := tx.QueryContext(ctx, `
+		SELECT section_id, seat_id FROM catalog.venue_seats WHERE venue_id = $1
+	`, event.VenueID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var seats []struct{ SectionID, SeatID string }
+	for rows.Next() {
+		var st struct{ SectionID, SeatID string }
+		if err := rows.Scan(&st.SectionID, &st.SeatID); err != nil {
+			return err
+		}
+		seats = append(seats, st)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for _, st := range seats {
+		streamKey := "seat-" + event.ID + "-" + st.SeatID
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO inventory.event_streams (stream_key, event_id, section_id, seat_id)
+			VALUES ($1, $2, $3, $4)
+		`, streamKey, event.ID, st.SectionID, st.SeatID)
+		if err != nil {
+			return err
+		}
+
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO projection.seat_snapshots (event_id, section_id, seat_id, status, aggregate_version, price_amount_minor)
+			VALUES ($1, $2, $3, 'AVAILABLE', 0, 5000)
+		`, event.ID, st.SectionID, st.SeatID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (s *PostgresStore) GetEvents(ctx context.Context) ([]Event, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, venue_id, name, starts_at, status
+		FROM catalog.events
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var events []Event
+	for rows.Next() {
+		var e Event
+		if err := rows.Scan(&e.ID, &e.VenueID, &e.Name, &e.StartsAt, &e.Status); err != nil {
+			return nil, err
+		}
+		
+		counts, _, _ := s.GetVendorInventory(ctx, e.ID)
+		e.SeatsOpen = counts[StatusAvailable]
+		e.SeatsTotal = counts[StatusAvailable] + counts[StatusHeld] + counts[StatusSold]
+		
+		events = append(events, e)
+	}
+	return events, rows.Err()
+}
+
+func (s *PostgresStore) GetEvent(ctx context.Context, id string) (Event, error) {
+	var e Event
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, venue_id, name, starts_at, status
+		FROM catalog.events
+		WHERE id = $1
+	`, id).Scan(&e.ID, &e.VenueID, &e.Name, &e.StartsAt, &e.Status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Event{}, ErrStoreNotFound
+	}
+	if err != nil {
+		return Event{}, err
+	}
+	counts, _, _ := s.GetVendorInventory(ctx, e.ID)
+	e.SeatsOpen = counts[StatusAvailable]
+	e.SeatsTotal = counts[StatusAvailable] + counts[StatusHeld] + counts[StatusSold]
+	return e, nil
 }

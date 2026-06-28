@@ -43,7 +43,7 @@ func (s *Server) handleVendorInventory(w http.ResponseWriter, r *http.Request, u
 		return
 	}
 	if s.store != nil {
-		counts, err := s.store.GetVendorInventory(r.Context(), eventID)
+		counts, _, err := s.store.GetVendorInventory(r.Context(), eventID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "inventory_unavailable")
 			return
@@ -139,4 +139,79 @@ func (s *Server) handleVendorMetricsStream(w http.ResponseWriter, r *http.Reques
 			sendMetrics()
 		}
 	}
+}
+
+func (s *Server) handleListVenues(w http.ResponseWriter, r *http.Request, user User) {
+	if s.store == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"venues": []Venue{}})
+		return
+	}
+	venues, err := s.store.GetVendorVenues(r.Context(), user.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	if venues == nil {
+		venues = []Venue{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"venues": venues})
+}
+
+func (s *Server) handleListVenueStaff(w http.ResponseWriter, r *http.Request, user User) {
+	venueID := r.PathValue("id")
+	if s.store == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"staff": []User{}})
+		return
+	}
+	staff, err := s.store.GetVenueStaff(r.Context(), venueID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	if staff == nil {
+		staff = []User{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"staff": staff})
+}
+
+func (s *Server) handleCreateEvent(w http.ResponseWriter, r *http.Request, user User) {
+	var req Event
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	
+	req.Status = "PUBLISHED"
+	if req.ID == "" {
+		req.ID = "evt_" + time.Now().Format("20060102150405")
+	}
+
+	if s.store != nil {
+		venues, err := s.store.GetVendorVenues(r.Context(), user.ID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error")
+			return
+		}
+		ownsVenue := false
+		for _, v := range venues {
+			if v.ID == req.VenueID {
+				ownsVenue = true
+				break
+			}
+		}
+		if !ownsVenue {
+			writeError(w, http.StatusForbidden, "not_venue_owner")
+			return
+		}
+
+		if err := s.store.CreateEvent(r.Context(), req); err != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error")
+			return
+		}
+	} else {
+		s.mu.Lock()
+		s.events[req.ID] = req
+		s.mu.Unlock()
+	}
+
+	writeJSON(w, http.StatusCreated, req)
 }
