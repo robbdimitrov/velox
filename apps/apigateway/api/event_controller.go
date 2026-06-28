@@ -56,10 +56,12 @@ func (s *Server) handleSeats(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "seat_snapshot_unavailable")
 			return
 		}
-		if len(seats) > 0 {
-			writeJSON(w, http.StatusOK, map[string]any{"seats": seats, "snapshot_age_ms": 0})
-			return
+		
+		if seats == nil {
+			seats = []Seat{}
 		}
+		writeJSON(w, http.StatusOK, map[string]any{"seats": seats, "snapshot_age_ms": 0})
+		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
