@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,17 +6,17 @@
 
 :root {
   color-scheme: dark;
-  background: #09090E;
-  font-family: 'Outfit', Inter, ui-sans-serif, system-ui, sans-serif;
+  background: #050505;
+  font-family: 'Space Grotesk', Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
 body {
   min-width: 320px;
   margin: 0;
-  background: radial-gradient(circle at top, #1a1a2e 0%, #09090e 50%);
+  background: radial-gradient(circle at top, #1E293B 0%, #050505 60%);
   background-size: cover;
   background-attachment: fixed;
-  color: #F3F4F6;
+  color: #F8FAFC;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -26,7 +26,7 @@ button, input, select {
 }
 
 .glass-panel {
-  background: rgba(21, 21, 26, 0.6);
+  background: rgba(11, 12, 16, 0.6);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.05);
@@ -36,9 +36,10 @@ button, input, select {
 
 .mono-num {
   font-variant-numeric: tabular-nums;
+  font-family: 'Space Mono', monospace;
 }
 
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #272730; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #3f3f4e; }
+::-webkit-scrollbar-thumb { background: #1F2937; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #374151; }

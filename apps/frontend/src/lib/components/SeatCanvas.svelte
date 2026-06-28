@@ -20,11 +20,11 @@
   let hoveredSeat = $state<Seat | null>(null);
 
   const colors: Record<string, string> = {
-    AVAILABLE: '#9CA3AF',
-    SELECTED: '#7C3AED',
-    HELD: '#FF2A5F',
-    SOLD: '#15151A',
-    UNKNOWN: '#272730'
+    AVAILABLE: '#94A3B8',
+    SELECTED: '#FACC15',
+    HELD: '#EF4444',
+    SOLD: '#0B0C10',
+    UNKNOWN: '#1F2937'
   };
 
   let minX = $state(0), maxX = $state(0), minY = $state(0), maxY = $state(0);
@@ -83,7 +83,7 @@
         ctx.shadowColor = 'rgba(255, 255, 255, 0.6)';
         ctx.shadowBlur = 15 * scale;
       } else if (selected || seat.status === 'HELD') {
-        ctx.shadowColor = selected ? 'rgba(124, 58, 237, 0.8)' : 'rgba(255, 42, 95, 0.8)';
+        ctx.shadowColor = selected ? 'rgba(250, 204, 21, 0.8)' : 'rgba(239, 68, 68, 0.8)';
         ctx.shadowBlur = 12 * scale;
       } else {
         ctx.shadowBlur = 0;
@@ -184,8 +184,8 @@
     </div>
     
     <div class="flex flex-col items-center relative bottom-[-20px]">
-      <span class="text-xs font-black uppercase tracking-[0.6em] text-signal mb-2 drop-shadow-[0_0_8px_rgba(124,58,237,0.8)]">Stage</span>
-      <div class="w-80 h-16 border-t-[3px] border-signal/40 rounded-t-[100%] bg-gradient-to-t from-signal/20 to-transparent shadow-[0_-15px_30px_rgba(124,58,237,0.15)]"></div>
+      <span class="text-xs font-black uppercase tracking-[0.6em] text-signal mb-2 drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]">Stage</span>
+      <div class="w-80 h-16 border-t-[3px] border-signal/40 rounded-t-[100%] bg-gradient-to-t from-signal/20 to-transparent shadow-[0_-15px_30px_rgba(250,204,21,0.15)]"></div>
     </div>
   </div>
 </div>
