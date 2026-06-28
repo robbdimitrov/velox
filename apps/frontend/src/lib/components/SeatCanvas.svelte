@@ -12,7 +12,7 @@
     onToggle: (seat: Seat) => void;
   } = $props();
 
-  let canvas: HTMLCanvasElement;
+  let canvas = $state<HTMLCanvasElement>();
   let width = $state(700);
   let height = $state(360);
 
@@ -25,7 +25,8 @@
   };
 
   function draw() {
-    const context = canvas?.getContext('2d');
+    if (!canvas) return;
+    const context = canvas.getContext('2d');
     if (!context) return;
 
     context.clearRect(0, 0, width, height);
@@ -62,6 +63,7 @@
   }
 
   function handleClick(event: MouseEvent) {
+    if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const x = ((event.clientX - rect.left) / rect.width) * width;
     const y = ((event.clientY - rect.top) / rect.height) * height;
@@ -69,9 +71,17 @@
     if (hit) onToggle(hit);
   }
 
-  onMount(draw);
+  onMount(() => {
+    draw();
+  });
 
-  $effect(draw);
+  $effect(() => {
+    // Explicitly read reactive dependencies to trigger the effect
+    selectedSeatIDs.size;
+    if (seats && canvas) {
+      draw();
+    }
+  });
 </script>
 
 <div class="relative min-h-[360px] rounded-2xl border border-white/10 bg-black/40 shadow-lg overflow-hidden backdrop-blur-md">
