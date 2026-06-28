@@ -55,7 +55,7 @@
         Join Velox
       </h1>
       <p class="text-inkMuted mb-8 text-sm">
-        Create an account to start booking or selling tickets.
+        Create an account to start reserving seats or hosting events.
       </p>
 
       {#if error}
@@ -80,7 +80,7 @@
               size={24}
               class={role === 'customer' ? 'text-signal' : 'text-current'}
             />
-            <span class="text-sm font-semibold">Customer</span>
+            <span class="text-sm font-semibold">Regular User</span>
           </button>
 
           <button
@@ -95,7 +95,7 @@
               size={24}
               class={role === 'vendor' ? 'text-info' : 'text-current'}
             />
-            <span class="text-sm font-semibold">Vendor</span>
+            <span class="text-sm font-semibold">Organizer</span>
           </button>
         </div>
 
