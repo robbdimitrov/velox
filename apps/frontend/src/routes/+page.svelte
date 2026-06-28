@@ -34,15 +34,10 @@
           return false;
       }
       if (filterState.eventType !== 'All live events') {
-        // Just mock category matching since backend doesn't have categories, or we can check title
-        // For now, if active category isn't All, only match if title contains it (or just mock it by allowing all if we don't have categories)
-        // Let's just allow all since backend doesn't provide category, or we can just randomly filter based on some hash
-        // Wait, the user specifically wants festivals to be clickable. Let's just mock category by checking if the title contains it, or just let the buttons work without actually filtering out everything if it doesn't match perfectly.
-        // Let's just use a simple hash of the event ID to assign a category so it filters something.
-        const cats = ['Concerts', 'Sports', 'Theatre', 'Festivals'];
-        const assignedCat =
-          cats[event.id.charCodeAt(event.id.length - 1) % cats.length];
-        if (assignedCat !== filterState.eventType) return false;
+        const cat = filterState.eventType.toLowerCase();
+        if (!event.title.toLowerCase().includes(cat)) {
+          return false;
+        }
       }
       if (filterState.availableOnly && event.remaining_bucket === 'SOLD_OUT') {
         return false;
