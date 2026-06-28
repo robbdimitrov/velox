@@ -116,7 +116,9 @@ func (s *DatabaseStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 			"event_id": event.Seat.EventID,
 		})
 		if err == nil {
-			_, _ = tx.ExecContext(ctx, fmt.Sprintf("NOTIFY vendor_updates, '%s'", string(vendorNotificationPayload)))
+			if _, err := tx.ExecContext(ctx, fmt.Sprintf("NOTIFY vendor_updates, '%s'", string(vendorNotificationPayload))); err != nil {
+				return err
+			}
 		}
 
 	case "OrderCreated", "OrderConfirmed", "OrderExpired":
@@ -139,7 +141,9 @@ func (s *DatabaseStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 				"event_id": event.Order.EventID,
 			})
 			if err == nil {
-				_, _ = tx.ExecContext(ctx, fmt.Sprintf("NOTIFY vendor_updates, '%s'", string(vendorNotificationPayload)))
+				if _, err := tx.ExecContext(ctx, fmt.Sprintf("NOTIFY vendor_updates, '%s'", string(vendorNotificationPayload))); err != nil {
+					return err
+				}
 			}
 		}
 	}

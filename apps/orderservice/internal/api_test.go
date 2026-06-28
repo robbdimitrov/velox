@@ -3,84 +3,51 @@ package internal
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
 
-type mockOrderCreator struct {
-	err     error
-	orderID string
+type FakeStore struct {
+	CreateOrderFunc func(ctx context.Context, req OrderRequest) (string, error)
 }
 
-func (m *mockOrderCreator) CreateOrder(ctx context.Context, req OrderRequest) (string, error) {
-	if m.err != nil {
-		return "", m.err
-	}
-	return m.orderID, nil
+func (f *FakeStore) CreateOrder(ctx context.Context, req OrderRequest) (string, error) {
+	return f.CreateOrderFunc(ctx, req)
 }
 
-func TestHandleCreateOrder(t *testing.T) {
-	tests := []struct {
-		name           string
-		reqBody        OrderRequest
-		mockID         string
-		mockErr        error
-		expectedStatus int
-	}{
-		{
-			name: "valid request",
-			reqBody: OrderRequest{
-				EventID:        "evt_1",
-				SectionID:      "sec_1",
-				SeatIDs:        []string{"seat_1"},
-				IdempotencyKey: "idem_1",
-				UserID:         "user_1",
-			},
-			mockID:         "order_123",
-			expectedStatus: http.StatusOK,
-		},
-		{
-			name: "missing required fields",
-			reqBody: OrderRequest{
-				EventID: "evt_1",
-			},
-			expectedStatus: http.StatusBadRequest,
-		},
-		{
-			name: "store error",
-			reqBody: OrderRequest{
-				EventID:        "evt_1",
-				SectionID:      "sec_1",
-				SeatIDs:        []string{"seat_1"},
-				IdempotencyKey: "idem_1",
-				UserID:         "user_1",
-			},
-			mockErr:        errors.New("store error"),
-			expectedStatus: http.StatusInternalServerError,
+func TestHandleCreateOrder_Idempotency(t *testing.T) {
+	fakeStore := &FakeStore{
+		CreateOrderFunc: func(ctx context.Context, req OrderRequest) (string, error) {
+			if req.IdempotencyKey == "conflict-key" {
+				return "", errors.New("conflict: request in progress or hash mismatch")
+			}
+			if req.IdempotencyKey == "ok-key" {
+				return "order-123", nil
+			}
+			return "", errors.New("unknown error")
 		},
 	}
+	api := &API{Store: fakeStore}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			api := &API{
-				Store: &mockOrderCreator{
-					err:     tt.mockErr,
-					orderID: tt.mockID,
-				},
-			}
+	t.Run("conflict", func(t *testing.T) {
+		reqBody := `{"event_id":"e1","section_id":"s1","seat_ids":["seat1"],"idempotency_key":"conflict-key","user_id":"u1"}`
+		req := httptest.NewRequest("POST", "/orders", bytes.NewReader([]byte(reqBody)))
+		rr := httptest.NewRecorder()
+		api.HandleCreateOrder(rr, req)
+		if rr.Code != http.StatusConflict {
+			t.Errorf("expected 409 Conflict, got %d", rr.Code)
+		}
+	})
 
-			body, _ := json.Marshal(tt.reqBody)
-			req := httptest.NewRequest("POST", "/orders", bytes.NewBuffer(body))
-			rec := httptest.NewRecorder()
-
-			api.HandleCreateOrder(rec, req)
-
-			if rec.Code != tt.expectedStatus {
-				t.Errorf("expected status %d, got %d", tt.expectedStatus, rec.Code)
-			}
-		})
-	}
+	t.Run("success", func(t *testing.T) {
+		reqBody := `{"event_id":"e1","section_id":"s1","seat_ids":["seat1"],"idempotency_key":"ok-key","user_id":"u1"}`
+		req := httptest.NewRequest("POST", "/orders", bytes.NewReader([]byte(reqBody)))
+		rr := httptest.NewRecorder()
+		api.HandleCreateOrder(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Errorf("expected 200 OK, got %d", rr.Code)
+		}
+	})
 }

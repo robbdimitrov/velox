@@ -101,14 +101,20 @@ func handleSeatReserved(ctx context.Context, db *sql.DB, orderID string) {
 
 	var totalAmount int64
 	var eventIDStr string
+	var status string
 	err = tx.QueryRowContext(ctx, `
-		SELECT o.total_amount_minor, s.event_id 
+		SELECT o.total_amount_minor, s.event_id, o.status
 		FROM orders.orders o 
 		JOIN orders.order_seats s ON s.order_id = o.id 
 		WHERE o.id = $1 LIMIT 1
-	`, orderID).Scan(&totalAmount, &eventIDStr)
+	`, orderID).Scan(&totalAmount, &eventIDStr, &status)
 	if err != nil {
-		slog.Error("failed to get order total amount and event id", "error", err)
+		slog.Error("failed to get order details", "error", err)
+		tx.Rollback()
+		return
+	}
+	if status != "PENDING" {
+		slog.Info("order already processed", "order_id", orderID, "status", status)
 		tx.Rollback()
 		return
 	}
@@ -188,8 +194,13 @@ func handleSeatReserved(ctx context.Context, db *sql.DB, orderID string) {
 }
 
 func handleSeatReservationFailed(ctx context.Context, db *sql.DB, orderID string) {
-	_, err := db.ExecContext(ctx, `UPDATE orders.orders SET status = 'FAILED', updated_at = now() WHERE id = $1`, orderID)
+	res, err := db.ExecContext(ctx, `UPDATE orders.orders SET status = 'FAILED', updated_at = now() WHERE id = $1 AND status = 'PENDING'`, orderID)
 	if err != nil {
 		slog.Error("failed to update FAILED", "error", err)
+		return
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		slog.Info("order not in PENDING state or not found", "order_id", orderID)
 	}
 }

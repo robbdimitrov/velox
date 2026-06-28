@@ -81,10 +81,14 @@ func processOutbox(ctx context.Context, db *sql.DB, cl *kgo.Client) {
 
 		err := cl.ProduceSync(ctx, rec).FirstErr()
 		if err == nil {
-			_, _ = tx.ExecContext(ctx, `UPDATE orders.outbox_events SET published_at = now() WHERE id = $1`, r.id)
+			if _, err := tx.ExecContext(ctx, `UPDATE orders.outbox_events SET published_at = now() WHERE id = $1`, r.id); err != nil {
+				slog.Error("failed to mark outbox event published", "error", err)
+			}
 		} else {
 			slog.Error("broker publish error", "error", err)
 		}
 	}
-	_ = tx.Commit()
+	if err := tx.Commit(); err != nil {
+		slog.Error("outbox tx commit error", "error", err)
+	}
 }

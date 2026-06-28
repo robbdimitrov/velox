@@ -72,7 +72,7 @@ func (rl *RateLimiter) Middleware(next http.HandlerFunc) http.HandlerFunc {
 		
 		res, err := tbScript.Run(r.Context(), rl.client, keys, rl.rate, rl.capacity, now).Result()
 		if err != nil {
-			next.ServeHTTP(w, r)
+			http.Error(w, err.Error(), 500)
 			return
 		}
 		

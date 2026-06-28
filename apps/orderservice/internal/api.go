@@ -28,7 +28,11 @@ func (api *API) HandleCreateOrder(w http.ResponseWriter, r *http.Request) {
 
 	orderID, err := api.Store.CreateOrder(r.Context(), req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		if err.Error() == "conflict: request in progress or hash mismatch" {
+			http.Error(w, err.Error(), http.StatusConflict)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 
