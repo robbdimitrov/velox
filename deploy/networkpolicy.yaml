@@ -102,7 +102,6 @@ kind: NetworkPolicy
 metadata:
   name: database-ingress
   namespace: velox
-  labels: []
 spec:
   podSelector:
     matchLabels:
