@@ -37,7 +37,7 @@
         basePrice: eventPrice
       };
 
-      const res = await fetch('/api/vendor/events', {
+      const res = await fetch('/api/organizer/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

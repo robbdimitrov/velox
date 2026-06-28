@@ -5,7 +5,7 @@
 
   let eventId = $derived($page.params.eventId);
   let metrics = $state({ cpu: 45, memory: 60, activeUsers: 120, requestsPerSecond: 850 });
-  let sseUrl = $derived(`/api/vendor/events/${eventId}/metrics/stream`);
+  let sseUrl = $derived(`/api/organizer/events/${eventId}/metrics/stream`);
 
   onMount(() => {
     if (typeof EventSource === 'undefined') return;

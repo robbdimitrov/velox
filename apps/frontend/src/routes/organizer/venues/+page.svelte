@@ -4,7 +4,7 @@
 </script>
 
 <svelte:head>
-  <title>Venues - Velox Vendor</title>
+  <title>Venues - Velox Organizer</title>
 </svelte:head>
 
 <div class="mb-8 flex items-end justify-between">

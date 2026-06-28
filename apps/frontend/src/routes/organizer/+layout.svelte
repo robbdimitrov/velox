@@ -26,7 +26,7 @@
     >
       <div class="mb-8 px-2">
         <h2 class="text-xl font-black uppercase tracking-tight text-info">
-          Vendor Portal
+          Organizer Portal
         </h2>
         <p class="text-xs text-inkMuted mt-1">Manage your events and venues</p>
       </div>

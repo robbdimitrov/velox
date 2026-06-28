@@ -30,7 +30,7 @@
     if (typeof EventSource === 'undefined') return;
 
     const source = new EventSource(
-      `${data.gatewayBaseURL}/vendor/metrics/stream`
+      `${data.gatewayBaseURL}/organizer/metrics/stream`
     );
 
     source.onmessage = (event) => {
@@ -82,7 +82,7 @@
         <h1
           class="text-3xl font-black uppercase tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-signal to-primary"
         >
-          Vendor Analytics
+          Organizer Analytics
         </h1>
         <p class="text-sm text-inkMuted mt-1">
           Live operational read model for flash sale health and inventory

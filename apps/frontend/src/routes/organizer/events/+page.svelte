@@ -4,7 +4,7 @@
 </script>
 
 <svelte:head>
-  <title>Events - Velox Vendor</title>
+  <title>Events - Velox Organizer</title>
 </svelte:head>
 
 <div class="mb-8 flex items-end justify-between">
@@ -15,7 +15,7 @@
     </p>
   </div>
   <a
-    href="/vendor/events/new"
+    href="/organizer/events/new"
     class="btn btn-sm border-none bg-gradient-to-r from-info to-accent text-white shadow-lg shadow-info/20 hover:shadow-info/40 rounded-lg"
   >
     <Plus size={16} /> Create Event
@@ -32,7 +32,7 @@
       You haven't created any events yet. Create an event to start selling tickets!
     </p>
     <a
-      href="/vendor/events/new"
+      href="/organizer/events/new"
       class="btn btn-sm border-none bg-info text-white hover:bg-info/90 shadow-lg shadow-info/20 rounded-lg"
     >
       <Plus size={16} /> Create Your First Event
@@ -61,7 +61,7 @@
               {event.status === 'published' ? '🟢 Published' : '⚪ Draft'}
             </div>
             <a
-              href={`/vendor/events/${event.id}`}
+              href={`/organizer/events/${event.id}`}
               class="btn btn-xs btn-ghost text-info hover:bg-info/10 rounded"
             >
               Manage <ExternalLink size={14} />

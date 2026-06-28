@@ -3,14 +3,14 @@
 </script>
 
 <svelte:head>
-  <title>Settings - Velox Vendor</title>
+  <title>Settings - Velox Organizer</title>
 </svelte:head>
 
 <div class="mb-8 flex items-end justify-between">
   <div>
     <h1 class="text-3xl font-black uppercase tracking-tight">Settings</h1>
     <p class="text-inkMuted text-sm mt-1">
-      Manage your vendor account and preferences.
+      Manage your organizer account and preferences.
     </p>
   </div>
 </div>
@@ -21,6 +21,6 @@
   </div>
   <h3 class="text-xl font-bold mb-2">Settings Coming Soon</h3>
   <p class="text-inkMuted max-w-md">
-    Vendor settings and payout configurations are currently under development. Please check back later.
+    Organizer settings and payout configurations are currently under development. Please check back later.
   </p>
 </div>
