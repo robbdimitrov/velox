@@ -109,10 +109,7 @@ export function createGatewayClient(
       return `${apiBase}/events/evt_neon_riot/stream?${params.toString()}`;
     },
     seatSseURL(eventID: string, sectionID: string) {
-      const url = new URL(apiBase);
-      url.pathname = `/events/${encodeURIComponent(eventID)}/stream`;
-      url.searchParams.set('section_id', sectionID);
-      return url.toString();
+      return `${apiBase}/events/${encodeURIComponent(eventID)}/stream?section_id=${encodeURIComponent(sectionID)}`;
     }
   };
 }
