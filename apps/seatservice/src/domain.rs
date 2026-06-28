@@ -1,4 +1,3 @@
-use std::time::{Duration, SystemTime};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SeatStatus {

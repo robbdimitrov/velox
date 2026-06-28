@@ -1,9 +1,8 @@
-use crate::domain::{SeatState, SeatStatus};
+use crate::domain::SeatState;
 use crate::dtos::{OrderCreatedPayload, SeatDto, SeatReservedEvent};
 use chrono::{DateTime, Utc};
 use serde_json::json;
 use sqlx::{PgPool, Row};
-use std::collections::HashMap;
 use uuid::Uuid;
 
 #[derive(Clone)]

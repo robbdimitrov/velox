@@ -1,11 +1,11 @@
 use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::producer::FutureProducer;
-use rdkafka::{ClientConfig, Message};
+use rdkafka::ClientConfig;
 use seatservice::db_client::DbClient;
 use seatservice::{logging, processor};
 use sqlx::postgres::PgPoolOptions;
 use std::env;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
