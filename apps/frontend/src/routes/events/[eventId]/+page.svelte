@@ -8,6 +8,7 @@
   import { makeMockReservation } from '$lib/api/mock';
   import type { SeatDelta } from '$lib/api/types';
   import SeatCanvas from '$lib/components/SeatCanvas.svelte';
+  import VirtualWaitingRoom from '$lib/components/VirtualWaitingRoom.svelte';
   import { checkoutState } from '$lib/state/checkout-state.svelte';
   import { SeatSelectionState } from '$lib/state/seat-state.svelte';
   import {
@@ -33,6 +34,7 @@
   let accessibleOnly = $state(false);
 
   $effect(() => {
+    if (data.isRateLimited) return;
     sectionID = data.snapshot.section_id;
     seatState.load(data.snapshot.seats, data.snapshot.server_time_ms);
     eventLog = ['Snapshot loaded from projection read model'];
@@ -43,6 +45,7 @@
   let source: EventSource | null = null;
 
   $effect(() => {
+    if (data.isRateLimited) return;
     if (typeof EventSource === 'undefined') return;
     if (source) source.close();
 
@@ -109,9 +112,12 @@
   }
 </script>
 
-<main
-  class="mx-auto grid max-w-7xl gap-6 px-4 py-8 lg:grid-cols-[260px_1fr_320px]"
->
+{#if data.isRateLimited}
+  <VirtualWaitingRoom />
+{:else}
+  <main
+    class="mx-auto grid max-w-7xl gap-6 px-4 py-8 lg:grid-cols-[260px_1fr_320px]"
+  >
   <aside class="glass-panel h-max p-6 sticky top-28">
     <div class="flex items-center gap-3 border-b border-white/10 pb-4 mb-6">
       <div
@@ -318,3 +324,4 @@
     </div>
   </aside>
 </main>
+{/if}
