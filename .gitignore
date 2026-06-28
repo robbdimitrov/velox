@@ -15,7 +15,7 @@ target/
 
 # Dependencies
 node_modules/
-vendor/
+/apps/*/vendor/
 venv/
 __pycache__/
 
