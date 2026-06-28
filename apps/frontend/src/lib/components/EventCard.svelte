@@ -47,7 +47,7 @@
       <span class={`font-mono px-2 py-1 bg-white/5 rounded-md shadow-sm ${scarcityTone}`}>
         {event.remaining_bucket.replace('_', ' ')}
       </span>
-      <span class="bg-signal/20 text-signal px-2 py-1 rounded-md border border-signal/30 shadow-sm">{formatMoney(event.min_price_cents)} floor</span>
+
     </div>
   </div>
   <div class="flex flex-col items-end justify-between py-1 font-mono">

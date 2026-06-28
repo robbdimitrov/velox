@@ -36,10 +36,7 @@
           <input class="min-w-0 flex-1 bg-transparent text-sm outline-none" value="All cities" />
         </div>
       </label>
-      <label class="form-control mt-4">
-        <span class="label-text text-inkMuted font-medium mb-2 flex justify-between">Max price <span>$180</span></span>
-        <input class="range range-primary range-xs" type="range" min="50" max="500" value="180" />
-      </label>
+
       <label class="flex items-center gap-3 text-sm mt-4 cursor-pointer hover:text-white transition-colors group">
         <input class="checkbox checkbox-primary checkbox-sm rounded" type="checkbox" checked />
         <span class="group-hover:text-signal transition-colors">Show available inventory only</span>
