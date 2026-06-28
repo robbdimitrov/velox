@@ -135,6 +135,8 @@ Security controls are design constraints, not review-time additions.
 - Name tests after observable behavior, such as
   `TestRejectsDuplicateIdempotencyKey` or
   `rejects_version_mismatch_for_held_seat`.
+- Aim for Pareto 80/20 test coverage focusing on critical control surfaces (e.g., Auth controllers, vendor actions, and core read-paths) rather than exhaustive line coverage.
+- Keep Go API unit tests fast and hermetic by passing a `nil` store or using lightweight mocks instead of requiring live PostgreSQL instances.
 
 ## Resilience
 
