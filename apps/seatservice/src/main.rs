@@ -22,11 +22,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let db_client = DbClient::new(pool.clone());
 
-    let kafka_brokers = env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_string());
+    let broker_addrs = env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_string());
 
     let consumer: StreamConsumer = ClientConfig::new()
         .set("group.id", "seatservice_group")
-        .set("bootstrap.servers", &kafka_brokers)
+        .set("bootstrap.servers", &broker_addrs)
         .set("auto.offset.reset", "earliest")
         .set("enable.auto.commit", "true")
         .create()?;
@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     consumer.subscribe(&["order.events.v1"])?;
 
     let producer: FutureProducer = ClientConfig::new()
-        .set("bootstrap.servers", &kafka_brokers)
+        .set("bootstrap.servers", &broker_addrs)
         .set("message.timeout.ms", "5000")
         .create()?;
 
@@ -69,7 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             tokio::select! {
                 result = consumer.recv() => {
                     match result {
-                        Err(e) => error!(error = %e, "Kafka consumer error"),
+                        Err(e) => error!(error = %e, "Broker consumer error"),
                         Ok(m) => {
                             use rdkafka::message::Message;
                             let mut req_id = None;

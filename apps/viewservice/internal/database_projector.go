@@ -13,11 +13,11 @@ import (
 
 var ErrStoreNotFound = errors.New("store not found")
 
-type PostgresStore struct {
+type DatabaseStore struct {
 	db *sql.DB
 }
 
-func OpenPostgresStore(ctx context.Context, databaseURL string) (*PostgresStore, error) {
+func OpenDatabaseStore(ctx context.Context, databaseURL string) (*DatabaseStore, error) {
 	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
 		return nil, err
@@ -31,26 +31,26 @@ func OpenPostgresStore(ctx context.Context, databaseURL string) (*PostgresStore,
 		_ = db.Close()
 		return nil, err
 	}
-	return &PostgresStore{db: db}, nil
+	return &DatabaseStore{db: db}, nil
 }
 
-func (s *PostgresStore) Close() error {
+func (s *DatabaseStore) Close() error {
 	return s.db.Close()
 }
 
-func (s *PostgresStore) IsEventProcessed(ctx context.Context, eventID string) (bool, error) {
+func (s *DatabaseStore) IsEventProcessed(ctx context.Context, eventID string) (bool, error) {
 	var count int
 	err := s.db.QueryRowContext(ctx, "SELECT count(*) FROM projection.processed_events WHERE event_id = $1", eventID).Scan(&count)
 	return count > 0, err
 }
 
-func (s *PostgresStore) GetAggregateVersion(ctx context.Context, aggregateID string) (int64, error) {
+func (s *DatabaseStore) GetAggregateVersion(ctx context.Context, aggregateID string) (int64, error) {
 	var version int64
 	err := s.db.QueryRowContext(ctx, "SELECT COALESCE(MAX(aggregate_version), 0) FROM projection.processed_events WHERE aggregate_id = $1", aggregateID).Scan(&version)
 	return version, err
 }
 
-func (s *PostgresStore) ApplyEvent(ctx context.Context, event Event, sourceTopic string, sourcePartition int32, sourceOffset int64) error {
+func (s *DatabaseStore) ApplyEvent(ctx context.Context, event Event, sourceTopic string, sourcePartition int32, sourceOffset int64) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err

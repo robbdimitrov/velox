@@ -194,7 +194,7 @@ message SeatTicketUpgraded {
   Money price_delta = 5;
 }
 
-message KafkaEvent {
+message BrokerEvent {
   oneof event {
     OrderCreated order_created = 1;
     PaymentConfirmed payment_confirmed = 2;

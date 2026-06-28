@@ -19,14 +19,14 @@ type Server struct {
 	orders      map[string]*Order
 	idempotency map[string]idempotencyRecord
 	loginFails  map[string]loginFailure
-	store       *PostgresStore
+	store       *DatabaseStore
 	seatClients   map[string]map[chan string]struct{}
 	vendorClients map[string]map[chan string]struct{}
 	httpClient    *http.Client
 	orderSvcURL string
 }
 
-func NewServerWithStore(secret string, store *PostgresStore) *Server {
+func NewServerWithStore(secret string, store *DatabaseStore) *Server {
 	s := &Server{
 		secret:      []byte(secret),
 		now:         time.Now,

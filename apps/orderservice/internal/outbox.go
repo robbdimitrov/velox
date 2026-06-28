@@ -65,25 +65,25 @@ func processOutbox(ctx context.Context, db *sql.DB, cl *kgo.Client) {
 			_ = json.Unmarshal(r.headers, &hdrs)
 		}
 
-		kafkaHeaders := []kgo.RecordHeader{
+		brokerHeaders := []kgo.RecordHeader{
 			{Key: "event_type", Value: []byte(r.eType)},
 		}
 		for k, v := range hdrs {
-			kafkaHeaders = append(kafkaHeaders, kgo.RecordHeader{Key: k, Value: []byte(v)})
+			brokerHeaders = append(brokerHeaders, kgo.RecordHeader{Key: k, Value: []byte(v)})
 		}
 
 		rec := &kgo.Record{
 			Topic:   "order.events.v1",
 			Key:     []byte(r.id),
 			Value:   r.payload,
-			Headers: kafkaHeaders,
+			Headers: brokerHeaders,
 		}
 
 		err := cl.ProduceSync(ctx, rec).FirstErr()
 		if err == nil {
 			_, _ = tx.ExecContext(ctx, `UPDATE orders.outbox_events SET published_at = now() WHERE id = $1`, r.id)
 		} else {
-			slog.Error("kafka publish error", "error", err)
+			slog.Error("broker publish error", "error", err)
 		}
 	}
 	_ = tx.Commit()

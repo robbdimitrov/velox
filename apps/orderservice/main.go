@@ -30,11 +30,11 @@ func main() {
 			}
 		}
 	}
-	kafkaBrokers := os.Getenv("VELOX_KAFKA_BROKERS")
-	if kafkaBrokers == "" {
-		kafkaBrokers = os.Getenv("KAFKA_BROKERS")
-		if kafkaBrokers == "" {
-			kafkaBrokers = "localhost:9092"
+	brokerAddrs := os.Getenv("VELOX_KAFKA_BROKERS")
+	if brokerAddrs == "" {
+		brokerAddrs = os.Getenv("KAFKA_BROKERS")
+		if brokerAddrs == "" {
+			brokerAddrs = "localhost:9092"
 		}
 	}
 
@@ -46,7 +46,7 @@ func main() {
 	defer store.Close()
 
 	cl, err := kgo.NewClient(
-		kgo.SeedBrokers(kafkaBrokers),
+		kgo.SeedBrokers(brokerAddrs),
 		kgo.ConsumeTopics("inventory.events.v1"),
 		kgo.ConsumerGroup("orderservice"),
 	)

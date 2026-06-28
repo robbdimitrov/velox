@@ -36,18 +36,18 @@ func main() {
 			}
 		}
 	}
-	kafkaBrokers := os.Getenv("VELOX_KAFKA_BROKERS")
-	if kafkaBrokers == "" {
-		kafkaBrokers = os.Getenv("KAFKA_BROKERS")
-		if kafkaBrokers == "" {
-			kafkaBrokers = "localhost:9092"
+	brokerAddrs := os.Getenv("VELOX_KAFKA_BROKERS")
+	if brokerAddrs == "" {
+		brokerAddrs = os.Getenv("KAFKA_BROKERS")
+		if brokerAddrs == "" {
+			brokerAddrs = "localhost:9092"
 		}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	store, err := internal.OpenPostgresStore(ctx, dbURL)
+	store, err := internal.OpenDatabaseStore(ctx, dbURL)
 	if err != nil {
 		slog.Error("failed to connect to db", "error", err)
 		os.Exit(1)
@@ -55,13 +55,13 @@ func main() {
 	defer store.Close()
 
 	cl, err := kgo.NewClient(
-		kgo.SeedBrokers(kafkaBrokers),
+		kgo.SeedBrokers(brokerAddrs),
 		kgo.ConsumeTopics("inventory.events.v1", "order.events.v1"),
 		kgo.ConsumerGroup("viewservice-consumers"),
 		kgo.DisableAutoCommit(),
 	)
 	if err != nil {
-		slog.Error("failed to create kafka client", "error", err)
+		slog.Error("failed to create broker client", "error", err)
 		os.Exit(1)
 	}
 	defer cl.Close()
@@ -125,7 +125,7 @@ func consumeEvents(ctx context.Context, cl *kgo.Client, store EventStore, wg *sy
 			return
 		}
 		if errs := fetches.Errors(); len(errs) > 0 {
-			slog.Error("kafka fetch errors", "errors", errs)
+			slog.Error("broker fetch errors", "errors", errs)
 			continue
 		}
 

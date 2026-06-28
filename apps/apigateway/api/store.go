@@ -14,11 +14,11 @@ var (
 	ErrStoreNotFound = errors.New("store not found")
 )
 
-type PostgresStore struct {
+type DatabaseStore struct {
 	db *sql.DB
 }
 
-func OpenPostgresStore(ctx context.Context, databaseURL string) (*PostgresStore, error) {
+func OpenDatabaseStore(ctx context.Context, databaseURL string) (*DatabaseStore, error) {
 	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
 		return nil, err
@@ -32,14 +32,14 @@ func OpenPostgresStore(ctx context.Context, databaseURL string) (*PostgresStore,
 		_ = db.Close()
 		return nil, err
 	}
-	return &PostgresStore{db: db}, nil
+	return &DatabaseStore{db: db}, nil
 }
 
-func (s *PostgresStore) Close() error {
+func (s *DatabaseStore) Close() error {
 	return s.db.Close()
 }
 
-func (s *PostgresStore) ListOrders(ctx context.Context, user User) ([]Order, error) {
+func (s *DatabaseStore) ListOrders(ctx context.Context, user User) ([]Order, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id::text
 		FROM orders.orders
@@ -65,7 +65,7 @@ func (s *PostgresStore) ListOrders(ctx context.Context, user User) ([]Order, err
 	return orders, rows.Err()
 }
 
-func (s *PostgresStore) GetOrder(ctx context.Context, user User, orderID string) (Order, error) {
+func (s *DatabaseStore) GetOrder(ctx context.Context, user User, orderID string) (Order, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Order{}, err
@@ -84,7 +84,7 @@ func (s *PostgresStore) GetOrder(ctx context.Context, user User, orderID string)
 	return order, nil
 }
 
-func (s *PostgresStore) ListSeats(ctx context.Context, eventID, sectionID string) ([]Seat, error) {
+func (s *DatabaseStore) ListSeats(ctx context.Context, eventID, sectionID string) ([]Seat, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT seat_id, status, aggregate_version, COALESCE(extract(epoch from expires_at) * 1000, 0)::bigint, price_amount_minor
 		FROM projection.seat_snapshots
@@ -109,7 +109,7 @@ func (s *PostgresStore) ListSeats(ctx context.Context, eventID, sectionID string
 	return seats, rows.Err()
 }
 
-func (s *PostgresStore) GetVendorInventory(ctx context.Context, eventID string) (map[string]int, map[string]map[string]int, error) {
+func (s *DatabaseStore) GetVendorInventory(ctx context.Context, eventID string) (map[string]int, map[string]map[string]int, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT section_id, status, COUNT(*)
 		FROM projection.seat_snapshots
@@ -207,7 +207,7 @@ func splitSeatLabel(seatID string) (string, int) {
 	return row, number
 }
 
-func (s *PostgresStore) ListenSeatUpdates(ctx context.Context, handler func(payload string)) error {
+func (s *DatabaseStore) ListenSeatUpdates(ctx context.Context, handler func(payload string)) error {
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
 		return err
@@ -239,7 +239,7 @@ type VendorMetrics struct {
 	SectionAvailability map[string]int `json:"sectionAvailability"`
 }
 
-func (s *PostgresStore) GetVendorMetrics(ctx context.Context, eventID string) (VendorMetrics, error) {
+func (s *DatabaseStore) GetVendorMetrics(ctx context.Context, eventID string) (VendorMetrics, error) {
 	var metrics VendorMetrics
 	
 	// Get total reservations from order_summaries
@@ -278,7 +278,7 @@ func (s *PostgresStore) GetVendorMetrics(ctx context.Context, eventID string) (V
 	return metrics, nil
 }
 
-func (s *PostgresStore) ListenVendorUpdates(ctx context.Context, handler func(payload string)) error {
+func (s *DatabaseStore) ListenVendorUpdates(ctx context.Context, handler func(payload string)) error {
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
 		return err
@@ -301,7 +301,7 @@ func (s *PostgresStore) ListenVendorUpdates(ctx context.Context, handler func(pa
 	})
 }
 
-func (s *PostgresStore) CreateUser(ctx context.Context, id, email, passwordHash, role string) (User, error) {
+func (s *DatabaseStore) CreateUser(ctx context.Context, id, email, passwordHash, role string) (User, error) {
 	var u User
 	err := s.db.QueryRowContext(ctx, `
 		INSERT INTO catalog.users (id, email, password_hash, role)
@@ -311,7 +311,7 @@ func (s *PostgresStore) CreateUser(ctx context.Context, id, email, passwordHash,
 	return u, err
 }
 
-func (s *PostgresStore) GetUserByEmail(ctx context.Context, email string) (User, error) {
+func (s *DatabaseStore) GetUserByEmail(ctx context.Context, email string) (User, error) {
 	var u User
 	err := s.db.QueryRowContext(ctx, `
 		SELECT id, email, password_hash, role, created_at
@@ -324,7 +324,7 @@ func (s *PostgresStore) GetUserByEmail(ctx context.Context, email string) (User,
 	return u, err
 }
 
-func (s *PostgresStore) GetUserByID(ctx context.Context, id string) (User, error) {
+func (s *DatabaseStore) GetUserByID(ctx context.Context, id string) (User, error) {
 	var u User
 	err := s.db.QueryRowContext(ctx, `
 		SELECT id, email, password_hash, role, created_at
@@ -337,7 +337,7 @@ func (s *PostgresStore) GetUserByID(ctx context.Context, id string) (User, error
 	return u, err
 }
 
-func (s *PostgresStore) GetVendorVenues(ctx context.Context, userID string) ([]Venue, error) {
+func (s *DatabaseStore) GetVendorVenues(ctx context.Context, userID string) ([]Venue, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT v.id, v.name, v.city, v.address, v.capacity
 		FROM catalog.venues v
@@ -359,7 +359,7 @@ func (s *PostgresStore) GetVendorVenues(ctx context.Context, userID string) ([]V
 	return venues, rows.Err()
 }
 
-func (s *PostgresStore) GetVenueStaff(ctx context.Context, venueID string) ([]User, error) {
+func (s *DatabaseStore) GetVenueStaff(ctx context.Context, venueID string) ([]User, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT u.id, u.email, u.role
 		FROM catalog.users u
@@ -381,7 +381,7 @@ func (s *PostgresStore) GetVenueStaff(ctx context.Context, venueID string) ([]Us
 	return staff, rows.Err()
 }
 
-func (s *PostgresStore) CreateEvent(ctx context.Context, event Event) error {
+func (s *DatabaseStore) CreateEvent(ctx context.Context, event Event) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -438,7 +438,7 @@ func (s *PostgresStore) CreateEvent(ctx context.Context, event Event) error {
 	return tx.Commit()
 }
 
-func (s *PostgresStore) GetEvents(ctx context.Context) ([]Event, error) {
+func (s *DatabaseStore) GetEvents(ctx context.Context) ([]Event, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, venue_id, name, starts_at, status
 		FROM catalog.events
@@ -464,7 +464,7 @@ func (s *PostgresStore) GetEvents(ctx context.Context) ([]Event, error) {
 	return events, rows.Err()
 }
 
-func (s *PostgresStore) GetEvent(ctx context.Context, id string) (Event, error) {
+func (s *DatabaseStore) GetEvent(ctx context.Context, id string) (Event, error) {
 	var e Event
 	err := s.db.QueryRowContext(ctx, `
 		SELECT id, venue_id, name, starts_at, status

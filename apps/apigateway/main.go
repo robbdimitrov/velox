@@ -18,16 +18,16 @@ func main() {
 	if addr == "" {
 		addr = ":8080"
 	}
-	var store *api.PostgresStore
+	var store *api.DatabaseStore
 	if databaseURL := os.Getenv("DATABASE_URL"); databaseURL != "" {
 		var err error
-		store, err = api.OpenPostgresStore(context.Background(), databaseURL)
+		store, err = api.OpenDatabaseStore(context.Background(), databaseURL)
 		if err != nil {
-			slog.Error("open postgres store failed", "error", err)
+			slog.Error("open database store failed", "error", err)
 			os.Exit(1)
 		}
 		defer store.Close()
-		slog.Info("apigateway using PostgreSQL reservation store")
+		slog.Info("apigateway using Database reservation store")
 	}
 	server := api.NewServerWithStore(secret, store)
 
