@@ -203,4 +203,100 @@ impl DbClient {
             .map_err(|e| format!("Commit failed: {}", e))?;
         Ok(reserved_events)
     }
+
+    pub async fn process_payment_failed(
+        &self,
+        order_id: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Vec<SeatReservedEvent>, String> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| format!("Failed to begin tx: {}", e))?;
+
+        let events = sqlx::query(
+            "SELECT stream_key, payload FROM inventory.events WHERE correlation_id = $1 AND event_type = 'SeatReserved'"
+        )
+        .bind(order_id)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|e| format!("Failed to load events: {}", e))?;
+
+        let mut expired_events = Vec::new();
+
+        for row in events {
+            let stream_key: String = row.get("stream_key");
+            let payload: serde_json::Value = row.get("payload");
+
+            let event_id = payload.get("event_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let section_id = payload.get("section_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let seat_id = payload.get("seat_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+
+            let stream_record = sqlx::query(
+                "SELECT current_version FROM inventory.event_streams WHERE stream_key = $1 FOR UPDATE"
+            )
+            .bind(&stream_key)
+            .fetch_one(&mut *tx)
+            .await;
+
+            let current_version: i32 = match stream_record {
+                Ok(r) => r.get("current_version"),
+                Err(_) => continue,
+            };
+            
+            let version = current_version + 1;
+            let event_uuid = Uuid::new_v4();
+
+            let _ = sqlx::query(
+                "INSERT INTO inventory.events (id, stream_key, aggregate_version, event_type, payload, metadata, correlation_id, signature, occurred_at) VALUES ($1, $2, $3, 'SeatReservationExpired', '{}', '{}', $4, '\\x00', $5)"
+            )
+            .bind(event_uuid)
+            .bind(&stream_key)
+            .bind(version)
+            .bind(order_id)
+            .bind(now)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| format!("Failed to insert event: {}", e))?;
+
+            let _ = sqlx::query(
+                "UPDATE inventory.event_streams SET current_version = $1, updated_at = $2 WHERE stream_key = $3"
+            )
+            .bind(version)
+            .bind(now)
+            .bind(&stream_key)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| format!("Failed to update stream: {}", e))?;
+
+            expired_events.push(SeatReservedEvent {
+                event_id: event_uuid.to_string(),
+                aggregate_id: stream_key.clone(),
+                aggregate_version: version as u64,
+                event_type: "SeatReservationExpired".into(),
+                correlation_id: order_id.to_string(),
+                seat: SeatDto {
+                    event_id,
+                    section_id,
+                    seat_id,
+                    status: "AVAILABLE".into(),
+                    version: version as u64,
+                    expires_at_ms: 0,
+                },
+                occurred_at: now,
+            });
+        }
+
+        let _ = sqlx::query("UPDATE inventory.reservations SET status = 'EXPIRED' WHERE order_id = $1")
+            .bind(Uuid::parse_str(order_id).unwrap_or(Uuid::new_v4()))
+            .execute(&mut *tx)
+            .await;
+
+        tx.commit()
+            .await
+            .map_err(|e| format!("Commit failed: {}", e))?;
+            
+        Ok(expired_events)
+    }
 }

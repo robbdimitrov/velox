@@ -113,6 +113,42 @@ pub async fn process_message(db: &DbClient, producer: &FutureProducer, payload_b
                 }
             }
         }
+    } else if envelope.event_type == "PaymentFailed" {
+        let payload_val = match envelope.payload {
+            Some(p) => p,
+            None => return,
+        };
+        let order_id = payload_val.get("order_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        if order_id.is_empty() { return; }
+        
+        info!(order_id = %order_id, "Processing PaymentFailed");
+        match db.process_payment_failed(&order_id, Utc::now()).await {
+            Ok(expired_events) => {
+                for event in expired_events {
+                    let msg_str = match serde_json::to_string(&event) {
+                        Ok(s) => s,
+                        Err(_) => continue,
+                    };
+                    let mut record = FutureRecord::to("inventory.events.v1")
+                        .payload(&msg_str)
+                        .key(&event.aggregate_id);
+                    let mut headers = rdkafka::message::OwnedHeaders::new();
+                    headers = headers.insert(rdkafka::message::Header {
+                        key: "event_type",
+                        value: Some("SeatReservationExpired"),
+                    });
+                    if let Some(ref rid) = request_id {
+                        headers = headers.insert(rdkafka::message::Header {
+                            key: "X-Request-ID",
+                            value: Some(rid),
+                        });
+                    }
+                    record = record.headers(headers);
+                    let _ = producer.send(record, Duration::from_secs(5)).await;
+                }
+            }
+            Err(e) => warn!("Failed to process payment failed: {}", e),
+        }
     }
     }
     .instrument(span)

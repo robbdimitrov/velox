@@ -59,6 +59,13 @@ func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request,
 			return
 		}
 	}
+	if s.store == nil {
+		for _, seatID := range req.SeatIDs {
+			seat := section[seatID]
+			seat.Status = StatusHeld
+			seat.HeldByOrderID = "mock-pending" // Will be overwritten when order mock returns, but good for now.
+		}
+	}
 	s.mu.Unlock()
 
 	orderReq := map[string]any{

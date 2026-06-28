@@ -9,7 +9,7 @@ import (
 )
 
 func TestRegister(t *testing.T) {
-	server := NewServerWithStore("test", nil)
+	server := NewServerWithStore("test", nil, nil)
 
 	// Valid registration
 	reqBody := `{"email":"new_user@velox.local","password":"pass","role":"reserver"}`
@@ -44,7 +44,7 @@ func TestRegister(t *testing.T) {
 }
 
 func TestLogout(t *testing.T) {
-	server := NewServerWithStore("test", nil)
+	server := NewServerWithStore("test", nil, nil)
 	client := newTestClient(server)
 	cookie := client.login(t, "reserver@velox.local", "reserver")
 
@@ -70,7 +70,7 @@ func TestLogout(t *testing.T) {
 }
 
 func TestMe(t *testing.T) {
-	server := NewServerWithStore("test", nil)
+	server := NewServerWithStore("test", nil, nil)
 	client := newTestClient(server)
 
 	// Unauthorized

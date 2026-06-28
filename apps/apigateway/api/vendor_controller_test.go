@@ -10,7 +10,7 @@ import (
 )
 
 func TestVendorCreateEvent(t *testing.T) {
-	server := NewServerWithStore("test", nil)
+	server := NewServerWithStore("test", nil, nil)
 	client := newTestClient(server)
 	
 	// Create vendor
@@ -43,7 +43,7 @@ func TestVendorCreateEvent(t *testing.T) {
 }
 
 func TestVendorListVenues(t *testing.T) {
-	server := NewServerWithStore("test", nil)
+	server := NewServerWithStore("test", nil, nil)
 	client := newTestClient(server)
 	cookie := client.login(t, "vendor@velox.local", "vendor")
 

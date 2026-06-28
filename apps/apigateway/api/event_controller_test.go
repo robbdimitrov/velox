@@ -8,7 +8,7 @@ import (
 )
 
 func TestEventsListing(t *testing.T) {
-	server := NewServerWithStore("test", nil)
+	server := NewServerWithStore("test", nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/events", nil)
 	rr := httptest.NewRecorder()
@@ -29,7 +29,7 @@ func TestEventsListing(t *testing.T) {
 }
 
 func TestGetEventAndSeats(t *testing.T) {
-	server := NewServerWithStore("test", nil)
+	server := NewServerWithStore("test", nil, nil)
 
 	// Get an event that was seeded
 	req := httptest.NewRequest(http.MethodGet, "/events/evt_neon_riot", nil)

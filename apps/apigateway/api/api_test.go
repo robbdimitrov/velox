@@ -18,7 +18,7 @@ func TestReserverCanReserveAndConfirmSeat(t *testing.T) {
 	}))
 	defer mockOrderSvc.Close()
 
-	server := NewServerWithStore("test", nil)
+	server := NewServerWithStore("test", nil, nil)
 	server.SetOrderServiceURL(mockOrderSvc.URL)
 	server.SetHTTPClient(mockOrderSvc.Client())
 
@@ -40,7 +40,7 @@ func TestReserverCanReserveAndConfirmSeat(t *testing.T) {
 }
 
 func TestRoleChecks(t *testing.T) {
-	server := NewServerWithStore("test", nil)
+	server := NewServerWithStore("test", nil, nil)
 	client := newTestClient(server)
 	reserverCookie := client.login(t, "reserver@velox.local", "reserver")
 	vendorCookie := client.login(t, "vendor@velox.local", "vendor")
@@ -64,7 +64,7 @@ func TestRoleChecks(t *testing.T) {
 }
 
 func TestLoginAttemptsAreRateLimited(t *testing.T) {
-	server := NewServerWithStore("test", nil)
+	server := NewServerWithStore("test", nil, nil)
 	client := newTestClient(server)
 	for i := 0; i < 5; i++ {
 		client.loginStatus(t, "reserver@velox.local", "wrong", http.StatusUnauthorized)

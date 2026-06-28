@@ -12,7 +12,12 @@
   let tick = $state(Date.now());
 
   $effect(() => {
-    const timer = setInterval(() => (tick = Date.now()), 1000);
+    const timer = setInterval(() => {
+      tick = Date.now();
+      if (checkoutState.reservation && remaining <= 0) {
+        checkoutState.clear();
+      }
+    }, 1000);
     return () => clearInterval(timer);
   });
 
