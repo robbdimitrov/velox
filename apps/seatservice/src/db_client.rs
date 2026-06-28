@@ -103,7 +103,9 @@ impl DbClient {
                             .to_string();
                         state.apply_sold(order_id);
                     }
-                    // Handle expiry event if we add one, otherwise we evaluate passively
+                    "SeatReservationExpired" => {
+                        state.apply_expired();
+                    }
                     _ => {}
                 }
             }
@@ -229,9 +231,21 @@ impl DbClient {
             let stream_key: String = row.get("stream_key");
             let payload: serde_json::Value = row.get("payload");
 
-            let event_id = payload.get("event_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let section_id = payload.get("section_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let seat_id = payload.get("seat_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let event_id = payload
+                .get("event_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let section_id = payload
+                .get("section_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let seat_id = payload
+                .get("seat_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
 
             let stream_record = sqlx::query(
                 "SELECT current_version FROM inventory.event_streams WHERE stream_key = $1 FOR UPDATE"
@@ -244,7 +258,7 @@ impl DbClient {
                 Ok(r) => r.get("current_version"),
                 Err(_) => continue,
             };
-            
+
             let version = current_version + 1;
             let event_uuid = Uuid::new_v4();
 
@@ -288,15 +302,21 @@ impl DbClient {
             });
         }
 
-        let _ = sqlx::query("UPDATE inventory.reservations SET status = 'EXPIRED' WHERE order_id = $1")
-            .bind(Uuid::parse_str(order_id).unwrap_or(Uuid::new_v4()))
-            .execute(&mut *tx)
-            .await;
+        let order_uuid = match Uuid::parse_str(order_id) {
+            Ok(u) => u,
+            Err(_) => return Err("Invalid order_id UUID".into()),
+        };
+
+        let _ =
+            sqlx::query("UPDATE inventory.reservations SET status = 'EXPIRED' WHERE order_id = $1")
+                .bind(order_uuid)
+                .execute(&mut *tx)
+                .await;
 
         tx.commit()
             .await
             .map_err(|e| format!("Commit failed: {}", e))?;
-            
+
         Ok(expired_events)
     }
 }

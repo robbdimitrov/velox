@@ -3,13 +3,18 @@ use crate::dtos::{EventEnvelope, OrderCreatedPayload, SeatReservationFailedEvent
 use chrono::Utc;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use std::time::Duration;
-use tracing::{error, info, warn};
 use tracing::Instrument;
+use tracing::{error, info, warn};
 
-pub async fn process_message(db: &DbClient, producer: &FutureProducer, payload_bytes: &[u8], request_id: Option<String>) {
+pub async fn process_message(
+    db: &DbClient,
+    producer: &FutureProducer,
+    payload_bytes: &[u8],
+    request_id: Option<String>,
+) {
     let req_id_str = request_id.clone().unwrap_or_else(|| "unknown".to_string());
     let span = tracing::info_span!("process_message", request_id = %req_id_str);
-    
+
     async move {
         let envelope: EventEnvelope = match serde_json::from_slice(payload_bytes) {
             Ok(e) => e,
@@ -120,7 +125,7 @@ pub async fn process_message(db: &DbClient, producer: &FutureProducer, payload_b
         };
         let order_id = payload_val.get("order_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
         if order_id.is_empty() { return; }
-        
+
         info!(order_id = %order_id, "Processing PaymentFailed");
         match db.process_payment_failed(&order_id, Utc::now()).await {
             Ok(expired_events) => {

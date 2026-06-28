@@ -47,7 +47,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         use tokio::io::AsyncWriteExt;
         use tokio::net::TcpListener;
 
-        let listener = TcpListener::bind("0.0.0.0:8080").await.unwrap();
+        let listener = match TcpListener::bind("0.0.0.0:8080").await {
+            Ok(l) => l,
+            Err(e) => {
+                tracing::error!("Failed to bind healthz server: {}", e);
+                return;
+            }
+        };
         loop {
             tokio::select! {
                 Ok((mut socket, _)) = listener.accept() => {

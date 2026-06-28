@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SeatStatus {
     Available,
@@ -58,6 +57,11 @@ impl SeatState {
         self.version += 1;
     }
 
+    pub fn apply_expired(&mut self) {
+        self.status = SeatStatus::Available;
+        self.version += 1;
+    }
+
     // Additional domain logic to check if reservation is possible
     pub fn can_reserve(&self, expected_version: u64) -> Result<(), InventoryError> {
         if self.version != expected_version {
@@ -99,6 +103,18 @@ mod tests {
 
         seat.expire_if_due(1001);
         assert_eq!(seat.status, SeatStatus::Available);
+    }
+
+    #[test]
+    fn handles_saga_compensating_action_for_payment_failed() {
+        let mut seat = SeatState::default();
+        seat.apply_reserved("ord1".into(), 1000);
+        assert!(matches!(seat.status, SeatStatus::Held { .. }));
+        assert_eq!(seat.version, 1);
+
+        seat.apply_expired();
+        assert_eq!(seat.status, SeatStatus::Available);
+        assert_eq!(seat.version, 2);
     }
 
     #[test]
