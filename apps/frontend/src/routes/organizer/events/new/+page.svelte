@@ -57,7 +57,7 @@
 </script>
 
 <svelte:head>
-  <title>Create Event - Velox Vendor</title>
+  <title>Create Event - Velox Organizer</title>
 </svelte:head>
 
 <div class="max-w-3xl mx-auto mt-4">
