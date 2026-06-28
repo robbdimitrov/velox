@@ -28,11 +28,11 @@ func main() {
 		dbURL = os.Getenv("DATABASE_URL")
 		if dbURL == "" {
 			dbHost := os.Getenv("DATABASE_HOST")
-			dbPass := os.Getenv("POSTGRES_PASSWORD")
+			dbPass := os.Getenv("DATABASE_PASSWORD")
 			if dbHost != "" && dbPass != "" {
 				dbURL = "postgres://velox:" + dbPass + "@" + dbHost + ":5432/velox"
 			} else {
-				dbURL = "postgres://velox:velox@postgres.velox.svc.cluster.local:5432/velox"
+				dbURL = "postgres://velox:velox@database.velox.svc.cluster.local:5432/velox"
 			}
 		}
 	}

@@ -12,7 +12,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     logging::init();
 
     let db_host = env::var("DATABASE_HOST").unwrap_or_else(|_| "localhost".to_string());
-    let db_pass = env::var("POSTGRES_PASSWORD").unwrap_or_else(|_| "velox".to_string());
+    let db_pass = env::var("DATABASE_PASSWORD").unwrap_or_else(|_| "velox".to_string());
     let db_url = format!("postgres://velox:{}@{}:5432/velox", db_pass, db_host);
 
     let pool = PgPoolOptions::new()

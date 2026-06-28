@@ -4,8 +4,8 @@ metadata:
   name: velox-service-config
   namespace: velox
 data:
-  KAFKA_BROKERS: redpanda.velox.svc.cluster.local:9092
-  REDIS_ADDR: dragonfly.velox.svc.cluster.local:6379
+  KAFKA_BROKERS: broker.velox.svc.cluster.local:9092
+  REDIS_ADDR: cache.velox.svc.cluster.local:6379
   PUBLIC_GATEWAY_BASE_URL: http://localhost:8081
   ORDER_EVENTS_TOPIC: order.events.v1
   INVENTORY_EVENTS_TOPIC: inventory.events.v1
@@ -52,13 +52,13 @@ spec:
           env:
             - name: ORDER_SERVICE_ADDR
               value: orderservice.velox.svc.cluster.local:9000
-            - name: POSTGRES_PASSWORD
+            - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: velox-postgres-secret
+                  name: velox-database-secret
                   key: password
             - name: DATABASE_URL
-              value: user=velox password=$(POSTGRES_PASSWORD) host=postgres.velox.svc.cluster.local port=5432 dbname=velox sslmode=disable
+              value: user=velox password=$(DATABASE_PASSWORD) host=database.velox.svc.cluster.local port=5432 dbname=velox sslmode=disable
             - name: VELOX_SESSION_SECRET
               valueFrom:
                 secretKeyRef:
@@ -125,11 +125,11 @@ spec:
                 name: velox-service-config
           env:
             - name: DATABASE_HOST
-              value: postgres.velox.svc.cluster.local
-            - name: POSTGRES_PASSWORD
+              value: database.velox.svc.cluster.local
+            - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: velox-postgres-secret
+                  name: velox-database-secret
                   key: password
             - name: KAFKA_SIGNING_KEY
               valueFrom:
@@ -187,11 +187,11 @@ spec:
                 name: velox-service-config
           env:
             - name: DATABASE_HOST
-              value: postgres.velox.svc.cluster.local
-            - name: POSTGRES_PASSWORD
+              value: database.velox.svc.cluster.local
+            - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: velox-postgres-secret
+                  name: velox-database-secret
                   key: password
             - name: KAFKA_SIGNING_KEY
               valueFrom:
@@ -254,11 +254,11 @@ spec:
                 name: velox-service-config
           env:
             - name: DATABASE_HOST
-              value: postgres.velox.svc.cluster.local
-            - name: POSTGRES_PASSWORD
+              value: database.velox.svc.cluster.local
+            - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: velox-postgres-secret
+                  name: velox-database-secret
                   key: password
             - name: KAFKA_VERIFYING_KEY
               valueFrom:

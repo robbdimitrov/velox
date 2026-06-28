@@ -1,45 +1,45 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: redpanda
+  name: broker
   namespace: velox
   labels:
-    app.kubernetes.io/name: redpanda
+    app.kubernetes.io/name: broker
     app.kubernetes.io/part-of: velox
 spec:
   clusterIP: None
   ports:
-    - name: kafka
+    - name: broker
       port: 9092
-      targetPort: kafka
+      targetPort: broker
     - name: admin
       port: 9644
       targetPort: admin
   selector:
-    app.kubernetes.io/name: redpanda
+    app.kubernetes.io/name: broker
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: redpanda
+  name: broker
   namespace: velox
   labels:
-    app.kubernetes.io/name: redpanda
+    app.kubernetes.io/name: broker
     app.kubernetes.io/part-of: velox
 spec:
-  serviceName: redpanda
+  serviceName: broker
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: redpanda
+      app.kubernetes.io/name: broker
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: redpanda
+        app.kubernetes.io/name: broker
         app.kubernetes.io/part-of: velox
     spec:
       containers:
-        - name: redpanda
+        - name: broker
           image: redpandadata/redpanda:v24.2.9
           imagePullPolicy: IfNotPresent
           command:
@@ -54,9 +54,9 @@ spec:
             - --node-id=0
             - --check=false
             - --kafka-addr=PLAINTEXT://0.0.0.0:9092
-            - --advertise-kafka-addr=PLAINTEXT://redpanda.velox.svc.cluster.local:9092
+            - --advertise-kafka-addr=PLAINTEXT://broker.velox.svc.cluster.local:9092
           ports:
-            - name: kafka
+            - name: broker
               containerPort: 9092
             - name: admin
               containerPort: 9644
@@ -67,11 +67,11 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 10
           volumeMounts:
-            - name: redpanda-data
+            - name: broker-data
               mountPath: /var/lib/redpanda/data
   volumeClaimTemplates:
     - metadata:
-        name: redpanda-data
+        name: broker-data
       spec:
         accessModes: ["ReadWriteOnce"]
         resources:

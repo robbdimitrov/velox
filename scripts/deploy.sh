@@ -13,9 +13,9 @@ FRONTEND_PORT_FORWARD_PID_FILE="${FRONTEND_PORT_FORWARD_PID_FILE:-/tmp/velox-fro
 DRY_RUN="${DRY_RUN:-}"
 
 ROLL_OUT_INFRA=(
-  statefulset/postgres
-  statefulset/redpanda
-  deployment/dragonfly
+  statefulset/database
+  statefulset/broker
+  deployment/cache
 )
 
 ROLL_OUT_APPS=(
@@ -130,7 +130,7 @@ ensure_dev_secrets() {
     return
   fi
   log "ensuring generated development secrets"
-  ensure_secret velox-postgres-secret --from-literal="password=$(random_secret)"
+  ensure_secret velox-database-secret --from-literal="password=$(random_secret)"
   ensure_secret velox-auth-secret \
     --from-literal="issuer=velox-dev" \
     --from-literal="audience=velox-browser" \
@@ -146,9 +146,9 @@ apply_manifests() {
     ensure_namespace
   fi
   ensure_dev_secrets
-  apply_file "$DEPLOY_DIR/postgres.yaml"
-  apply_file "$DEPLOY_DIR/redpanda.yaml"
-  apply_file "$DEPLOY_DIR/dragonfly.yaml"
+  apply_file "$DEPLOY_DIR/database.yaml"
+  apply_file "$DEPLOY_DIR/broker.yaml"
+  apply_file "$DEPLOY_DIR/cache.yaml"
   local services_manifest
   services_manifest="$(render_services_manifest)"
   trap 'rm -f "$services_manifest"' RETURN

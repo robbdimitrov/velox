@@ -100,12 +100,13 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: postgres-ingress
+  name: database-ingress
   namespace: velox
+  labels: []
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: postgres
+      app.kubernetes.io/name: database
   policyTypes:
     - Ingress
   ingress:
@@ -129,12 +130,12 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: redpanda-ingress
+  name: broker-ingress
   namespace: velox
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: redpanda
+      app.kubernetes.io/name: broker
   policyTypes:
     - Ingress
   ingress:
@@ -161,12 +162,12 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: dragonfly-ingress
+  name: cache-ingress
   namespace: velox
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: dragonfly
+      app.kubernetes.io/name: cache
   policyTypes:
     - Ingress
   ingress:

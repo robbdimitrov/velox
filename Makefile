@@ -37,9 +37,9 @@ db-check:
 
 k8s-check:
 	@$(KUBECTL) apply --dry-run=client -f deploy/namespace.yaml
-	@$(KUBECTL) apply --dry-run=client -f deploy/postgres.yaml
-	@$(KUBECTL) apply --dry-run=client -f deploy/redpanda.yaml
-	@$(KUBECTL) apply --dry-run=client -f deploy/dragonfly.yaml
+	@$(KUBECTL) apply --dry-run=client -f deploy/database.yaml
+	@$(KUBECTL) apply --dry-run=client -f deploy/broker.yaml
+	@$(KUBECTL) apply --dry-run=client -f deploy/cache.yaml
 	@$(KUBECTL) apply --dry-run=client -f deploy/services.yaml
 
 format:

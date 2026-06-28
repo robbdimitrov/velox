@@ -37,9 +37,9 @@ is initialized on first startup.
 Manifests live in `deploy/` and create:
 
 - `velox` namespace;
-- PostgreSQL StatefulSet and service;
-- Redpanda StatefulSet and service;
-- Dragonfly Deployment and service;
+- Database StatefulSet and service;
+- Broker StatefulSet and service;
+- Cache Deployment and service;
 - service Deployments for `frontend`, `apigateway`, `orderservice`,
   `seatservice`, and `viewservice`.
 
