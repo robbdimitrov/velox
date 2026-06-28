@@ -20,24 +20,47 @@ const (
 )
 
 type User struct {
+	ID        string    `json:"id"`
+	Email     string    `json:"email"`
+	Password  string    `json:"-"`
+	Role      string    `json:"role"`
+	VendorID  string    `json:"vendor_id,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type Venue struct {
 	ID       string `json:"id"`
-	Email    string `json:"email"`
-	Password string `json:"-"`
-	Role     string `json:"role"`
-	VendorID string `json:"vendor_id,omitempty"`
+	Name     string `json:"name"`
+	City     string `json:"city"`
+	Address  string `json:"address"`
+	Capacity int    `json:"capacity"`
+}
+
+type VenueSeat struct {
+	VenueID   string `json:"venue_id"`
+	SectionID string `json:"section_id"`
+	SeatID    string `json:"seat_id"`
+}
+
+type UserVenue struct {
+	UserID    string `json:"user_id"`
+	VenueID   string `json:"venue_id"`
+	VenueRole string `json:"venue_role"`
 }
 
 type Event struct {
 	ID          string    `json:"id"`
-	VendorID    string    `json:"vendor_id"`
+	VenueID     string    `json:"venue_id,omitempty"`
+	Status      string    `json:"status,omitempty"`
+	VendorID    string    `json:"vendor_id,omitempty"`
 	Name        string    `json:"name"`
-	Venue       string    `json:"venue"`
-	City        string    `json:"city"`
+	Venue       string    `json:"venue,omitempty"`
+	City        string    `json:"city,omitempty"`
 	StartsAt    time.Time `json:"starts_at"`
-	SectionIDs  []string  `json:"section_ids"`
-	SeatsTotal  int       `json:"seats_total"`
-	SeatsOpen   int       `json:"seats_open"`
-	DemandScore int       `json:"demand_score"`
+	SectionIDs  []string  `json:"section_ids,omitempty"`
+	SeatsTotal  int       `json:"seats_total,omitempty"`
+	SeatsOpen   int       `json:"seats_open,omitempty"`
+	DemandScore int       `json:"demand_score,omitempty"`
 }
 
 type Seat struct {

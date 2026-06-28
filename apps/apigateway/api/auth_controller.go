@@ -9,9 +9,70 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/alexedwards/argon2id"
+	"github.com/google/uuid"
 )
 
-func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		Role     string `json:"role"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	email := strings.ToLower(req.Email)
+	if req.Role != RoleReserver && req.Role != RoleVendor {
+		writeError(w, http.StatusBadRequest, "invalid_role")
+		return
+	}
+
+	hash, err := argon2id.CreateHash(req.Password, argon2id.DefaultParams)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "password_hashing_failed")
+		return
+	}
+
+	id := uuid.NewString()
+	var user User
+	if s.store != nil {
+		user, err = s.store.CreateUser(r.Context(), id, email, hash, req.Role)
+		if err != nil {
+			writeError(w, http.StatusConflict, "user_already_exists")
+			return
+		}
+	} else {
+		s.mu.Lock()
+		if _, ok := s.users[email]; ok {
+			s.mu.Unlock()
+			writeError(w, http.StatusConflict, "user_already_exists")
+			return
+		}
+		user = User{ID: id, Email: email, Password: hash, Role: req.Role}
+		s.users[email] = user
+		s.mu.Unlock()
+	}
+
+	token, err := s.sign(user)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "session_signing_failed")
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     CookieName,
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Expires:  s.now().Add(12 * time.Hour),
+	})
+	writeJSON(w, http.StatusOK, map[string]any{"user": publicUser(user)})
+}
+
+func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -21,6 +82,7 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	}
 	email := strings.ToLower(req.Email)
 	attemptKey := email + "|" + clientIP(r)
+
 	s.mu.Lock()
 	now := s.now()
 	if failure := s.loginFails[attemptKey]; failure.LockedUntil.After(now) {
@@ -28,20 +90,79 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusTooManyRequests, "too_many_login_attempts")
 		return
 	}
-	user, ok := s.users[email]
 	s.mu.Unlock()
-	if !ok || !constantTimeStringEqual(user.Password, req.Password) {
+
+	var user User
+	var err error
+	if s.store != nil {
+		user, err = s.store.GetUserByEmail(r.Context(), email)
+	} else {
+		s.mu.Lock()
+		u, ok := s.users[email]
+		s.mu.Unlock()
+		if ok {
+			user = u
+		} else {
+			err = errors.New("not found")
+		}
+	}
+
+	if err != nil {
 		s.recordLoginFailure(attemptKey, now)
 		writeError(w, http.StatusUnauthorized, "invalid_credentials")
 		return
 	}
+
+	var match bool
+	if s.store == nil && user.Password == req.Password {
+		match = true
+	} else {
+		match, err = argon2id.ComparePasswordAndHash(req.Password, user.Password)
+	}
+
+	if err != nil || !match {
+		s.recordLoginFailure(attemptKey, now)
+		writeError(w, http.StatusUnauthorized, "invalid_credentials")
+		return
+	}
+
 	s.clearLoginFailure(attemptKey)
+
 	token, err := s.sign(user)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "session_signing_failed")
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: CookieName, Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Expires: s.now().Add(12 * time.Hour)})
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     CookieName,
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Expires:  s.now().Add(12 * time.Hour),
+	})
+	writeJSON(w, http.StatusOK, map[string]any{"user": publicUser(user)})
+}
+
+func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     CookieName,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
+	user, err := s.authenticate(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "authentication_required")
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"user": publicUser(user)})
 }
 
@@ -60,11 +181,6 @@ func (s *Server) clearLoginFailure(key string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.loginFails, key)
-}
-
-func (s *Server) handleDeleteSession(w http.ResponseWriter, r *http.Request) {
-	http.SetCookie(w, &http.Cookie{Name: CookieName, Value: "", Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: -1})
-	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) requireRole(role string, next func(http.ResponseWriter, *http.Request, User)) http.HandlerFunc {
@@ -91,14 +207,17 @@ func (s *Server) authenticate(r *http.Request) (User, error) {
 	if err != nil {
 		return User{}, err
 	}
+	if s.store != nil {
+		return s.store.GetUserByID(r.Context(), userID)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, user := range s.users {
-		if user.ID == userID {
-			return user, nil
+	for _, u := range s.users {
+		if u.ID == userID {
+			return u, nil
 		}
 	}
-	return User{}, errors.New("unknown user")
+	return User{}, errors.New("not found")
 }
 
 func (s *Server) sign(user User) (string, error) {

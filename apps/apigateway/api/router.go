@@ -13,8 +13,10 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
-	mux.HandleFunc("POST /sessions", s.handleCreateSession)
-	mux.HandleFunc("DELETE /sessions", s.handleDeleteSession)
+	mux.HandleFunc("POST /auth/register", s.handleRegister)
+	mux.HandleFunc("POST /auth/login", s.handleLogin)
+	mux.HandleFunc("POST /auth/logout", s.handleLogout)
+	mux.HandleFunc("GET /auth/me", s.handleMe)
 	mux.HandleFunc("GET /events", s.handleEvents)
 	mux.HandleFunc("GET /events/{eventId}", s.handleEvent)
 	mux.HandleFunc("GET /events/{eventId}/sections/{sectionId}/seats", s.handleSeats)
@@ -27,6 +29,9 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /vendor/events/{eventId}/orders", s.requireRole(RoleVendor, s.handleVendorOrders))
 	mux.HandleFunc("GET /vendor/events/{eventId}/inventory", s.requireRole(RoleVendor, s.handleVendorInventory))
 	mux.HandleFunc("GET /vendor/metrics/stream", s.requireRole(RoleVendor, s.handleVendorMetricsStream))
+	mux.HandleFunc("GET /api/vendor/venues", s.requireRole(RoleVendor, s.handleListVenues))
+	mux.HandleFunc("GET /api/vendor/venues/{id}/staff", s.requireRole(RoleVendor, s.handleListVenueStaff))
+	mux.HandleFunc("POST /api/vendor/events", s.requireRole(RoleVendor, s.handleCreateEvent))
 	handler := limitBody(mux, 1<<20)
 	return tracingMiddleware(handler)
 }

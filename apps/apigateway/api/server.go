@@ -90,39 +90,74 @@ func (s *Server) listenSeatUpdates() {
 func (s *Server) seed() {
 	s.users["reserver@velox.local"] = User{ID: "usr_reserver_1", Email: "reserver@velox.local", Password: "reserver", Role: RoleReserver}
 	s.users["vendor@velox.local"] = User{ID: "usr_vendor_1", Email: "vendor@velox.local", Password: "vendor", Role: RoleVendor, VendorID: "ven_northstar"}
-	event := Event{
-		ID:          "evt_neon_riot",
-		VendorID:    "ven_northstar",
-		Name:        "Neon Riot Live",
-		Venue:       "Velox Arena",
-		City:        "Chicago",
-		StartsAt:    time.Date(2026, 8, 15, 20, 0, 0, 0, time.UTC),
-		SectionIDs:  []string{"A", "B"},
-		DemandScore: 94,
+	eventsToSeed := []Event{
+		{
+			ID:          "evt_neon_riot",
+			VendorID:    "ven_northstar",
+			Name:        "Neon Riot Live",
+			Venue:       "Velox Arena",
+			City:        "Chicago",
+			StartsAt:    time.Date(2026, 8, 15, 20, 0, 0, 0, time.UTC),
+			SectionIDs:  []string{"A", "B"},
+			DemandScore: 94,
+		},
+		{
+			ID:          "evt_north_pier",
+			VendorID:    "ven_northstar",
+			Name:        "North Pier Symphony",
+			Venue:       "North Pier Hall",
+			City:        "Seattle",
+			StartsAt:    time.Date(2026, 9, 10, 19, 30, 0, 0, time.UTC),
+			SectionIDs:  []string{"A", "B"},
+			DemandScore: 78,
+		},
+		{
+			ID:          "evt_civic_bowl",
+			VendorID:    "ven_northstar",
+			Name:        "Civic Bowl Championship",
+			Venue:       "Civic Bowl",
+			City:        "Denver",
+			StartsAt:    time.Date(2026, 10, 5, 18, 0, 0, 0, time.UTC),
+			SectionIDs:  []string{"A", "B"},
+			DemandScore: 88,
+		},
+		{
+			ID:          "evt_summer_fests",
+			VendorID:    "ven_northstar",
+			Name:        "Summer Solstice Festival",
+			Venue:       "Moonlight Grounds",
+			City:        "Austin",
+			StartsAt:    time.Date(2026, 7, 20, 12, 0, 0, 0, time.UTC),
+			SectionIDs:  []string{"A", "B"},
+			DemandScore: 99,
+		},
 	}
-	s.events[event.ID] = event
-	s.seats[event.ID] = map[string]map[string]*Seat{}
-	for _, sectionID := range event.SectionIDs {
-		s.seats[event.ID][sectionID] = map[string]*Seat{}
-		for row := 'A'; row <= 'D'; row++ {
-			for n := 1; n <= 10; n++ {
-				id := string(row) + "-" + func() string {
-					if n < 10 {
-						return "0" + string(rune('0'+n))
+
+	for _, event := range eventsToSeed {
+		s.events[event.ID] = event
+		s.seats[event.ID] = map[string]map[string]*Seat{}
+		for _, sectionID := range event.SectionIDs {
+			s.seats[event.ID][sectionID] = map[string]*Seat{}
+			for row := 'A'; row <= 'D'; row++ {
+				for n := 1; n <= 10; n++ {
+					id := string(row) + "-" + func() string {
+						if n < 10 {
+							return "0" + string(rune('0'+n))
+						}
+						return "10"
+					}()
+					s.seats[event.ID][sectionID][id] = &Seat{
+						EventID: event.ID, SectionID: sectionID, ID: id,
+						Row: string(row), Number: n, PriceCents: 8500 + n*150,
+						Status: StatusAvailable, Version: 1,
 					}
-					return "10"
-				}()
-				s.seats[event.ID][sectionID][id] = &Seat{
-					EventID: event.ID, SectionID: sectionID, ID: id,
-					Row: string(row), Number: n, PriceCents: 8500 + n*150,
-					Status: StatusAvailable, Version: 1,
+					event.SeatsTotal++
+					event.SeatsOpen++
 				}
-				event.SeatsTotal++
-				event.SeatsOpen++
 			}
 		}
+		s.events[event.ID] = event
 	}
-	s.events[event.ID] = event
 }
 
 func (s *Server) listenVendorUpdates() {
