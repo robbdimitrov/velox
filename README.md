@@ -8,23 +8,15 @@ Redpanda-compatible Kafka event flow, and Dragonfly-backed coordination.
 
 ## Features
 
-- **Seat reservations**: Seeded reserver login, event discovery, SVG seat map,
-  multi-seat hold, countdown, confirm flow, and order history.
-- **Vendor dashboard**: Seeded vendor login, owned event view, live inventory
-  counts, active holds, and confirmed orders.
-- **Idempotent commands**: Reservation requests require `Idempotency-Key`;
-  duplicate matching requests return the original order while conflicting bodies
-  are rejected.
-- **Seat correctness**: Seat holds are locked in PostgreSQL for the MVP, with
-  reservation ownership checks before confirmation and stale hold cleanup before
-  reuse.
-- **Transactional events**: Order lifecycle changes write an outbox row in the
-  same transaction as order state.
-- **Read models**: Seat snapshots, order summaries, and vendor-facing inventory
-  are materialized behind the gateway and ready for Kafka-backed expansion.
-- **Kubernetes runtime**: Manifests and `scripts/deploy.sh` build images, create
-  development secrets, apply resources, wait for rollouts, and port-forward the
-  frontend and gateway.
+- **Authentication & Roles**: Secure JWT-based login and registration flow with distinct `Customer` and `Vendor` RBAC profiles.
+- **Seat reservations**: Event discovery, interactive SVG seat maps with Server-Sent Events (SSE) live updates, a 10-minute lock countdown pipeline, and order history.
+- **Vendor dashboard**: Role-protected portal for managing venues, staff, creating events via a multi-step wizard, and live analytics.
+- **Virtual Waiting Room & Rate Limiting**: Token-bucket rate limiting via Dragonfly/Redis at the Go ingress, paired with a frontend virtual waiting room to gracefully handle `429 Too Many Requests` during flash sales.
+- **Idempotent commands**: Reservation requests require `Idempotency-Key`; duplicate matching requests return the original order while conflicting bodies are rejected.
+- **Optimistic Concurrency**: Seat double-booking is prevented using Sequence Version Numbers (`VersionMismatch`) in the Rust Event Store, avoiding slow SQL table locks.
+- **Compensating Sagas**: Order lifecycle changes (e.g. `PaymentFailed`) trigger Kafka-choreographed compensating transactions (`SeatReservationExpired`) to instantly free up inventory.
+- **Immutable Ledger**: User ticket wallets showcase a provenence ledger built directly from the backend's Event Sourcing streams.
+- **Kubernetes runtime**: Manifests and `scripts/deploy.sh` build images, create development secrets, apply resources, wait for rollouts, and port-forward the frontend and gateway.
 
 ## Architecture
 

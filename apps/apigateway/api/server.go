@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type Server struct {
@@ -20,13 +22,14 @@ type Server struct {
 	idempotency map[string]idempotencyRecord
 	loginFails  map[string]loginFailure
 	store       *DatabaseStore
+	rdb         *redis.Client
 	seatClients   map[string]map[chan string]struct{}
 	vendorClients map[string]map[chan string]struct{}
 	httpClient    *http.Client
 	orderSvcURL string
 }
 
-func NewServerWithStore(secret string, store *DatabaseStore) *Server {
+func NewServerWithStore(secret string, store *DatabaseStore, rdb *redis.Client) *Server {
 	s := &Server{
 		secret:      []byte(secret),
 		now:         time.Now,
@@ -38,6 +41,7 @@ func NewServerWithStore(secret string, store *DatabaseStore) *Server {
 		idempotency: map[string]idempotencyRecord{},
 		loginFails:  map[string]loginFailure{},
 		store:       store,
+		rdb:         rdb,
 		seatClients:   map[string]map[chan string]struct{}{},
 		vendorClients: map[string]map[chan string]struct{}{},
 		httpClient:    http.DefaultClient,

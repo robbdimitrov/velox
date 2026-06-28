@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/redis/go-redis/v9"
 	"velox/apps/apigateway/api"
 )
 
@@ -29,7 +30,14 @@ func main() {
 		defer store.Close()
 		slog.Info("apigateway using Database reservation store")
 	}
-	server := api.NewServerWithStore(secret, store)
+
+	rdbUrl := os.Getenv("REDIS_URL")
+	if rdbUrl == "" {
+		rdbUrl = "localhost:6379"
+	}
+	rdb := redis.NewClient(&redis.Options{Addr: rdbUrl})
+
+	server := api.NewServerWithStore(secret, store, rdb)
 
 	if os.Getenv("ORDER_SERVICE_ADDR") != "" {
 		server.SetOrderServiceURL("http://" + os.Getenv("ORDER_SERVICE_ADDR") + "/orders")
