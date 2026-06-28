@@ -143,33 +143,36 @@
     </div>
   </section>
 
-  <aside class="glass-panel h-max p-6 sticky top-28">
-    <div class="flex items-center justify-between border-b border-white/10 pb-4 mb-6">
-      <h2 class="text-sm font-black uppercase tracking-wider text-white">Selected Seats</h2>
-      <button class="btn btn-ghost btn-xs bg-black/20 hover:bg-signal hover:text-white rounded-full h-8 w-8 p-0 flex items-center justify-center transition-all" onclick={() => seatState.load(data.snapshot.seats, data.snapshot.server_time_ms)}>
-        <RotateCcw size={15} />
-      </button>
-    </div>
-    
-    <div class="min-h-[144px] space-y-3">
-      {#if seatState.selectedSeats.length}
-        {#each seatState.selectedSeats as seat}
-          <div class="flex items-center justify-between rounded-lg border border-white/5 bg-black/40 p-3 font-mono text-sm shadow-sm" in:slide>
-            <span class="text-white font-bold">{seat.seat_id}</span>
-            <span class="text-signal font-black">{formatMoney(seat.price_cents)}</span>
+  <aside class="glass-panel h-max p-6 sticky top-28 flex flex-col justify-between">
+    <div>
+      <div class="flex items-center justify-between border-b border-white/10 pb-4 mb-6">
+        <h2 class="text-sm font-black uppercase tracking-wider text-white">Selected Seats</h2>
+        <button class="btn btn-ghost btn-xs bg-black/20 hover:bg-signal hover:text-white rounded-full h-8 w-8 p-0 flex items-center justify-center transition-all" onclick={() => seatState.load(data.snapshot.seats, data.snapshot.server_time_ms)}>
+          <RotateCcw size={15} />
+        </button>
+      </div>
+      
+      <div class="min-h-[144px] space-y-3">
+        {#if seatState.selectedSeats.length}
+          <div class="grid grid-cols-2 gap-3">
+            {#each seatState.selectedSeats as seat}
+              <div class="flex items-center justify-center rounded-lg border border-white/5 bg-black/40 p-3 font-mono text-sm shadow-sm" in:slide>
+                <span class="text-white font-bold">{seat.seat_id}</span>
+              </div>
+            {/each}
           </div>
-        {/each}
-      {:else}
-        <div class="h-full flex items-center justify-center border-2 border-dashed border-white/5 rounded-xl p-4">
-          <p class="text-sm text-inkMuted text-center">Choose available seats<br>from the map.</p>
-        </div>
-      {/if}
+        {:else}
+          <div class="h-full flex items-center justify-center border-2 border-dashed border-white/5 rounded-xl p-4">
+            <p class="text-sm text-inkMuted text-center">Choose available seats<br>from the map.</p>
+          </div>
+        {/if}
+      </div>
     </div>
     
     <div class="mt-6 border-t border-white/10 pt-6">
       <div class="flex justify-between items-center font-mono">
-        <span class="text-inkMuted uppercase tracking-widest text-xs">Total</span>
-        <strong class="text-2xl text-ok drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]">{formatMoney(seatState.selectedTotalCents)}</strong>
+        <span class="text-inkMuted uppercase tracking-widest text-xs">Total Tickets</span>
+        <strong class="text-2xl text-ok drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]">{seatState.selectedSeats.length}</strong>
       </div>
       
       {#if error}
@@ -180,7 +183,7 @@
       
       <button class="btn w-full mt-6 rounded-xl border-0 bg-gradient-to-r from-signal to-primary text-white font-bold text-lg shadow-glow hover:scale-[1.02] transition-all disabled:opacity-50 disabled:hover:scale-100 disabled:shadow-none" disabled={!seatState.selectedSeats.length || reserving} onclick={reserve}>
         <TicketCheck size={18} />
-        {reserving ? reservingStatus : 'Reserve Tickets'}
+        {reserving ? reservingStatus : 'Confirm Reservation'}
       </button>
     </div>
   </aside>

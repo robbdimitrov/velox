@@ -15,69 +15,115 @@
   let canvas = $state<HTMLCanvasElement>();
   let width = $state(700);
   let height = $state(360);
+  let devicePixelRatio = $state(1);
 
   const colors: Record<string, string> = {
-    AVAILABLE: '#9CA3AF', // inkMuted
-    SELECTED: '#7C3AED',  // primary
-    HELD: '#FF2A5F',      // accent
-    SOLD: '#15151A',      // panel
-    UNKNOWN: '#272730'    // line
+    AVAILABLE: '#9CA3AF',
+    SELECTED: '#7C3AED',
+    HELD: '#FF2A5F',
+    SOLD: '#15151A',
+    UNKNOWN: '#272730'
   };
+
+  // Pre-calculate geometry
+  let minX = $state(0), maxX = $state(0), minY = $state(0), maxY = $state(0);
+  let scale = $state(1), offsetX = $state(0), offsetY = $state(0);
+  const SEAT_SIZE = 28; // Base size of seat in internal units
+
+  $effect(() => {
+    if (seats.length > 0) {
+      minX = Math.min(...seats.map(s => s.x));
+      maxX = Math.max(...seats.map(s => s.x));
+      minY = Math.min(...seats.map(s => s.y));
+      maxY = Math.max(...seats.map(s => s.y));
+      
+      const gridWidth = maxX - minX + SEAT_SIZE;
+      const gridHeight = maxY - minY + SEAT_SIZE;
+      
+      // Calculate scale to fit within padding
+      const scaleX = (width - 100) / gridWidth;
+      const scaleY = (height - 140) / gridHeight;
+      scale = Math.min(scaleX, scaleY, 1.2); 
+      
+      offsetX = (width - (gridWidth * scale)) / 2;
+      offsetY = (height - (gridHeight * scale)) / 2;
+    }
+  });
+
+  function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
 
   function draw() {
     if (!canvas) return;
-    const context = canvas.getContext('2d');
-    if (!context) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-    context.clearRect(0, 0, width, height);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Background
-    context.fillStyle = 'rgba(9, 9, 14, 0.4)';
-    context.fillRect(0, 0, width, height);
+    ctx.save();
+    ctx.scale(devicePixelRatio, devicePixelRatio);
 
     for (const seat of seats) {
       const selected = selectedSeatIDs.has(seat.seat_id);
-      context.beginPath();
-      context.arc(seat.x, seat.y, 6, 0, Math.PI * 2);
       
-      // Add subtle glow to selected or held seats
+      const sx = offsetX + (seat.x - minX) * scale;
+      const sy = offsetY + (seat.y - minY) * scale;
+      const size = SEAT_SIZE * scale;
+      const radius = 6 * scale;
+
       if (selected || seat.status === 'HELD') {
-        context.shadowColor = selected ? 'rgba(124, 58, 237, 0.8)' : 'rgba(255, 42, 95, 0.8)';
-        context.shadowBlur = 10;
+        ctx.shadowColor = selected ? 'rgba(124, 58, 237, 0.8)' : 'rgba(255, 42, 95, 0.8)';
+        ctx.shadowBlur = 12 * scale;
       } else {
-        context.shadowBlur = 0;
+        ctx.shadowBlur = 0;
       }
 
-      context.fillStyle = selected ? colors.SELECTED : colors[seat.status];
-      context.fill();
+      ctx.fillStyle = selected ? colors.SELECTED : colors[seat.status];
+      roundRect(ctx, sx, sy, size, size, radius);
+      ctx.fill();
       
-      context.shadowBlur = 0; // Reset shadow for stroke
-      context.lineWidth = selected ? 2 : 1;
-      context.strokeStyle = selected
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = selected ? 2 : 1;
+      ctx.strokeStyle = selected
         ? '#F3F4F6'
         : seat.status === 'UNKNOWN'
           ? '#4B5563'
           : 'rgba(255,255,255,0.1)';
-      context.stroke();
+      ctx.stroke();
     }
+    ctx.restore();
   }
 
   function handleClick(event: MouseEvent) {
-    if (!canvas) return;
+    if (!canvas || seats.length === 0) return;
     const rect = canvas.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * width;
-    const y = ((event.clientY - rect.top) / rect.height) * height;
-    const hit = seats.find((seat) => Math.hypot(seat.x - x, seat.y - y) <= 9);
+    const clickX = (event.clientX - rect.left) / rect.width * width;
+    const clickY = (event.clientY - rect.top) / rect.height * height;
+    
+    const hit = seats.find((seat) => {
+      const sx = offsetX + (seat.x - minX) * scale;
+      const sy = offsetY + (seat.y - minY) * scale;
+      const size = SEAT_SIZE * scale;
+      return clickX >= sx && clickX <= sx + size && clickY >= sy && clickY <= sy + size;
+    });
     if (hit) onToggle(hit);
   }
 
   onMount(() => {
+    devicePixelRatio = window.devicePixelRatio || 1;
     draw();
   });
 
   $effect(() => {
-    // Explicitly read reactive dependencies to trigger the effect
     selectedSeatIDs.size;
+    scale; offsetX; offsetY;
     if (seats && canvas) {
       draw();
     }
@@ -87,30 +133,23 @@
 <div class="relative min-h-[360px] rounded-2xl border border-white/10 bg-black/40 shadow-lg overflow-hidden backdrop-blur-md">
   <canvas
     bind:this={canvas}
-    class="h-full min-h-[360px] w-full cursor-crosshair transition-opacity duration-300 hover:opacity-90"
-    {width}
-    {height}
+    class="relative z-10 h-full min-h-[360px] w-full cursor-crosshair transition-opacity duration-300 hover:opacity-90"
+    width={width * devicePixelRatio}
+    height={height * devicePixelRatio}
+    style="width: 100%; height: 100%; display: block;"
     onclick={handleClick}
     aria-label="Interactive seat map"
   ></canvas>
-  <svg
-    class="pointer-events-none absolute inset-0 h-full w-full opacity-60"
-    viewBox="0 0 700 360"
-    aria-hidden="true"
-  >
-    <path
-      d="M18 16H682V342H18Z"
-      fill="none"
-      stroke="rgba(255,255,255,0.1)"
-      stroke-width="2"
-      rx="12"
-    />
-    <path d="M210 20V340M490 20V340" stroke="rgba(255,255,255,0.05)" stroke-width="1" stroke-dasharray="4 4" />
-    <text x="350" y="28" fill="#F3F4F6" font-size="12" font-weight="bold" font-family="Outfit" letter-spacing="2" text-anchor="middle"
-      >SECTION A</text
-    >
-    <text x="350" y="334" fill="#9CA3AF" font-size="11" font-weight="bold" font-family="Outfit" letter-spacing="4" text-anchor="middle"
-      >STAGE</text
-    >
-  </svg>
+  
+  <div class="absolute inset-0 pointer-events-none flex flex-col justify-between items-center py-6 opacity-60 z-0">
+    <div class="flex flex-col items-center">
+      <div class="h-1 w-32 bg-white/20 rounded-full mb-2"></div>
+      <span class="text-xs font-black uppercase tracking-[0.3em] text-white/40">Section A</span>
+    </div>
+    
+    <div class="flex flex-col items-center">
+      <span class="text-xs font-black uppercase tracking-[0.5em] text-white/30 mb-3">Stage</span>
+      <div class="w-64 h-8 border-t-2 border-white/10 rounded-t-[50%] bg-gradient-to-t from-white/5 to-transparent"></div>
+    </div>
+  </div>
 </div>
