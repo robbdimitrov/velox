@@ -33,7 +33,7 @@ proto-check:
 
 db-check:
 	@/bin/test -s apps/database/migrations/001_init_logical_schemas.sql
-	@/bin/test -s apps/database/seeds/001_demo_reservation_mvp.sql
+	@/bin/test -s apps/database/seeds/999_demo_reservation_mvp.sql
 
 k8s-check:
 	@$(KUBECTL) apply --dry-run=client -f deploy/namespace.yaml

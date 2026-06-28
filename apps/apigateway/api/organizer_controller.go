@@ -141,6 +141,29 @@ func (s *Server) handleOrganizerMetricsStream(w http.ResponseWriter, r *http.Req
 	}
 }
 
+func (s *Server) handleCreateVenue(w http.ResponseWriter, r *http.Request, user User) {
+	var req Venue
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+
+	if req.ID == "" {
+		req.ID = "ven_" + time.Now().Format("20060102150405")
+	}
+
+	if s.store != nil {
+		venue, err := s.store.CreateVenue(r.Context(), user.ID, req)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error")
+			return
+		}
+		writeJSON(w, http.StatusCreated, venue)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, req)
+}
+
 func (s *Server) handleListVenues(w http.ResponseWriter, r *http.Request, user User) {
 	if s.store == nil {
 		writeJSON(w, http.StatusOK, map[string]any{"venues": []Venue{}})

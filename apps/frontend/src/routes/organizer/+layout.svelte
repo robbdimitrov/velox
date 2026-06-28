@@ -35,7 +35,8 @@
         {#each links as link}
           {@const isActive =
             page.url.pathname === link.href ||
-            (link.href !== '/organizer' && page.url.pathname.startsWith(link.href))}
+            (link.href !== '/organizer' &&
+              page.url.pathname.startsWith(link.href))}
           <a
             href={link.href}
             class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 {isActive

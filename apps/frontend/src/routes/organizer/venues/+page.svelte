@@ -14,11 +14,12 @@
       Manage physical locations for your events.
     </p>
   </div>
-  <button
+  <a
+    href="/organizer/venues/new"
     class="btn btn-sm border-none bg-gradient-to-r from-info to-accent text-white shadow-lg shadow-info/20 hover:shadow-info/40 rounded-lg"
   >
     <Plus size={16} /> Add Venue
-  </button>
+  </a>
 </div>
 
 {#if data.venues.length === 0}
@@ -35,11 +36,12 @@
       You haven't added any venues yet. Venues are required before you can
       create an event.
     </p>
-    <button
+    <a
+      href="/organizer/venues/new"
       class="btn btn-sm border-none bg-info text-white hover:bg-info/90 shadow-lg shadow-info/20 rounded-lg"
     >
       <Plus size={16} /> Create Your First Venue
-    </button>
+    </a>
   </div>
 {:else}
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
