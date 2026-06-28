@@ -53,21 +53,12 @@
 
       <div class="flex items-center gap-4">
         {#if authState.user}
-          {#if authState.user.role === 'customer'}
-            <a
-              class="btn btn-sm border-white/10 bg-black/40 text-ink hover:border-signal hover:bg-signal/20 rounded-lg shadow-sm backdrop-blur-md transition-all duration-300"
-              href="/wallet"
-            >
-              <ShieldCheck size={16} class="text-ok" /> Wallet
-            </a>
-          {:else if authState.user.role === 'vendor'}
-            <a
-              class="btn btn-sm border-white/10 bg-black/40 text-ink hover:border-signal hover:bg-signal/20 rounded-lg shadow-sm backdrop-blur-md transition-all duration-300"
-              href="/vendor"
-            >
-              <BriefcaseBusiness size={16} class="text-info" /> Dashboard
-            </a>
-          {/if}
+          <a
+            class="btn btn-sm border-white/10 bg-black/40 text-ink hover:border-signal hover:bg-signal/20 rounded-lg shadow-sm backdrop-blur-md transition-all duration-300"
+            href="/wallet"
+          >
+            <ShieldCheck size={16} class="text-ok" /> Wallet
+          </a>
           <div class="dropdown dropdown-end">
             <div
               tabindex="0"
@@ -84,6 +75,13 @@
                 class="menu-title text-inkMuted text-xs font-semibold px-4 py-2 border-b border-white/10 mb-2"
               >
                 {authState.user.email}
+              </li>
+              <li>
+                <a
+                  href="/vendor"
+                  class="hover:bg-white/10 hover:text-info rounded-lg transition-colors flex items-center gap-2"
+                  ><BriefcaseBusiness size={14} /> Host Events</a
+                >
               </li>
               <li>
                 <a

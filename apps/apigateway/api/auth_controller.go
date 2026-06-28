@@ -24,10 +24,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	email := strings.ToLower(req.Email)
-	if req.Role != RoleReserver && req.Role != RoleVendor {
-		writeError(w, http.StatusBadRequest, "invalid_role")
-		return
-	}
+	req.Role = "user"
 
 	hash, err := argon2id.CreateHash(req.Password, argon2id.DefaultParams)
 	if err != nil {
@@ -183,15 +180,11 @@ func (s *Server) clearLoginFailure(key string) {
 	delete(s.loginFails, key)
 }
 
-func (s *Server) requireRole(role string, next func(http.ResponseWriter, *http.Request, User)) http.HandlerFunc {
+func (s *Server) requireAuth(next func(http.ResponseWriter, *http.Request, User)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, err := s.authenticate(r)
 		if err != nil {
 			writeError(w, http.StatusUnauthorized, "authentication_required")
-			return
-		}
-		if user.Role != role {
-			writeError(w, http.StatusForbidden, "forbidden")
 			return
 		}
 		next(w, r, user)

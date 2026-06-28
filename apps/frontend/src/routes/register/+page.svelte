@@ -9,7 +9,6 @@
   let email = $state('');
   let password = $state('');
   let name = $state('');
-  let role = $state('customer');
   let loading = $state(false);
   let error = $state('');
 
@@ -22,7 +21,7 @@
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name, role })
+        body: JSON.stringify({ email, password, name })
       });
 
       if (!res.ok) {
@@ -67,37 +66,7 @@
       {/if}
 
       <form onsubmit={handleSubmit} class="space-y-5">
-        <div class="grid grid-cols-2 gap-4 mb-6">
-          <button
-            type="button"
-            onclick={() => (role = 'customer')}
-            class="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border transition-all duration-300 {role ===
-            'customer'
-              ? 'bg-signal/20 border-signal text-white shadow-inner shadow-signal/20'
-              : 'bg-black/40 border-white/10 text-inkMuted hover:border-white/30'}"
-          >
-            <UserIcon
-              size={24}
-              class={role === 'customer' ? 'text-signal' : 'text-current'}
-            />
-            <span class="text-sm font-semibold">Regular User</span>
-          </button>
 
-          <button
-            type="button"
-            onclick={() => (role = 'vendor')}
-            class="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border transition-all duration-300 {role ===
-            'vendor'
-              ? 'bg-info/20 border-info text-white shadow-inner shadow-info/20'
-              : 'bg-black/40 border-white/10 text-inkMuted hover:border-white/30'}"
-          >
-            <BriefcaseBusiness
-              size={24}
-              class={role === 'vendor' ? 'text-info' : 'text-current'}
-            />
-            <span class="text-sm font-semibold">Organizer</span>
-          </button>
-        </div>
 
         <div class="space-y-2">
           <label
