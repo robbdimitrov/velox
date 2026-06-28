@@ -12,19 +12,15 @@
 
 ## Design Direction
 
-Velox uses brutalist-clean minimalism for live entertainment under extreme
-demand. The base surface is deep carbon `#0F0F11`; interface structure uses thin
-slate lines, square geometry, dense grids, and high-contrast typography. State
-color must be functional, not decorative:
+Velox uses a "Moon Landing" / aerospace aesthetic to handle live entertainment under extreme demand. The base surface is deep space carbon `#050505`; interface structure uses lunar silver lines, square geometry, dense grids, and high-contrast typography. State color must be functional, not decorative:
 
-- `#FF3366`: urgency, held seats, destructive warnings, checkout expiry.
-- `#5533FF`: primary action, selected seats, active filters.
-- `#D7D7DE`: readable foreground text.
-- `#2A2A31`: inactive borders, map section outlines, disabled states.
+- `#FACC15` (Apollo Visor Gold): primary action, selected seats, active filters, glowing stage.
+- `#EF4444` (Control Panel Red): urgency, held seats by others, destructive warnings, checkout expiry.
+- `#F8FAFC` (Spacesuit White): readable foreground text.
+- `#1F2937` (Dusty Gray): inactive borders, map section outlines, disabled states.
+- `#94A3B8` (Lunar Silver): available seats, secondary elements.
 
-Use sharp 0 to 4 px radii for core controls. Prefer monospace numerals for
-timers, counters, and seat identifiers. Do not use soft gradients or decorative
-card stacks for operational flows.
+Use sharp 0 to 4 px radii for core controls. Prefer `Space Grotesk` for UI text and `Space Mono` numerals for timers, counters, and seat identifiers. The interface should feel like a classic, high-reliability aerospace control center.
 
 ## Landing and Event Discovery Page
 
@@ -86,20 +82,20 @@ State sync:
 - Reject any message with a version lower than the locally observed version for
   the same seat.
 
-## High-Velocity Checkout Pipeline
+## High-Velocity Reservation Pipeline
 
-Purpose: convert a held reservation into a paid ticket before the reservation
+Purpose: convert a held reservation into a confirmed ticket before the reservation
 lock expires.
 
 Layout:
 
-1. Left panel: event name, venue, selected seats, fees, total, reservation
+1. Left panel: event name, venue, selected seats, reservation
    version.
 2. Timer band: server-authoritative countdown displayed as `MM:SS` with
    monospace numerals.
-3. Right panel: minimal payment form, billing summary, terms confirmation,
+3. Right panel: reservation confirmation prompt, terms of service acceptance,
    submit button.
-4. Failure strip: single-line error states for card rejection, expired hold,
+4. Failure strip: single-line error states for expired hold,
    duplicate request, or stale reservation.
 
 Rules:
