@@ -9,12 +9,12 @@ import (
 	"time"
 )
 
-func TestVendorCreateEvent(t *testing.T) {
+func TestOrganizerCreateEvent(t *testing.T) {
 	server := NewServerWithStore("test", nil, nil)
 	client := newTestClient(server)
 	
-	// Create vendor
-	reqBody := `{"email":"new_vendor@velox.local","password":"pass","role":"vendor"}`
+	// Create organizer
+	reqBody := `{"email":"new_organizer@velox.local","password":"pass","role":"organizer"}`
 	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader([]byte(reqBody)))
 	rr := httptest.NewRecorder()
 	server.Routes().ServeHTTP(rr, req)
@@ -22,7 +22,7 @@ func TestVendorCreateEvent(t *testing.T) {
 		t.Fatalf("register failed: %s", rr.Body.String())
 	}
 
-	cookie := client.login(t, "new_vendor@velox.local", "pass")
+	cookie := client.login(t, "new_organizer@velox.local", "pass")
 
 	eventPayload := map[string]any{
 		"venue_id": "ven_northstar",
@@ -30,7 +30,7 @@ func TestVendorCreateEvent(t *testing.T) {
 		"starts_at": time.Now().Add(24 * time.Hour).Format(time.RFC3339),
 	}
 	body, _ := json.Marshal(eventPayload)
-	req = httptest.NewRequest(http.MethodPost, "/api/vendor/events", bytes.NewReader(body))
+	req = httptest.NewRequest(http.MethodPost, "/api/organizer/events", bytes.NewReader(body))
 	req.AddCookie(cookie)
 	rr = httptest.NewRecorder()
 	server.Routes().ServeHTTP(rr, req)
@@ -42,12 +42,12 @@ func TestVendorCreateEvent(t *testing.T) {
 	}
 }
 
-func TestVendorListVenues(t *testing.T) {
+func TestOrganizerListVenues(t *testing.T) {
 	server := NewServerWithStore("test", nil, nil)
 	client := newTestClient(server)
-	cookie := client.login(t, "vendor@velox.local", "vendor")
+	cookie := client.login(t, "organizer@velox.local", "organizer")
 
-	req := httptest.NewRequest(http.MethodGet, "/api/vendor/venues", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/organizer/venues", nil)
 	req.AddCookie(cookie)
 	rr := httptest.NewRecorder()
 	server.Routes().ServeHTTP(rr, req)

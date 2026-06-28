@@ -7,12 +7,12 @@ import (
 	"time"
 )
 
-func (s *Server) handleVendorEvents(w http.ResponseWriter, r *http.Request, user User) {
+func (s *Server) handleOrganizerEvents(w http.ResponseWriter, r *http.Request, user User) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var events []Event
 	for _, event := range s.events {
-		if event.VendorID == user.VendorID {
+		if event.OrganizerID == user.OrganizerID {
 			event.SeatsOpen = s.openSeatsLocked(event.ID)
 			events = append(events, event)
 		}
@@ -20,8 +20,8 @@ func (s *Server) handleVendorEvents(w http.ResponseWriter, r *http.Request, user
 	writeJSON(w, http.StatusOK, map[string]any{"events": events})
 }
 
-func (s *Server) handleVendorOrders(w http.ResponseWriter, r *http.Request, user User) {
-	if !s.vendorOwnsEvent(r.PathValue("eventId"), user) {
+func (s *Server) handleOrganizerOrders(w http.ResponseWriter, r *http.Request, user User) {
+	if !s.organizerOwnsEvent(r.PathValue("eventId"), user) {
 		writeError(w, http.StatusNotFound, "event_not_found")
 		return
 	}
@@ -36,14 +36,14 @@ func (s *Server) handleVendorOrders(w http.ResponseWriter, r *http.Request, user
 	writeJSON(w, http.StatusOK, map[string]any{"orders": orders})
 }
 
-func (s *Server) handleVendorInventory(w http.ResponseWriter, r *http.Request, user User) {
+func (s *Server) handleOrganizerInventory(w http.ResponseWriter, r *http.Request, user User) {
 	eventID := r.PathValue("eventId")
-	if !s.vendorOwnsEvent(eventID, user) {
+	if !s.organizerOwnsEvent(eventID, user) {
 		writeError(w, http.StatusNotFound, "event_not_found")
 		return
 	}
 	if s.store != nil {
-		counts, _, err := s.store.GetVendorInventory(r.Context(), eventID)
+		counts, _, err := s.store.GetOrganizerInventory(r.Context(), eventID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "inventory_unavailable")
 			return
@@ -63,14 +63,14 @@ func (s *Server) handleVendorInventory(w http.ResponseWriter, r *http.Request, u
 	writeJSON(w, http.StatusOK, map[string]any{"inventory": counts, "active_holds": counts[StatusHeld]})
 }
 
-func (s *Server) vendorOwnsEvent(eventID string, user User) bool {
+func (s *Server) organizerOwnsEvent(eventID string, user User) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	event, ok := s.events[eventID]
-	return ok && event.VendorID == user.VendorID
+	return ok && event.OrganizerID == user.OrganizerID
 }
 
-func (s *Server) handleVendorMetricsStream(w http.ResponseWriter, r *http.Request, user User) {
+func (s *Server) handleOrganizerMetricsStream(w http.ResponseWriter, r *http.Request, user User) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -80,13 +80,13 @@ func (s *Server) handleVendorMetricsStream(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// For simplicity, we listen to all events for this vendor or a specific event if eventId is query param?
-	// The frontend connects to `/vendor/metrics/stream` (no event ID). We'll assume the first event for the vendor.
+	// For simplicity, we listen to all events for this organizer or a specific event if eventId is query param?
+	// The frontend connects to `/organizer/metrics/stream` (no event ID). We'll assume the first event for the organizer.
 	
 	s.mu.Lock()
 	var eventID string
 	for _, event := range s.events {
-		if event.VendorID == user.VendorID {
+		if event.OrganizerID == user.OrganizerID {
 			eventID = event.ID
 			break
 		}
@@ -100,7 +100,7 @@ func (s *Server) handleVendorMetricsStream(w http.ResponseWriter, r *http.Reques
 
 	sendMetrics := func() {
 		if s.store != nil {
-			metrics, err := s.store.GetVendorMetrics(r.Context(), eventID)
+			metrics, err := s.store.GetOrganizerMetrics(r.Context(), eventID)
 			if err == nil {
 				payload, _ := json.Marshal(metrics)
 				fmt.Fprintf(w, "data: %s\n\n", payload)
@@ -113,15 +113,15 @@ func (s *Server) handleVendorMetricsStream(w http.ResponseWriter, r *http.Reques
 
 	ch := make(chan string, 10)
 	s.mu.Lock()
-	if s.vendorClients[eventID] == nil {
-		s.vendorClients[eventID] = make(map[chan string]struct{})
+	if s.organizerClients[eventID] == nil {
+		s.organizerClients[eventID] = make(map[chan string]struct{})
 	}
-	s.vendorClients[eventID][ch] = struct{}{}
+	s.organizerClients[eventID][ch] = struct{}{}
 	s.mu.Unlock()
 
 	defer func() {
 		s.mu.Lock()
-		delete(s.vendorClients[eventID], ch)
+		delete(s.organizerClients[eventID], ch)
 		s.mu.Unlock()
 	}()
 
@@ -146,7 +146,7 @@ func (s *Server) handleListVenues(w http.ResponseWriter, r *http.Request, user U
 		writeJSON(w, http.StatusOK, map[string]any{"venues": []Venue{}})
 		return
 	}
-	venues, err := s.store.GetVendorVenues(r.Context(), user.ID)
+	venues, err := s.store.GetOrganizerVenues(r.Context(), user.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")
 		return
@@ -186,7 +186,7 @@ func (s *Server) handleCreateEvent(w http.ResponseWriter, r *http.Request, user 
 	}
 
 	if s.store != nil {
-		venues, err := s.store.GetVendorVenues(r.Context(), user.ID)
+		venues, err := s.store.GetOrganizerVenues(r.Context(), user.ID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "internal_error")
 			return

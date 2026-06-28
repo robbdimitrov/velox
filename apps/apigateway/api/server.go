@@ -24,7 +24,7 @@ type Server struct {
 	store       *DatabaseStore
 	rdb         *redis.Client
 	seatClients   map[string]map[chan string]struct{}
-	vendorClients map[string]map[chan string]struct{}
+	organizerClients map[string]map[chan string]struct{}
 	httpClient    *http.Client
 	orderSvcURL string
 }
@@ -43,12 +43,12 @@ func NewServerWithStore(secret string, store *DatabaseStore, rdb *redis.Client) 
 		store:       store,
 		rdb:         rdb,
 		seatClients:   map[string]map[chan string]struct{}{},
-		vendorClients: map[string]map[chan string]struct{}{},
+		organizerClients: map[string]map[chan string]struct{}{},
 		httpClient:    http.DefaultClient,
 	}
 	if store != nil {
 		go s.listenSeatUpdates()
-		go s.listenVendorUpdates()
+		go s.listenOrganizerUpdates()
 	}
 	s.seed()
 	return s
@@ -93,11 +93,11 @@ func (s *Server) listenSeatUpdates() {
 
 func (s *Server) seed() {
 	s.users["reserver@velox.local"] = User{ID: "usr_reserver_1", Email: "reserver@velox.local", Password: "reserver", Role: RoleReserver}
-	s.users["vendor@velox.local"] = User{ID: "usr_vendor_1", Email: "vendor@velox.local", Password: "vendor", Role: RoleVendor, VendorID: "ven_northstar"}
+	s.users["organizer@velox.local"] = User{ID: "usr_organizer_1", Email: "organizer@velox.local", Password: "organizer", Role: RoleOrganizer, OrganizerID: "ven_northstar"}
 	eventsToSeed := []Event{
 		{
 			ID:          "evt_neon_riot",
-			VendorID:    "ven_northstar",
+			OrganizerID:    "ven_northstar",
 			Name:        "Neon Riot Live",
 			Venue:       "Velox Arena",
 			City:        "Chicago",
@@ -107,7 +107,7 @@ func (s *Server) seed() {
 		},
 		{
 			ID:          "evt_north_pier",
-			VendorID:    "ven_northstar",
+			OrganizerID:    "ven_northstar",
 			Name:        "North Pier Symphony",
 			Venue:       "North Pier Hall",
 			City:        "Seattle",
@@ -117,7 +117,7 @@ func (s *Server) seed() {
 		},
 		{
 			ID:          "evt_civic_bowl",
-			VendorID:    "ven_northstar",
+			OrganizerID:    "ven_northstar",
 			Name:        "Civic Bowl Championship",
 			Venue:       "Civic Bowl",
 			City:        "Denver",
@@ -127,7 +127,7 @@ func (s *Server) seed() {
 		},
 		{
 			ID:          "evt_summer_fests",
-			VendorID:    "ven_northstar",
+			OrganizerID:    "ven_northstar",
 			Name:        "Summer Solstice Festival",
 			Venue:       "Moonlight Grounds",
 			City:        "Austin",
@@ -164,15 +164,15 @@ func (s *Server) seed() {
 	}
 }
 
-func (s *Server) listenVendorUpdates() {
+func (s *Server) listenOrganizerUpdates() {
 	for {
-		err := s.store.ListenVendorUpdates(context.Background(), func(payload string) {
+		err := s.store.ListenOrganizerUpdates(context.Background(), func(payload string) {
 			var msg struct {
 				EventID string `json:"event_id"`
 			}
 			if err := json.Unmarshal([]byte(payload), &msg); err == nil && msg.EventID != "" {
 				s.mu.Lock()
-				for ch := range s.vendorClients[msg.EventID] {
+				for ch := range s.organizerClients[msg.EventID] {
 					select {
 					case ch <- payload:
 					default:

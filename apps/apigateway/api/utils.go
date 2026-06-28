@@ -11,8 +11,8 @@ import (
 
 func publicUser(user User) map[string]string {
 	out := map[string]string{"id": user.ID, "email": user.Email, "role": user.Role}
-	if user.VendorID != "" {
-		out["vendor_id"] = user.VendorID
+	if user.OrganizerID != "" {
+		out["organizer_id"] = user.OrganizerID
 	}
 	return out
 }

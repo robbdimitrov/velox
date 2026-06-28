@@ -109,7 +109,7 @@ func (s *DatabaseStore) ListSeats(ctx context.Context, eventID, sectionID string
 	return seats, rows.Err()
 }
 
-func (s *DatabaseStore) GetVendorInventory(ctx context.Context, eventID string) (map[string]int, map[string]map[string]int, error) {
+func (s *DatabaseStore) GetOrganizerInventory(ctx context.Context, eventID string) (map[string]int, map[string]map[string]int, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT section_id, status, COUNT(*)
 		FROM projection.seat_snapshots
@@ -230,7 +230,7 @@ func (s *DatabaseStore) ListenSeatUpdates(ctx context.Context, handler func(payl
 	})
 }
 
-type VendorMetrics struct {
+type OrganizerMetrics struct {
 	TotalReservations   int64          `json:"totalReservations"`
 	ActiveHolds         int            `json:"activeHolds"`
 	SeatsRemaining      int            `json:"seatsRemaining"`
@@ -239,8 +239,8 @@ type VendorMetrics struct {
 	SectionAvailability map[string]int `json:"sectionAvailability"`
 }
 
-func (s *DatabaseStore) GetVendorMetrics(ctx context.Context, eventID string) (VendorMetrics, error) {
-	var metrics VendorMetrics
+func (s *DatabaseStore) GetOrganizerMetrics(ctx context.Context, eventID string) (OrganizerMetrics, error) {
+	var metrics OrganizerMetrics
 	
 	// Get total reservations from order_summaries
 	err := s.db.QueryRowContext(ctx, `
@@ -253,7 +253,7 @@ func (s *DatabaseStore) GetVendorMetrics(ctx context.Context, eventID string) (V
 	}
 
 	// Get inventory counts
-	counts, sectionCounts, err := s.GetVendorInventory(ctx, eventID)
+	counts, sectionCounts, err := s.GetOrganizerInventory(ctx, eventID)
 	if err != nil {
 		return metrics, err
 	}
@@ -278,7 +278,7 @@ func (s *DatabaseStore) GetVendorMetrics(ctx context.Context, eventID string) (V
 	return metrics, nil
 }
 
-func (s *DatabaseStore) ListenVendorUpdates(ctx context.Context, handler func(payload string)) error {
+func (s *DatabaseStore) ListenOrganizerUpdates(ctx context.Context, handler func(payload string)) error {
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
 		return err
@@ -287,7 +287,7 @@ func (s *DatabaseStore) ListenVendorUpdates(ctx context.Context, handler func(pa
 
 	return conn.Raw(func(driverConn any) error {
 		pgxConn := driverConn.(*stdlib.Conn).Conn()
-		_, err := pgxConn.Exec(ctx, "LISTEN vendor_updates")
+		_, err := pgxConn.Exec(ctx, "LISTEN organizer_updates")
 		if err != nil {
 			return err
 		}
@@ -337,7 +337,7 @@ func (s *DatabaseStore) GetUserByID(ctx context.Context, id string) (User, error
 	return u, err
 }
 
-func (s *DatabaseStore) GetVendorVenues(ctx context.Context, userID string) ([]Venue, error) {
+func (s *DatabaseStore) GetOrganizerVenues(ctx context.Context, userID string) ([]Venue, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT v.id, v.name, v.city, v.address, v.capacity
 		FROM catalog.venues v
@@ -455,7 +455,7 @@ func (s *DatabaseStore) GetEvents(ctx context.Context) ([]Event, error) {
 			return nil, err
 		}
 		
-		counts, _, _ := s.GetVendorInventory(ctx, e.ID)
+		counts, _, _ := s.GetOrganizerInventory(ctx, e.ID)
 		e.SeatsOpen = counts[StatusAvailable]
 		e.SeatsTotal = counts[StatusAvailable] + counts[StatusHeld] + counts[StatusSold]
 		
@@ -477,7 +477,7 @@ func (s *DatabaseStore) GetEvent(ctx context.Context, id string) (Event, error) 
 	if err != nil {
 		return Event{}, err
 	}
-	counts, _, _ := s.GetVendorInventory(ctx, e.ID)
+	counts, _, _ := s.GetOrganizerInventory(ctx, e.ID)
 	e.SeatsOpen = counts[StatusAvailable]
 	e.SeatsTotal = counts[StatusAvailable] + counts[StatusHeld] + counts[StatusSold]
 	return e, nil

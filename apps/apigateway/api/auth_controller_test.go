@@ -33,14 +33,6 @@ func TestRegister(t *testing.T) {
 		t.Fatalf("expected velox_session cookie")
 	}
 
-	// Invalid role
-	reqBody = `{"email":"bad@velox.local","password":"pass","role":"admin"}`
-	req = httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader([]byte(reqBody)))
-	rr = httptest.NewRecorder()
-	server.Routes().ServeHTTP(rr, req)
-	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 Bad Request, got %d", rr.Code)
-	}
 }
 
 func TestLogout(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 
 const (
 	RoleReserver = "reserver"
-	RoleVendor   = "vendor"
+	RoleOrganizer   = "organizer"
 
 	StatusAvailable = "AVAILABLE"
 	StatusHeld      = "HELD"
@@ -24,7 +24,7 @@ type User struct {
 	Email     string    `json:"email"`
 	Password  string    `json:"-"`
 	Role      string    `json:"role"`
-	VendorID  string    `json:"vendor_id,omitempty"`
+	OrganizerID  string    `json:"organizer_id,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -52,7 +52,7 @@ type Event struct {
 	ID          string    `json:"id"`
 	VenueID     string    `json:"venue_id,omitempty"`
 	Status      string    `json:"status,omitempty"`
-	VendorID    string    `json:"vendor_id,omitempty"`
+	OrganizerID    string    `json:"organizer_id,omitempty"`
 	Name        string    `json:"name"`
 	Venue       string    `json:"venue,omitempty"`
 	City        string    `json:"city,omitempty"`

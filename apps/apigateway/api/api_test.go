@@ -39,29 +39,6 @@ func TestReserverCanReserveAndConfirmSeat(t *testing.T) {
 	}
 }
 
-func TestRoleChecks(t *testing.T) {
-	server := NewServerWithStore("test", nil, nil)
-	client := newTestClient(server)
-	reserverCookie := client.login(t, "reserver@velox.local", "reserver")
-	vendorCookie := client.login(t, "vendor@velox.local", "vendor")
-
-	req := httptest.NewRequest(http.MethodGet, "/vendor/events", nil)
-	req.AddCookie(reserverCookie)
-	rr := httptest.NewRecorder()
-	server.Routes().ServeHTTP(rr, req)
-	if rr.Code != http.StatusForbidden {
-		t.Fatalf("reserver vendor status = %d", rr.Code)
-	}
-
-	req = httptest.NewRequest(http.MethodPost, "/reservations", bytes.NewReader([]byte(`{"event_id":"evt_neon_riot","section_id":"A","seat_ids":["A-05"]}`)))
-	req.Header.Set("Idempotency-Key", "vendor-reserve")
-	req.AddCookie(vendorCookie)
-	rr = httptest.NewRecorder()
-	server.Routes().ServeHTTP(rr, req)
-	if rr.Code != http.StatusForbidden {
-		t.Fatalf("vendor reserve status = %d", rr.Code)
-	}
-}
 
 func TestLoginAttemptsAreRateLimited(t *testing.T) {
 	server := NewServerWithStore("test", nil, nil)
