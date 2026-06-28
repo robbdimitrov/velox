@@ -3,6 +3,7 @@
   import { createGatewayClient, createIdempotencyKey } from '$lib/api/client';
   import { checkoutState, formatCountdown } from '$lib/state/checkout-state.svelte';
   import { LockKeyhole, AlertTriangle, CheckCircle2 } from '@lucide/svelte';
+  import PrimaryButton from '$lib/components/PrimaryButton.svelte';
 
   let termsAccepted = $state(false);
   let tick = $state(Date.now());
@@ -13,8 +14,11 @@
   });
 
   const remaining = $derived.by(() => {
-    tick;
-    return checkoutState.msRemaining;
+    if (!checkoutState.reservation) return 0;
+    return Math.max(
+      0,
+      checkoutState.reservation.expires_at_server_ms - (tick + checkoutState.serverOffsetMs)
+    );
   });
 
   async function submit() {
@@ -98,10 +102,10 @@
         </div>
       {/if}
 
-      <button class="btn w-full rounded-xl border-0 bg-gradient-to-r from-signal to-primary text-white font-bold text-lg shadow-glow hover:scale-[1.02] transition-all disabled:opacity-50 disabled:hover:scale-100 disabled:shadow-none" disabled={!termsAccepted || checkoutState.submitted || remaining <= 0} onclick={submit}>
+      <PrimaryButton disabled={!termsAccepted || checkoutState.submitted || remaining <= 0} onclick={submit}>
         <LockKeyhole size={18} />
         {checkoutState.submitted ? 'Securing...' : 'Complete Reservation'}
-      </button>
+      </PrimaryButton>
     </aside>
 
   {:else}

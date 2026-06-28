@@ -4,20 +4,21 @@
   import { slide } from 'svelte/transition';
 
   let { url }: { url: string } = $props();
-  let messages = $state<string[]>([
-    'North Pier Hall section A entering sale window',
-    'Civic Bowl upper deck inventory refreshed',
-    'Wallet projection lag stable under 100ms'
-  ]);
+  let messages = $state<string[]>(['System connected. Waiting for live updates...']);
 
   onMount(() => {
     if (!url || typeof EventSource === 'undefined') return;
 
     const source = new EventSource(url);
-    source.onmessage = (event) => {
-      // Add new message at top, keep max 4
-      messages = [event.data, ...messages].slice(0, 4);
-    };
+    source.addEventListener('update', (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        const msg = `${data.event_id} ${data.section_id} ${data.seat_id} is now ${data.status}`;
+        messages = [msg, ...messages].slice(0, 4);
+      } catch {
+        messages = [event.data, ...messages].slice(0, 4);
+      }
+    });
     source.onerror = () => source.close();
 
     return () => source.close();

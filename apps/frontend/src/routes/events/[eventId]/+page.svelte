@@ -7,6 +7,7 @@
   import { checkoutState } from '$lib/state/checkout-state.svelte';
   import { SeatSelectionState } from '$lib/state/seat-state.svelte';
   import { Accessibility, Minus, Plus, RotateCcw, TicketCheck, Layers } from '@lucide/svelte';
+  import PrimaryButton from '$lib/components/PrimaryButton.svelte';
   import { onMount } from 'svelte';
   import { slide } from 'svelte/transition';
 
@@ -16,26 +17,34 @@
   let reserving = $derived(reservingStatus !== '');
   let error = $state('');
   let sectionID = $state('');
-  let loadedSnapshot = $state(false);
-  let eventLog = $state<string[]>(['Snapshot loaded from projection read model']);
+  let zoomLevel = $state(1);
+  let accessibleOnly = $state(false);
 
   $effect(() => {
-    if (loadedSnapshot) return;
     sectionID = data.snapshot.section_id;
     seatState.load(data.snapshot.seats, data.snapshot.server_time_ms);
-    loadedSnapshot = true;
+    eventLog = ['Snapshot loaded from projection read model'];
+    // Reset zoom when section changes
+    zoomLevel = 1;
   });
 
-  onMount(() => {
+  let source: EventSource | null = null;
+  
+  $effect(() => {
     if (typeof EventSource === 'undefined') return;
-    const source = new EventSource(data.seatSseURL);
+    if (source) source.close();
+    
+    source = new EventSource(data.seatSseURL);
     source.onmessage = (event) => {
       const delta = JSON.parse(event.data) as SeatDelta;
       seatState.applyDelta(delta);
       eventLog = [`${delta.seat_id} ${delta.status} v${delta.version}`, ...eventLog].slice(0, 6);
     };
-    source.onerror = () => source.close();
-    return () => source.close();
+    source.onerror = () => source?.close();
+    
+    return () => {
+      if (source) source.close();
+    };
   });
 
   async function reserve() {
@@ -55,7 +64,7 @@
         createIdempotencyKey()
       );
 
-      reservingStatus = 'Confirming Payment...';
+      reservingStatus = 'Confirming...';
       await new Promise((r) => setTimeout(r, 800));
       reservingStatus = 'Reserved!';
       await new Promise((r) => setTimeout(r, 400));
@@ -64,7 +73,7 @@
       await goto('/checkout');
     } catch (requestError) {
       if (requestError instanceof Error && data.snapshot.event_id.startsWith('evt_')) {
-        reservingStatus = 'Confirming Payment...';
+        reservingStatus = 'Confirming...';
         await new Promise((r) => setTimeout(r, 800));
         reservingStatus = 'Reserved!';
         await new Promise((r) => setTimeout(r, 400));
@@ -90,7 +99,7 @@
     
     <label class="form-control mb-6">
       <span class="label-text text-inkMuted font-medium mb-1.5">Section</span>
-      <select bind:value={sectionID} class="select select-bordered select-sm border-white/10 bg-black/40 text-ink rounded-lg focus:border-signal">
+      <select bind:value={sectionID} onchange={() => goto(`?section_id=${sectionID}`)} class="select select-bordered select-sm border-white/10 bg-black/40 text-ink rounded-lg focus:border-signal">
         <option>A</option>
         <option>B</option>
         <option>C</option>
@@ -98,12 +107,12 @@
     </label>
 
     <div class="grid grid-cols-2 gap-3 mb-6">
-      <button class="btn btn-sm border-white/10 bg-black/40 text-ink hover:bg-black/60 rounded-lg shadow-inner"><Plus size={16} /> Zoom</button>
-      <button class="btn btn-sm border-white/10 bg-black/40 text-ink hover:bg-black/60 rounded-lg shadow-inner"><Minus size={16} /> Zoom</button>
+      <button class="btn btn-sm border-white/10 bg-black/40 text-ink hover:bg-black/60 rounded-lg shadow-inner" onclick={() => zoomLevel = Math.min(3, zoomLevel * 1.2)}><Plus size={16} /> Zoom</button>
+      <button class="btn btn-sm border-white/10 bg-black/40 text-ink hover:bg-black/60 rounded-lg shadow-inner" onclick={() => zoomLevel = Math.max(0.5, zoomLevel / 1.2)}><Minus size={16} /> Zoom</button>
     </div>
 
     <label class="flex items-center gap-3 text-sm cursor-pointer hover:text-white transition-colors group bg-black/20 p-3 rounded-lg border border-white/5 mb-6">
-      <input class="toggle toggle-primary toggle-sm" type="checkbox" />
+      <input bind:checked={accessibleOnly} class="toggle toggle-primary toggle-sm" type="checkbox" />
       <span class="flex items-center gap-2 group-hover:text-signal transition-colors"><Accessibility size={16} /> Accessible</span>
     </label>
 
@@ -129,7 +138,7 @@
       </div>
     </div>
 
-    <SeatCanvas seats={seatState.seats} selectedSeatIDs={seatState.selectedSeatIDs} onToggle={(seat) => seatState.toggleSeat(seat)} />
+    <SeatCanvas seats={seatState.seats} selectedSeatIDs={seatState.selectedSeatIDs} onToggle={(seat) => seatState.toggleSeat(seat)} {sectionID} {zoomLevel} {accessibleOnly} />
     
     <div class="glass-panel h-32 overflow-hidden p-4 relative">
       <p class="mb-3 text-xs font-black uppercase tracking-widest text-inkMuted border-b border-white/10 pb-2">Live inventory log</p>
@@ -181,10 +190,10 @@
         </p>
       {/if}
       
-      <button class="btn w-full mt-6 rounded-xl border-0 bg-gradient-to-r from-signal to-primary text-white font-bold text-lg shadow-glow hover:scale-[1.02] transition-all disabled:from-inkMuted/30 disabled:to-inkMuted/30 disabled:text-white/40 disabled:hover:scale-100 disabled:shadow-none" disabled={!seatState.selectedSeats.length || reserving} onclick={reserve}>
+      <PrimaryButton disabled={!seatState.selectedSeats.length || reserving} onclick={reserve}>
         <TicketCheck size={18} />
         {reserving ? reservingStatus : 'Confirm Reservation'}
-      </button>
+      </PrimaryButton>
     </div>
   </aside>
 </main>

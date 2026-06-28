@@ -5,11 +5,17 @@
   let {
     seats,
     selectedSeatIDs,
-    onToggle
+    onToggle,
+    sectionID = 'A',
+    zoomLevel = 1,
+    accessibleOnly = false
   }: {
     seats: Seat[];
     selectedSeatIDs: Set<string>;
     onToggle: (seat: Seat) => void;
+    sectionID?: string;
+    zoomLevel?: number;
+    accessibleOnly?: boolean;
   } = $props();
 
   let container = $state<HTMLDivElement>();
@@ -43,7 +49,7 @@
       
       const scaleX = (width - 100) / gridWidth;
       const scaleY = (height - 140) / gridHeight;
-      scale = Math.min(scaleX, scaleY, 1.2); 
+      scale = Math.min(scaleX, scaleY, 1.2) * zoomLevel; 
       
       offsetX = (width - (gridWidth * scale)) / 2;
       offsetY = (height - (gridHeight * scale)) / 2;
@@ -79,7 +85,7 @@
       const size = SEAT_SIZE * scale;
       const radius = 6 * scale;
 
-      if (isHovered && seat.status !== 'SOLD') {
+      if (isHovered && seat.status !== 'SOLD' && (!accessibleOnly || seat.accessibility)) {
         ctx.shadowColor = 'rgba(255, 255, 255, 0.6)';
         ctx.shadowBlur = 15 * scale;
       } else if (selected || seat.status === 'HELD') {
@@ -89,17 +95,18 @@
         ctx.shadowBlur = 0;
       }
 
-      ctx.fillStyle = selected ? colors.SELECTED : colors[seat.status];
+      const isDimmed = accessibleOnly && !seat.accessibility;
+      ctx.fillStyle = isDimmed ? 'rgba(255,255,255,0.05)' : (selected ? colors.SELECTED : colors[seat.status]);
       roundRect(ctx, sx, sy, size, size, radius);
       ctx.fill();
       
       ctx.shadowBlur = 0;
-      ctx.lineWidth = selected || isHovered ? 2 : 1;
-      ctx.strokeStyle = selected || isHovered
+      ctx.lineWidth = selected || (isHovered && !isDimmed) ? 2 : 1;
+      ctx.strokeStyle = isDimmed ? 'rgba(255,255,255,0.02)' : (selected || isHovered
         ? '#FFFFFF'
         : seat.status === 'UNKNOWN'
           ? '#4B5563'
-          : 'rgba(255,255,255,0.1)';
+          : 'rgba(255,255,255,0.1)');
       ctx.stroke();
     }
     ctx.restore();
@@ -121,7 +128,10 @@
 
   function handleClick(event: MouseEvent) {
     const hit = getHitSeat(event);
-    if (hit && hit.status !== 'SOLD') onToggle(hit);
+    if (hit && hit.status !== 'SOLD') {
+      if (accessibleOnly && !hit.accessibility) return;
+      onToggle(hit);
+    }
   }
 
   function handleMouseMove(event: MouseEvent) {
@@ -157,7 +167,7 @@
 
   $effect(() => {
     selectedSeatIDs.size;
-    scale; offsetX; offsetY; hoveredSeat;
+    scale; offsetX; offsetY; hoveredSeat; zoomLevel; accessibleOnly;
     if (seats && canvas) {
       draw();
     }
@@ -168,7 +178,7 @@
   <canvas
     bind:this={canvas}
     class="absolute inset-0 z-10 transition-opacity duration-300 hover:opacity-95"
-    style="width: {width}px; height: {height}px; display: block; cursor: {hoveredSeat && hoveredSeat.status !== 'SOLD' ? 'pointer' : 'default'};"
+    style="width: {width}px; height: {height}px; display: block; cursor: {hoveredSeat && hoveredSeat.status !== 'SOLD' && (!accessibleOnly || hoveredSeat.accessibility) ? 'pointer' : 'default'};"
     width={width * devicePixelRatio}
     height={height * devicePixelRatio}
     onclick={handleClick}
@@ -180,7 +190,7 @@
   <div class="absolute inset-0 pointer-events-none flex flex-col justify-between items-center py-6 z-0">
     <div class="flex flex-col items-center opacity-60">
       <div class="h-1 w-32 bg-white/20 rounded-full mb-2"></div>
-      <span class="text-xs font-black uppercase tracking-[0.3em] text-white/60">Section A</span>
+      <span class="text-xs font-black uppercase tracking-[0.3em] text-white/60">Section {sectionID}</span>
     </div>
     
     <div class="flex flex-col items-center relative bottom-[-20px]">

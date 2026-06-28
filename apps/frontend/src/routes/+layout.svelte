@@ -2,6 +2,9 @@
   import '../app.css';
   import { BriefcaseBusiness, Search, ShieldCheck, Ticket } from '@lucide/svelte';
   import { authState } from '$lib/state/auth-state.svelte';
+  import { filterState } from '$lib/state/filter-state.svelte';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   let { children } = $props();
 </script>
 
@@ -18,11 +21,21 @@
 
       <label class="hidden md:flex items-center gap-2 bg-black/40 border border-white/10 rounded-full px-4 py-2 w-1/3 hover:border-signal/50 transition-colors shadow-inner">
         <Search size={18} class="text-inkMuted" />
-        <input class="w-full bg-transparent text-sm outline-none placeholder:text-inkMuted" placeholder="Search events, venues, cities..." />
+        <input bind:value={filterState.query} class="w-full bg-transparent text-sm outline-none placeholder:text-inkMuted" placeholder="Search events, venues, cities..." />
       </label>
 
       <div class="flex items-center gap-4">
-        <select class="select select-bordered select-sm border-white/10 bg-black/50 text-ink rounded-lg focus:border-signal hover:border-signal/50 transition-colors cursor-pointer" bind:value={authState.role}>
+        <select 
+          class="select select-bordered select-sm border-white/10 bg-black/50 text-ink rounded-lg focus:border-signal hover:border-signal/50 transition-colors cursor-pointer" 
+          bind:value={authState.role}
+          onchange={() => {
+            if (authState.role === 'vendor' && page.url.pathname.startsWith('/wallet')) {
+              goto('/vendor');
+            } else if (authState.role === 'reserver' && page.url.pathname.startsWith('/vendor')) {
+              goto('/');
+            }
+          }}
+        >
           <option value="reserver">Reserver View</option>
           <option value="vendor">Vendor View</option>
         </select>

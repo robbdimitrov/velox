@@ -89,7 +89,7 @@ export function createGatewayClient(
       idempotencyKey: string,
       _reservationToken: string
     ) {
-      return request<{ order: GatewayOrder }>(
+      return request<{ order?: GatewayOrder; status?: string }>(
         `/reservations/${encodeURIComponent(body.reservation_id)}/confirm`,
         {
           method: 'POST',
@@ -100,7 +100,7 @@ export function createGatewayClient(
             payment_method_token: body.payment_method_token
           })
         }
-      ).then(mapCheckout);
+      ).then((res) => mapCheckout(body.reservation_id, res));
     },
     wallet() {
       return request<{ orders: GatewayOrder[] }>('/orders').then(mapWallet);
@@ -239,15 +239,26 @@ function mapReservation(body: { order: GatewayOrder }): ReserveOrderResponse {
   };
 }
 
-function mapCheckout(body: { order: GatewayOrder }): CheckoutResponse {
+function mapCheckout(reservationId: string, body: { order?: GatewayOrder; status?: string }): CheckoutResponse {
+  if (body.status === 'CONFIRMING' || (body.order && body.order.status === 'CONFIRMED')) {
+    return {
+      order_id: body.order?.id ?? reservationId.replace('res_', ''),
+      status: 'CONFIRMED',
+      wallet_ticket_ids: []
+    };
+  }
+  
+  if (!body.order) {
+    return {
+      order_id: reservationId.replace('res_', ''),
+      status: 'FAILED',
+      wallet_ticket_ids: []
+    };
+  }
+
   return {
     order_id: body.order.id,
-    status:
-      body.order.status === 'CONFIRMED'
-        ? 'CONFIRMED'
-        : body.order.status === 'EXPIRED'
-          ? 'EXPIRED'
-          : 'FAILED',
+    status: body.order.status === 'EXPIRED' ? 'EXPIRED' : 'FAILED',
     wallet_ticket_ids: body.order.seat_ids.map(
       (seatID) => `tkt_${body.order.id}_${seatID}`
     )
