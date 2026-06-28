@@ -95,7 +95,7 @@ func (c testClient) login(t *testing.T, email, password string) *http.Cookie {
 func (c testClient) loginStatus(t *testing.T, email, password string, want int) *httptest.ResponseRecorder {
 	t.Helper()
 	body := []byte(`{"email":"` + email + `","password":"` + password + `"}`)
-	req := httptest.NewRequest(http.MethodPost, "/sessions", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
 	c.server.Routes().ServeHTTP(rr, req)
 	if rr.Code != want {
