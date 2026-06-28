@@ -32,6 +32,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /organizer/events/{eventId}/inventory", s.requireAuth(s.handleOrganizerInventory))
 	mux.HandleFunc("GET /organizer/metrics/stream", s.requireAuth(s.handleOrganizerMetricsStream))
 	mux.HandleFunc("GET /api/organizer/venues", s.requireAuth(s.handleListVenues))
+	mux.HandleFunc("POST /api/organizer/venues", s.requireAuth(s.handleCreateVenue))
 	mux.HandleFunc("GET /api/organizer/venues/{id}/staff", s.requireAuth(s.handleListVenueStaff))
 	mux.HandleFunc("POST /api/organizer/events", s.requireAuth(s.handleCreateEvent))
 	handler := limitBody(mux, 1<<20)

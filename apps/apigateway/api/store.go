@@ -337,6 +337,35 @@ func (s *DatabaseStore) GetUserByID(ctx context.Context, id string) (User, error
 	return u, err
 }
 
+func (s *DatabaseStore) CreateVenue(ctx context.Context, userID string, venue Venue) (Venue, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Venue{}, err
+	}
+	defer rollback(tx)
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO catalog.venues (id, name, city, address, capacity)
+		VALUES ($1, $2, $3, $4, $5)
+	`, venue.ID, venue.Name, venue.City, venue.Address, venue.Capacity)
+	if err != nil {
+		return Venue{}, err
+	}
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO catalog.user_venues (user_id, venue_id, venue_role)
+		VALUES ($1, $2, 'owner')
+	`, userID, venue.ID)
+	if err != nil {
+		return Venue{}, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return Venue{}, err
+	}
+	return venue, nil
+}
+
 func (s *DatabaseStore) GetOrganizerVenues(ctx context.Context, userID string) ([]Venue, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT v.id, v.name, v.city, v.address, v.capacity
