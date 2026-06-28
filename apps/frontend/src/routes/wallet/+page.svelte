@@ -5,7 +5,7 @@
 </script>
 
 <main class="mx-auto max-w-6xl px-4 py-5">
-  <section class="thin-panel p-4">
+  <section class="glass-panel rounded-2xl p-4">
     <div
       class="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4"
     >

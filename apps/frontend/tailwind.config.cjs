@@ -4,21 +4,28 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        carbon: '#0F0F11',
-        panel: '#17171B',
-        line: '#2A2A31',
-        ink: '#D7D7DE',
-        urgency: '#FF3366',
-        signal: '#5533FF',
-        ok: '#25D28A',
-        warn: '#F5B841'
+        carbon: '#09090E',
+        panel: '#15151A',
+        line: '#272730',
+        ink: '#F3F4F6',
+        inkMuted: '#9CA3AF',
+        urgency: '#FF2A5F',
+        signal: '#6D28D9',
+        signalHover: '#7C3AED',
+        ok: '#10B981',
+        warn: '#F59E0B'
       },
       fontFamily: {
-        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace']
+        sans: ['Outfit', 'Inter', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'ui-monospace', 'monospace']
       },
       borderRadius: {
-        ui: '4px'
+        ui: '12px',
+        card: '20px'
+      },
+      boxShadow: {
+        glow: '0 0 20px rgba(109, 40, 217, 0.4)',
+        glass: '0 8px 32px 0 rgba(0, 0, 0, 0.37)'
       }
     }
   },
@@ -26,18 +33,18 @@ module.exports = {
     themes: [
       {
         velox: {
-          primary: '#5533FF',
-          secondary: '#25D28A',
-          accent: '#FF3366',
-          neutral: '#17171B',
-          'base-100': '#0F0F11',
-          'base-200': '#17171B',
-          'base-300': '#2A2A31',
-          'base-content': '#D7D7DE',
-          info: '#7C8CFF',
-          success: '#25D28A',
-          warning: '#F5B841',
-          error: '#FF3366'
+          primary: '#7C3AED',
+          secondary: '#10B981',
+          accent: '#FF2A5F',
+          neutral: '#15151A',
+          'base-100': '#09090E',
+          'base-200': '#15151A',
+          'base-300': '#272730',
+          'base-content': '#F3F4F6',
+          info: '#3B82F6',
+          success: '#10B981',
+          warning: '#F59E0B',
+          error: '#FF2A5F'
         }
       }
     ]

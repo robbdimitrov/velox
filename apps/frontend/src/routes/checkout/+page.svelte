@@ -62,7 +62,7 @@
 
 <main class="mx-auto grid max-w-5xl gap-4 px-4 py-5 lg:grid-cols-[1fr_360px]">
   {#if checkoutState.reservation}
-    <section class="thin-panel p-4">
+    <section class="glass-panel rounded-2xl p-4">
       <h1 class="text-2xl font-black uppercase">Checkout</h1>
       <div class="my-4 border-y border-line py-4 text-center">
         <p class="text-xs uppercase text-ink/50">Reservation expires</p>
@@ -96,7 +96,7 @@
       </dl>
     </section>
 
-    <aside class="thin-panel h-max p-4">
+    <aside class="glass-panel rounded-2xl h-max p-4">
       <div class="flex items-center gap-2 border-b border-line pb-3">
         <CreditCard class="text-signal" size={18} />
         <h2 class="text-sm font-black uppercase">Payment</h2>
@@ -139,7 +139,7 @@
       </button>
     </aside>
   {:else}
-    <section class="thin-panel p-6">
+    <section class="glass-panel rounded-2xl p-6">
       <h1 class="text-xl font-black uppercase">No Active Reservation</h1>
       <p class="mt-2 text-ink/60">
         Return to the seat map and hold seats before checkout.

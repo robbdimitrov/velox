@@ -106,7 +106,7 @@
 <main
   class="mx-auto grid max-w-7xl gap-4 px-4 py-5 lg:grid-cols-[210px_1fr_320px]"
 >
-  <aside class="thin-panel h-max p-4">
+  <aside class="glass-panel rounded-2xl h-max p-4">
     <h2 class="border-b border-line pb-3 text-sm font-black uppercase">
       Section Tools
     </h2>
@@ -163,7 +163,7 @@
       selectedSeatIDs={seatState.selectedSeatIDs}
       onToggle={(seat) => seatState.toggleSeat(seat)}
     />
-    <div class="mt-3 thin-panel h-28 overflow-hidden p-3">
+    <div class="mt-3 glass-panel rounded-2xl h-28 overflow-hidden p-3">
       <p class="mb-2 text-xs font-black uppercase text-ink/50">
         Live inventory log
       </p>
@@ -173,7 +173,7 @@
     </div>
   </section>
 
-  <aside class="thin-panel h-max p-4">
+  <aside class="glass-panel rounded-2xl h-max p-4">
     <div class="flex items-center justify-between border-b border-line pb-3">
       <h2 class="text-sm font-black uppercase">Selected Seats</h2>
       <button
