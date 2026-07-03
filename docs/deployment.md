@@ -67,6 +67,8 @@ and starts port-forwards:
 
 Use `scripts/deploy.sh --dry-run` for client-side manifest validation and
 `scripts/deploy.sh --skip-build` when images are already available locally.
-Override `KUBECTL`, `IMAGE_REGISTRY`, and `IMAGE_TAG` to match a non-default
-cluster or registry. Full `kind` cluster creation and image loading are still
-follow-up automation work.
+Override `KUBECTL`, `IMAGE_PREFIX`, and `GIT_SHA` to match a non-default
+cluster or registry. Images are pushed to `IMAGE_PREFIX-<service>:<GIT_SHA>`
+(default `localhost:5000/velox-<service>:<git-sha>`); when a `velox-control-plane`
+kind node is running, `scripts/deploy.sh` also loads the built images directly
+into it. Full `kind` cluster creation is still follow-up automation work.

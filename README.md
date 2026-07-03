@@ -103,10 +103,11 @@ applies manifests from `deploy/`, waits for rollouts, and starts port-forwards:
 - Frontend: http://localhost:8080
 - Gateway: http://localhost:8081
 
-Override image names when needed:
+Images build and push to `localhost:5000/velox-<service>:<git-sha>` by default.
+Override the registry or commit tag when needed:
 
 ```sh
-IMAGE_REGISTRY=localhost:5001/velox IMAGE_TAG=dev ./scripts/deploy.sh
+IMAGE_PREFIX=localhost:5001/velox GIT_SHA=dev ./scripts/deploy.sh
 ```
 
 ## Cleanup

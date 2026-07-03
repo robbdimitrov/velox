@@ -5,8 +5,8 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DEPLOY_DIR="${ROOT_DIR}/deploy"
 NS="${NS:-velox}"
 KUBECTL="${KUBECTL:-kubectl}"
-IMAGE_REGISTRY="${IMAGE_REGISTRY:-ghcr.io/example/velox}"
-IMAGE_TAG="${IMAGE_TAG:-dev}"
+IMAGE_PREFIX="${IMAGE_PREFIX:-localhost:5000/velox}"
+GIT_SHA="${GIT_SHA:-$(git -C "${ROOT_DIR}" rev-parse --short HEAD)}"
 LOCAL_FRONTEND_PORT="${LOCAL_FRONTEND_PORT:-8085}"
 FRONTEND_PORT_FORWARD_LOG="${FRONTEND_PORT_FORWARD_LOG:-/tmp/velox-frontend-port-forward-${LOCAL_FRONTEND_PORT}.log}"
 FRONTEND_PORT_FORWARD_PID_FILE="${FRONTEND_PORT_FORWARD_PID_FILE:-/tmp/velox-frontend-port-forward-${LOCAL_FRONTEND_PORT}.pid}"
@@ -32,8 +32,8 @@ Usage: $0 [--dry-run] [--skip-build]
 
 Environment:
   NS=${NS}
-  IMAGE_REGISTRY=${IMAGE_REGISTRY}
-  IMAGE_TAG=${IMAGE_TAG}
+  IMAGE_PREFIX=${IMAGE_PREFIX}
+  GIT_SHA=${GIT_SHA}
   LOCAL_FRONTEND_PORT=${LOCAL_FRONTEND_PORT}
 EOF
 }
@@ -79,6 +79,23 @@ random_secret() {
 
 require_tools() {
   $KUBECTL version --client >/dev/null 2>&1 || die "kubectl is not available through: ${KUBECTL}"
+  if [[ -n "$SKIP_BUILD" || -n "$DRY_RUN" ]]; then
+    return
+  fi
+  local tool
+  for tool in docker make; do
+    command -v "$tool" >/dev/null || die "missing required tool: $tool"
+  done
+}
+
+load_images_into_kind() {
+  local node="velox-control-plane"
+  local service
+  docker container inspect --format '{{.State.Running}}' "$node" 2>/dev/null | grep -qx true || return
+  log "loading images into kind node"
+  for service in apigateway orderservice seatservice viewservice frontend database; do
+    docker save "${IMAGE_PREFIX}-${service}:${GIT_SHA}" | docker exec -i "$node" ctr --namespace k8s.io images import -
+  done
 }
 
 build_images() {
@@ -86,7 +103,8 @@ build_images() {
     return
   fi
   log "building Velox images"
-  DOCKER_BUILDKIT=1 IMAGE_REGISTRY="$IMAGE_REGISTRY" IMAGE_TAG="$IMAGE_TAG" make -C "$ROOT_DIR"
+  DOCKER_BUILDKIT=1 IMAGE_PREFIX="$IMAGE_PREFIX" GIT_SHA="$GIT_SHA" make -C "$ROOT_DIR"
+  load_images_into_kind
 }
 
 apply_file() {
@@ -98,16 +116,18 @@ apply_file() {
   fi
 }
 
-render_services_manifest() {
+render_manifest() {
+  local file="$1"
   local rendered
   rendered="$(mktemp)"
   sed \
-    -e "s#ghcr.io/example/velox-apigateway:dev#${IMAGE_REGISTRY}-apigateway:${IMAGE_TAG}#g" \
-    -e "s#ghcr.io/example/velox-orderservice:dev#${IMAGE_REGISTRY}-orderservice:${IMAGE_TAG}#g" \
-    -e "s#ghcr.io/example/velox-seatservice:dev#${IMAGE_REGISTRY}-seatservice:${IMAGE_TAG}#g" \
-    -e "s#ghcr.io/example/velox-viewservice:dev#${IMAGE_REGISTRY}-viewservice:${IMAGE_TAG}#g" \
-    -e "s#ghcr.io/example/velox-frontend:dev#${IMAGE_REGISTRY}-frontend:${IMAGE_TAG}#g" \
-    "$DEPLOY_DIR/services.yaml" >"$rendered"
+    -e "s#ghcr.io/example/velox-apigateway:dev#${IMAGE_PREFIX}-apigateway:${GIT_SHA}#g" \
+    -e "s#ghcr.io/example/velox-orderservice:dev#${IMAGE_PREFIX}-orderservice:${GIT_SHA}#g" \
+    -e "s#ghcr.io/example/velox-seatservice:dev#${IMAGE_PREFIX}-seatservice:${GIT_SHA}#g" \
+    -e "s#ghcr.io/example/velox-viewservice:dev#${IMAGE_PREFIX}-viewservice:${GIT_SHA}#g" \
+    -e "s#ghcr.io/example/velox-frontend:dev#${IMAGE_PREFIX}-frontend:${GIT_SHA}#g" \
+    -e "s#ghcr.io/example/velox-database:dev#${IMAGE_PREFIX}-database:${GIT_SHA}#g" \
+    "$file" >"$rendered"
   printf '%s\n' "$rendered"
 }
 
@@ -146,12 +166,13 @@ apply_manifests() {
     ensure_namespace
   fi
   ensure_dev_secrets
-  apply_file "$DEPLOY_DIR/database.yaml"
+  local database_manifest services_manifest
+  database_manifest="$(render_manifest "$DEPLOY_DIR/database.yaml")"
+  services_manifest="$(render_manifest "$DEPLOY_DIR/services.yaml")"
+  trap 'rm -f "$database_manifest" "$services_manifest"' RETURN
+  apply_file "$database_manifest"
   apply_file "$DEPLOY_DIR/broker.yaml"
   apply_file "$DEPLOY_DIR/cache.yaml"
-  local services_manifest
-  services_manifest="$(render_services_manifest)"
-  trap 'rm -f "$services_manifest"' RETURN
   apply_file "$services_manifest"
 }
 
