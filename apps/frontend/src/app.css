@@ -1,8 +1,44 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss/index.css';
+@plugin 'daisyui';
+@plugin 'daisyui/theme' {
+  name: 'velox';
+  default: true;
+  prefersdark: true;
+  color-scheme: dark;
+  --color-primary: #facc15;
+  --color-secondary: #94a3b8;
+  --color-accent: #38bdf8;
+  --color-neutral: #0b0c10;
+  --color-base-100: #050505;
+  --color-base-200: #0b0c10;
+  --color-base-300: #1f2937;
+  --color-base-content: #f8fafc;
+  --color-info: #3b82f6;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+}
+
+@theme {
+  --color-carbon: #050505;
+  --color-panel: #0b0c10;
+  --color-line: #1f2937;
+  --color-ink: #f8fafc;
+  --color-inkMuted: #94a3b8;
+  --color-urgency: #ef4444;
+  --color-signal: #facc15;
+  --color-signalHover: #fde047;
+  --color-ok: #10b981;
+  --color-warn: #f59e0b;
+  --font-sans: 'Space Grotesk', Inter, system-ui, sans-serif;
+  --font-mono: 'Space Mono', ui-monospace, monospace;
+  --radius-ui: 12px;
+  --radius-card: 20px;
+  --shadow-glow: 0 0 20px rgba(250, 204, 21, 0.4);
+  --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
 
 :root {
   color-scheme: dark;
