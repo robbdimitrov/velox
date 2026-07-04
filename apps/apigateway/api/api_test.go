@@ -12,8 +12,8 @@ func TestReserverCanReserveAndConfirmSeat(t *testing.T) {
 	mockOrderSvc := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-			"OrderID": "mock-order-1",
-			"Status":  OrderPending,
+			"order_id": "mock-order-1",
+			"status":   OrderPending,
 		})
 	}))
 	defer mockOrderSvc.Close()
@@ -29,6 +29,9 @@ func TestReserverCanReserveAndConfirmSeat(t *testing.T) {
 	if order.Status != OrderPending {
 		t.Fatalf("status = %s, want %s", order.Status, OrderPending)
 	}
+	if order.TotalCents <= 0 {
+		t.Fatalf("total_cents = %d, want positive seat total", order.TotalCents)
+	}
 
 	req := httptest.NewRequest(http.MethodPost, "/reservations/"+order.ReservationID+"/confirm", nil)
 	req.AddCookie(cookie)
@@ -39,6 +42,97 @@ func TestReserverCanReserveAndConfirmSeat(t *testing.T) {
 	}
 }
 
+func TestReserveReusesIdempotencyResult(t *testing.T) {
+	var calls int
+	mockOrderSvc := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"order_id": "mock-order-1",
+			"status":   OrderPending,
+		})
+	}))
+	defer mockOrderSvc.Close()
+
+	server := NewServerWithStore("test", nil, nil)
+	server.SetOrderServiceURL(mockOrderSvc.URL)
+	server.SetHTTPClient(mockOrderSvc.Client())
+
+	client := newTestClient(server)
+	cookie := client.login(t, "reserver@velox.local", "reserver")
+
+	first := client.reserve(t, cookie, "idem-repeat", []string{"A-01"}, http.StatusOK)
+	second := client.reserve(t, cookie, "idem-repeat", []string{"A-01"}, http.StatusOK)
+
+	if calls != 1 {
+		t.Fatalf("order service calls = %d, want 1", calls)
+	}
+	if second.ID != first.ID || second.ReservationID != first.ReservationID {
+		t.Fatalf("idempotent response mismatch: first=%+v second=%+v", first, second)
+	}
+}
+
+func TestReserveReleasesTentativeHoldOnUpstreamFailure(t *testing.T) {
+	mockOrderSvc := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_ = json.NewEncoder(w).Encode(apiError{Error: "order_service_unavailable"})
+	}))
+	defer mockOrderSvc.Close()
+
+	server := NewServerWithStore("test", nil, nil)
+	server.SetOrderServiceURL(mockOrderSvc.URL)
+	server.SetHTTPClient(mockOrderSvc.Client())
+
+	client := newTestClient(server)
+	cookie := client.login(t, "reserver@velox.local", "reserver")
+	client.reserve(t, cookie, "idem-fails", []string{"A-02"}, http.StatusServiceUnavailable)
+
+	server.mu.Lock()
+	defer server.mu.Unlock()
+	seat := server.seats["evt_neon_riot"]["A"]["A-02"]
+	if seat.Status != StatusAvailable || seat.HeldByOrderID != "" {
+		t.Fatalf("seat was not released after upstream failure: %+v", seat)
+	}
+}
+
+func TestReserveRejectsMissingOrderServiceBeforeHoldingSeat(t *testing.T) {
+	server := NewServerWithStore("test", nil, nil)
+	client := newTestClient(server)
+	cookie := client.login(t, "reserver@velox.local", "reserver")
+
+	client.reserve(t, cookie, "idem-no-upstream", []string{"A-03"}, http.StatusServiceUnavailable)
+
+	server.mu.Lock()
+	defer server.mu.Unlock()
+	seat := server.seats["evt_neon_riot"]["A"]["A-03"]
+	if seat.Status != StatusAvailable || seat.HeldByOrderID != "" {
+		t.Fatalf("seat should not be held without an order service: %+v", seat)
+	}
+}
+
+func TestReserveReleasesTentativeHoldOnMalformedUpstreamResponse(t *testing.T) {
+	mockOrderSvc := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": OrderPending})
+	}))
+	defer mockOrderSvc.Close()
+
+	server := NewServerWithStore("test", nil, nil)
+	server.SetOrderServiceURL(mockOrderSvc.URL)
+	server.SetHTTPClient(mockOrderSvc.Client())
+
+	client := newTestClient(server)
+	cookie := client.login(t, "reserver@velox.local", "reserver")
+	client.reserve(t, cookie, "idem-malformed", []string{"A-04"}, http.StatusBadGateway)
+
+	server.mu.Lock()
+	defer server.mu.Unlock()
+	seat := server.seats["evt_neon_riot"]["A"]["A-04"]
+	if seat.Status != StatusAvailable || seat.HeldByOrderID != "" {
+		t.Fatalf("seat was not released after malformed upstream response: %+v", seat)
+	}
+}
 
 func TestLoginAttemptsAreRateLimited(t *testing.T) {
 	server := NewServerWithStore("test", nil, nil)

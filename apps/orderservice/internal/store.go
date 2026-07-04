@@ -13,6 +13,8 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
+var ErrIdempotencyConflict = errors.New("idempotency key conflict")
+
 type Store struct {
 	db *sql.DB
 }
@@ -56,7 +58,7 @@ func (s *Store) CreateOrder(ctx context.Context, req OrderRequest) (string, erro
 		if responseRef.Valid {
 			return responseRef.String, nil
 		}
-		return "", errors.New("conflict: request in progress or hash mismatch")
+		return "", ErrIdempotencyConflict
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return "", err
 	}
@@ -106,16 +108,15 @@ func (s *Store) CreateOrder(ctx context.Context, req OrderRequest) (string, erro
 		}
 	}
 
-
 	envelope := map[string]any{
 		"Type": "OrderCreated",
 		"Order": map[string]any{
-			"order_id":       orderID,
-			"user_id":        req.UserID,
-			"event_id":       req.EventID,
-			"section_id":     req.SectionID,
-			"seat_ids":       req.SeatIDs,
-			"reservation_id": orderID,
+			"order_id":           orderID,
+			"user_id":            req.UserID,
+			"event_id":           req.EventID,
+			"section_id":         req.SectionID,
+			"seat_ids":           req.SeatIDs,
+			"reservation_id":     orderID,
 			"status":             "PENDING",
 			"total_amount_minor": total,
 			"created_at":         time.Now(),

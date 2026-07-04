@@ -214,6 +214,13 @@ Processing:
 3. If key exists with same request hash, return the original result.
 4. If key exists with a different hash, return `409 IdempotencyKeyConflict`.
 
+Gateway reservation handling must treat pre-order seat holds as tentative until
+the order service returns a valid order response. If the upstream order call
+fails, times out, or returns malformed data, the gateway releases any tentative
+in-memory hold before responding. Successful reservation responses are cached by
+idempotency key so retries return the original order without re-calling the
+order service.
+
 Payment providers must receive the same idempotency key to prevent duplicate
 charges.
 

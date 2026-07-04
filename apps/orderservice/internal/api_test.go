@@ -3,6 +3,7 @@ package internal
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -50,4 +51,57 @@ func TestHandleCreateOrder_Idempotency(t *testing.T) {
 			t.Errorf("expected 200 OK, got %d", rr.Code)
 		}
 	})
+}
+
+func TestHandleCreateOrderRejectsInvalidSeatCount(t *testing.T) {
+	api := &API{Store: &FakeStore{
+		CreateOrderFunc: func(ctx context.Context, req OrderRequest) (string, error) {
+			t.Fatal("store should not be called")
+			return "", nil
+		},
+	}}
+
+	reqBody := `{"event_id":"e1","section_id":"s1","seat_ids":[],"idempotency_key":"ok-key","user_id":"u1"}`
+	req := httptest.NewRequest(http.MethodPost, "/orders", bytes.NewReader([]byte(reqBody)))
+	rr := httptest.NewRecorder()
+
+	api.HandleCreateOrder(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
+	}
+	assertErrorCode(t, rr, "invalid_seat_count")
+}
+
+func TestHandleCreateOrderRejectsUnknownFields(t *testing.T) {
+	api := &API{Store: &FakeStore{
+		CreateOrderFunc: func(ctx context.Context, req OrderRequest) (string, error) {
+			t.Fatal("store should not be called")
+			return "", nil
+		},
+	}}
+
+	reqBody := `{"event_id":"e1","section_id":"s1","seat_ids":["seat1"],"idempotency_key":"ok-key","user_id":"u1","price":1}`
+	req := httptest.NewRequest(http.MethodPost, "/orders", bytes.NewReader([]byte(reqBody)))
+	rr := httptest.NewRecorder()
+
+	api.HandleCreateOrder(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
+	}
+	assertErrorCode(t, rr, "invalid_json")
+}
+
+func assertErrorCode(t *testing.T, rr *httptest.ResponseRecorder, want string) {
+	t.Helper()
+	var out struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode error response: %v body=%s", err, rr.Body.String())
+	}
+	if out.Error != want {
+		t.Fatalf("error = %q, want %q", out.Error, want)
+	}
 }

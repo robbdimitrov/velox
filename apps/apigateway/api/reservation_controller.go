@@ -28,6 +28,10 @@ func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request,
 	}
 	hash := requestHash(body)
 	idemKey := "reserve:" + user.ID + ":" + key
+	if s.orderSvcURL == "" {
+		writeError(w, http.StatusServiceUnavailable, "order_service_unavailable")
+		return
+	}
 
 	s.mu.Lock()
 	if rec, exists := s.idempotency[idemKey]; exists {
@@ -63,7 +67,7 @@ func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request,
 		for _, seatID := range req.SeatIDs {
 			seat := section[seatID]
 			seat.Status = StatusHeld
-			seat.HeldByOrderID = "mock-pending" // Will be overwritten when order mock returns, but good for now.
+			seat.HeldByOrderID = idemKey
 		}
 	}
 	s.mu.Unlock()
@@ -89,6 +93,7 @@ func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request,
 
 	resp, err := s.httpClient.Do(httpReq)
 	if err != nil {
+		s.releasePendingReservation(req.EventID, req.SectionID, req.SeatIDs, idemKey)
 		writeError(w, http.StatusBadGateway, "upstream_error")
 		return
 	}
@@ -98,7 +103,11 @@ func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request,
 		var errResp struct {
 			Error string `json:"error"`
 		}
-		json.NewDecoder(resp.Body).Decode(&errResp)
+		_ = json.NewDecoder(resp.Body).Decode(&errResp)
+		if errResp.Error == "" {
+			errResp.Error = "upstream_error"
+		}
+		s.releasePendingReservation(req.EventID, req.SectionID, req.SeatIDs, idemKey)
 		writeError(w, resp.StatusCode, errResp.Error)
 		return
 	}
@@ -108,17 +117,18 @@ func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request,
 		Status  string `json:"status"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&upstreamOrder); err != nil {
-		writeError(w, http.StatusInternalServerError, "upstream_error")
+		s.releasePendingReservation(req.EventID, req.SectionID, req.SeatIDs, idemKey)
+		writeError(w, http.StatusBadGateway, "upstream_error")
+		return
+	}
+	if upstreamOrder.OrderID == "" || upstreamOrder.Status == "" {
+		s.releasePendingReservation(req.EventID, req.SectionID, req.SeatIDs, idemKey)
+		writeError(w, http.StatusBadGateway, "upstream_error")
 		return
 	}
 
-	writeJSON(w, resp.StatusCode, map[string]any{
-		"order": map[string]string{
-			"id":             upstreamOrder.OrderID,
-			"status":         upstreamOrder.Status,
-			"reservation_id": "res_" + upstreamOrder.OrderID,
-		},
-	})
+	order := s.completePendingReservation(user.ID, req.EventID, req.SectionID, req.SeatIDs, idemKey, hash, upstreamOrder.OrderID, upstreamOrder.Status)
+	writeJSON(w, resp.StatusCode, map[string]any{"order": order})
 }
 
 func (s *Server) handleConfirmReservation(w http.ResponseWriter, r *http.Request, user User) {
@@ -187,6 +197,65 @@ func (s *Server) expireSeatIfNeededLocked(seat *Seat) {
 		seat.HeldByOrderID = ""
 		seat.ExpiresAtServerMS = 0
 	}
+}
+
+func (s *Server) releasePendingReservation(eventID, sectionID string, seatIDs []string, pendingID string) {
+	if s.store != nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	section, ok := s.seats[eventID][sectionID]
+	if !ok {
+		return
+	}
+	for _, seatID := range seatIDs {
+		seat, ok := section[seatID]
+		if !ok || seat.Status != StatusHeld || seat.HeldByOrderID != pendingID {
+			continue
+		}
+		seat.Status = StatusAvailable
+		seat.HeldByOrderID = ""
+		seat.ExpiresAtServerMS = 0
+	}
+}
+
+func (s *Server) completePendingReservation(userID, eventID, sectionID string, seatIDs []string, pendingID, hash, orderID, status string) Order {
+	reservationID := "res_" + orderID
+	now := s.now()
+	order := Order{
+		ID:                orderID,
+		ReservationID:     reservationID,
+		UserID:            userID,
+		EventID:           eventID,
+		SectionID:         sectionID,
+		SeatIDs:           append([]string(nil), seatIDs...),
+		Status:            status,
+		ExpiresAtServerMS: now.Add(s.holdTTL).UnixMilli(),
+		CreatedAt:         now.UnixMilli(),
+		UpdatedAt:         now.UnixMilli(),
+	}
+	if s.store != nil {
+		return order
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	section, ok := s.seats[eventID][sectionID]
+	if ok {
+		for _, seatID := range seatIDs {
+			seat, ok := section[seatID]
+			if !ok || seat.Status != StatusHeld || seat.HeldByOrderID != pendingID {
+				continue
+			}
+			order.TotalCents += seat.PriceCents
+			seat.HeldByOrderID = orderID
+			seat.ExpiresAtServerMS = order.ExpiresAtServerMS
+		}
+	}
+	s.orders[orderID] = &order
+	s.idempotency[pendingID] = idempotencyRecord{Hash: hash, Response: order}
+	return order
 }
 
 func (s *Server) expireOrderLocked(order *Order) {

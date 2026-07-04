@@ -11,40 +11,40 @@ import (
 )
 
 type Server struct {
-	mu          sync.Mutex
-	secret      []byte
-	now         func() time.Time
-	holdTTL     time.Duration
-	users       map[string]User
-	events      map[string]Event
-	seats       map[string]map[string]map[string]*Seat
-	orders      map[string]*Order
-	idempotency map[string]idempotencyRecord
-	loginFails  map[string]loginFailure
-	store       *DatabaseStore
-	rdb         *redis.Client
-	seatClients   map[string]map[chan string]struct{}
+	mu               sync.Mutex
+	secret           []byte
+	now              func() time.Time
+	holdTTL          time.Duration
+	users            map[string]User
+	events           map[string]Event
+	seats            map[string]map[string]map[string]*Seat
+	orders           map[string]*Order
+	idempotency      map[string]idempotencyRecord
+	loginFails       map[string]loginFailure
+	store            *DatabaseStore
+	rdb              *redis.Client
+	seatClients      map[string]map[chan string]struct{}
 	organizerClients map[string]map[chan string]struct{}
-	httpClient    *http.Client
-	orderSvcURL string
+	httpClient       *http.Client
+	orderSvcURL      string
 }
 
 func NewServerWithStore(secret string, store *DatabaseStore, rdb *redis.Client) *Server {
 	s := &Server{
-		secret:      []byte(secret),
-		now:         time.Now,
-		holdTTL:     5 * time.Minute,
-		users:       map[string]User{},
-		events:      map[string]Event{},
-		seats:       map[string]map[string]map[string]*Seat{},
-		orders:      map[string]*Order{},
-		idempotency: map[string]idempotencyRecord{},
-		loginFails:  map[string]loginFailure{},
-		store:       store,
-		rdb:         rdb,
-		seatClients:   map[string]map[chan string]struct{}{},
+		secret:           []byte(secret),
+		now:              time.Now,
+		holdTTL:          5 * time.Minute,
+		users:            map[string]User{},
+		events:           map[string]Event{},
+		seats:            map[string]map[string]map[string]*Seat{},
+		orders:           map[string]*Order{},
+		idempotency:      map[string]idempotencyRecord{},
+		loginFails:       map[string]loginFailure{},
+		store:            store,
+		rdb:              rdb,
+		seatClients:      map[string]map[chan string]struct{}{},
 		organizerClients: map[string]map[chan string]struct{}{},
-		httpClient:    http.DefaultClient,
+		httpClient:       &http.Client{Timeout: 3 * time.Second},
 	}
 	if store != nil {
 		go s.listenSeatUpdates()
@@ -97,7 +97,7 @@ func (s *Server) seed() {
 	eventsToSeed := []Event{
 		{
 			ID:          "evt_neon_riot",
-			OrganizerID:    "ven_northstar",
+			OrganizerID: "ven_northstar",
 			Name:        "Neon Riot Live",
 			Venue:       "Velox Arena",
 			City:        "Chicago",
@@ -107,7 +107,7 @@ func (s *Server) seed() {
 		},
 		{
 			ID:          "evt_north_pier",
-			OrganizerID:    "ven_northstar",
+			OrganizerID: "ven_northstar",
 			Name:        "North Pier Symphony",
 			Venue:       "North Pier Hall",
 			City:        "Seattle",
@@ -117,7 +117,7 @@ func (s *Server) seed() {
 		},
 		{
 			ID:          "evt_civic_bowl",
-			OrganizerID:    "ven_northstar",
+			OrganizerID: "ven_northstar",
 			Name:        "Civic Bowl Championship",
 			Venue:       "Civic Bowl",
 			City:        "Denver",
@@ -127,7 +127,7 @@ func (s *Server) seed() {
 		},
 		{
 			ID:          "evt_summer_fests",
-			OrganizerID:    "ven_northstar",
+			OrganizerID: "ven_northstar",
 			Name:        "Summer Solstice Festival",
 			Venue:       "Moonlight Grounds",
 			City:        "Austin",
