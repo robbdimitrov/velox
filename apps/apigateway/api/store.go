@@ -241,7 +241,7 @@ type OrganizerMetrics struct {
 
 func (s *DatabaseStore) GetOrganizerMetrics(ctx context.Context, eventID string) (OrganizerMetrics, error) {
 	var metrics OrganizerMetrics
-	
+
 	// Get total reservations from order_summaries
 	err := s.db.QueryRowContext(ctx, `
 		SELECT COUNT(*)
@@ -257,10 +257,10 @@ func (s *DatabaseStore) GetOrganizerMetrics(ctx context.Context, eventID string)
 	if err != nil {
 		return metrics, err
 	}
-	
+
 	metrics.ActiveHolds = counts[StatusHeld]
 	metrics.SeatsRemaining = counts[StatusAvailable]
-	
+
 	metrics.SectionAvailability = make(map[string]int)
 	for sec, sc := range sectionCounts {
 		total := sc[StatusAvailable] + sc[StatusHeld] + sc[StatusSold]
@@ -270,7 +270,7 @@ func (s *DatabaseStore) GetOrganizerMetrics(ctx context.Context, eventID string)
 			metrics.SectionAvailability[sec] = 0
 		}
 	}
-	
+
 	// Compute fake demand score and lag for demo
 	metrics.DemandScore = 98
 	metrics.ProjectionLagMs = 12
@@ -483,11 +483,11 @@ func (s *DatabaseStore) GetEvents(ctx context.Context) ([]Event, error) {
 		if err := rows.Scan(&e.ID, &e.VenueID, &e.Name, &e.StartsAt, &e.Status); err != nil {
 			return nil, err
 		}
-		
+
 		counts, _, _ := s.GetOrganizerInventory(ctx, e.ID)
 		e.SeatsOpen = counts[StatusAvailable]
 		e.SeatsTotal = counts[StatusAvailable] + counts[StatusHeld] + counts[StatusSold]
-		
+
 		events = append(events, e)
 	}
 	return events, rows.Err()

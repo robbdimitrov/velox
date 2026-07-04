@@ -14,6 +14,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const sessionTTL = 12 * time.Hour
+
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Email    string `json:"email"`
@@ -24,7 +26,11 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	email := strings.ToLower(req.Email)
-	req.Role = "user"
+	role, ok := normalizedRegistrationRole(req.Role)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid_role")
+		return
+	}
 
 	hash, err := argon2id.CreateHash(req.Password, argon2id.DefaultParams)
 	if err != nil {
@@ -35,7 +41,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	id := uuid.NewString()
 	var user User
 	if s.store != nil {
-		user, err = s.store.CreateUser(r.Context(), id, email, hash, req.Role)
+		user, err = s.store.CreateUser(r.Context(), id, email, hash, role)
 		if err != nil {
 			writeError(w, http.StatusConflict, "user_already_exists")
 			return
@@ -47,7 +53,10 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusConflict, "user_already_exists")
 			return
 		}
-		user = User{ID: id, Email: email, Password: hash, Role: req.Role}
+		user = User{ID: id, Email: email, Password: hash, Role: role}
+		if role == RoleOrganizer {
+			user.OrganizerID = id
+		}
 		s.users[email] = user
 		s.mu.Unlock()
 	}
@@ -58,14 +67,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     CookieName,
-		Value:    token,
-		Path:     "/",
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Expires:  s.now().Add(12 * time.Hour),
-	})
+	s.setSessionCookie(w, token)
 	writeJSON(w, http.StatusOK, map[string]any{"user": publicUser(user)})
 }
 
@@ -131,26 +133,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     CookieName,
-		Value:    token,
-		Path:     "/",
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Expires:  s.now().Add(12 * time.Hour),
-	})
+	s.setSessionCookie(w, token)
 	writeJSON(w, http.StatusOK, map[string]any{"user": publicUser(user)})
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     CookieName,
-		Value:    "",
-		Path:     "/",
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   -1,
-	})
+	clearSessionCookie(w)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -191,6 +179,49 @@ func (s *Server) requireAuth(next func(http.ResponseWriter, *http.Request, User)
 	}
 }
 
+func (s *Server) requireRole(role string, next func(http.ResponseWriter, *http.Request, User)) http.HandlerFunc {
+	return s.requireAuth(func(w http.ResponseWriter, r *http.Request, user User) {
+		if user.Role != role {
+			writeError(w, http.StatusForbidden, "forbidden")
+			return
+		}
+		next(w, r, user)
+	})
+}
+
+func normalizedRegistrationRole(role string) (string, bool) {
+	switch role {
+	case "", RoleReserver:
+		return RoleReserver, true
+	case RoleOrganizer:
+		return RoleOrganizer, true
+	default:
+		return "", false
+	}
+}
+
+func (s *Server) setSessionCookie(w http.ResponseWriter, token string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     CookieName,
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Expires:  s.now().Add(sessionTTL),
+	})
+}
+
+func clearSessionCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     CookieName,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
+}
+
 func (s *Server) authenticate(r *http.Request) (User, error) {
 	cookie, err := r.Cookie(CookieName)
 	if err != nil {
@@ -214,7 +245,7 @@ func (s *Server) authenticate(r *http.Request) (User, error) {
 }
 
 func (s *Server) sign(user User) (string, error) {
-	payload, err := json.Marshal(map[string]any{"sub": user.ID, "role": user.Role, "exp": s.now().Add(12 * time.Hour).Unix()})
+	payload, err := json.Marshal(map[string]any{"sub": user.ID, "role": user.Role, "exp": s.now().Add(sessionTTL).Unix()})
 	if err != nil {
 		return "", err
 	}

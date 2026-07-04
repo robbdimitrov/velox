@@ -61,21 +61,21 @@ func (rl *RateLimiter) Middleware(next http.HandlerFunc) http.HandlerFunc {
 			next.ServeHTTP(w, r)
 			return
 		}
-		
+
 		ip := r.RemoteAddr
 		if ip == "" {
 			ip = "unknown"
 		}
-		
+
 		keys := []string{"tb:tokens:" + ip, "tb:ts:" + ip}
 		now := time.Now().UnixNano() / 1e9 // seconds
-		
+
 		res, err := tbScript.Run(r.Context(), rl.client, keys, rl.rate, rl.capacity, now).Result()
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		
+
 		if res.(int64) == 0 {
 			writeJSON(w, http.StatusTooManyRequests, map[string]string{"message": "Too Many Requests", "code": "rate_limited"})
 			return

@@ -3,12 +3,12 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"sync/atomic"
 	"testing"
-	"fmt"
 )
 
 func TestConcurrency50Reservations(t *testing.T) {
@@ -26,7 +26,7 @@ func TestConcurrency50Reservations(t *testing.T) {
 	server.SetHTTPClient(mockOrderSvc.Client())
 
 	client := newTestClient(server)
-	
+
 	var wg sync.WaitGroup
 	var successes int32
 	var conflicts int32
@@ -40,18 +40,18 @@ func TestConcurrency50Reservations(t *testing.T) {
 	for i := 0; i < reqCount; i++ {
 		go func(idx int) {
 			defer wg.Done()
-			
+
 			key := fmt.Sprintf("idem-concurr-%d", idx)
 			payload := map[string]any{"event_id": "evt_neon_riot", "section_id": "A", "seat_ids": []string{"A-05"}}
 			body, _ := json.Marshal(payload)
-			
+
 			req := httptest.NewRequest(http.MethodPost, "/reservations", bytes.NewReader(body))
 			req.Header.Set("Idempotency-Key", key)
 			req.AddCookie(cookie)
-			
+
 			rr := httptest.NewRecorder()
 			server.Routes().ServeHTTP(rr, req)
-			
+
 			if rr.Code == http.StatusOK {
 				atomic.AddInt32(&successes, 1)
 			} else if rr.Code == http.StatusConflict {

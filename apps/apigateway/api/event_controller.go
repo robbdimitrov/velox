@@ -56,7 +56,7 @@ func (s *Server) handleSeats(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "seat_snapshot_unavailable")
 			return
 		}
-		
+
 		if seats == nil {
 			seats = []Seat{}
 		}

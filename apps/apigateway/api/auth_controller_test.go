@@ -11,7 +11,6 @@ import (
 func TestRegister(t *testing.T) {
 	server := NewServerWithStore("test", nil, nil)
 
-	// Valid registration
 	reqBody := `{"email":"new_user@velox.local","password":"pass","role":"reserver"}`
 	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader([]byte(reqBody)))
 	rr := httptest.NewRecorder()
@@ -33,6 +32,57 @@ func TestRegister(t *testing.T) {
 		t.Fatalf("expected velox_session cookie")
 	}
 
+	var resp struct {
+		User User `json:"user"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.User.Role != RoleReserver {
+		t.Fatalf("role = %s, want %s", resp.User.Role, RoleReserver)
+	}
+	if resp.User.OrganizerID != "" {
+		t.Fatalf("organizer_id = %s, want empty", resp.User.OrganizerID)
+	}
+}
+
+func TestRegisterPreservesOrganizerRole(t *testing.T) {
+	server := NewServerWithStore("test", nil, nil)
+
+	reqBody := `{"email":"new_organizer@velox.local","password":"pass","role":"organizer"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader([]byte(reqBody)))
+	rr := httptest.NewRecorder()
+	server.Routes().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d. body=%s", rr.Code, rr.Body.String())
+	}
+
+	var resp struct {
+		User User `json:"user"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.User.Role != RoleOrganizer {
+		t.Fatalf("role = %s, want %s", resp.User.Role, RoleOrganizer)
+	}
+	if resp.User.OrganizerID == "" {
+		t.Fatal("expected organizer_id for organizer registration")
+	}
+}
+
+func TestRegisterRejectsInvalidRole(t *testing.T) {
+	server := NewServerWithStore("test", nil, nil)
+
+	reqBody := `{"email":"admin@velox.local","password":"pass","role":"admin"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader([]byte(reqBody)))
+	rr := httptest.NewRecorder()
+	server.Routes().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request, got %d. body=%s", rr.Code, rr.Body.String())
+	}
 }
 
 func TestLogout(t *testing.T) {

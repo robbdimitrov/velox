@@ -48,6 +48,8 @@ audit, and replay.
 
 - Terminate HTTP/gRPC command ingress.
 - Validate JWTs, scopes, request size, rate limits, and public API schemas.
+- Enforce role-specific route boundaries; organizer APIs require an
+  authenticated `organizer` role before ownership checks run.
 - Map public HTTP errors safely and orchestrate bounded gRPC calls to backend
   services.
 

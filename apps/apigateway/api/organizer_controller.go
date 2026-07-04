@@ -82,7 +82,7 @@ func (s *Server) handleOrganizerMetricsStream(w http.ResponseWriter, r *http.Req
 
 	// For simplicity, we listen to all events for this organizer or a specific event if eventId is query param?
 	// The frontend connects to `/organizer/metrics/stream` (no event ID). We'll assume the first event for the organizer.
-	
+
 	s.mu.Lock()
 	var eventID string
 	for _, event := range s.events {
@@ -202,7 +202,7 @@ func (s *Server) handleCreateEvent(w http.ResponseWriter, r *http.Request, user 
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	
+
 	req.Status = "PUBLISHED"
 	if req.ID == "" {
 		req.ID = "evt_" + time.Now().Format("20060102150405")

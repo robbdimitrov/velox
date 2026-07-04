@@ -12,7 +12,7 @@ import (
 func TestOrganizerCreateEvent(t *testing.T) {
 	server := NewServerWithStore("test", nil, nil)
 	client := newTestClient(server)
-	
+
 	// Create organizer
 	reqBody := `{"email":"new_organizer@velox.local","password":"pass","role":"organizer"}`
 	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader([]byte(reqBody)))
@@ -25,8 +25,8 @@ func TestOrganizerCreateEvent(t *testing.T) {
 	cookie := client.login(t, "new_organizer@velox.local", "pass")
 
 	eventPayload := map[string]any{
-		"venue_id": "ven_northstar",
-		"name": "Test Event",
+		"venue_id":  "ven_northstar",
+		"name":      "Test Event",
 		"starts_at": time.Now().Add(24 * time.Hour).Format(time.RFC3339),
 	}
 	body, _ := json.Marshal(eventPayload)
@@ -39,6 +39,21 @@ func TestOrganizerCreateEvent(t *testing.T) {
 	// We'll just verify the role check passes and it hits the handler (even if it 500s due to no store)
 	if rr.Code == http.StatusForbidden || rr.Code == http.StatusUnauthorized {
 		t.Fatalf("should be authorized, got %d", rr.Code)
+	}
+}
+
+func TestOrganizerRoutesRejectReserver(t *testing.T) {
+	server := NewServerWithStore("test", nil, nil)
+	client := newTestClient(server)
+	cookie := client.login(t, "reserver@velox.local", "reserver")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/organizer/venues", nil)
+	req.AddCookie(cookie)
+	rr := httptest.NewRecorder()
+	server.Routes().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 Forbidden, got %d body=%s", rr.Code, rr.Body.String())
 	}
 }
 
