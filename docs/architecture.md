@@ -59,6 +59,13 @@ audit, and replay.
   `CONFIRMED`, `FAILED`, `EXPIRED`.
 - Write outbox rows in the same transaction as order state transitions.
 
+Order command HTTP handlers must cap request bodies at 1 MiB, reject unknown
+JSON fields and trailing payload data, require `event_id`, `section_id`,
+`idempotency_key`, and `user_id`, and accept only 1 to 8 `seat_ids`. Public
+errors are JSON objects with stable codes such as `invalid_json`,
+`missing_required_fields`, `invalid_seat_count`, `idempotency_key_conflict`, and
+`internal_error`.
+
 Ingress pipeline:
 
 ```text
