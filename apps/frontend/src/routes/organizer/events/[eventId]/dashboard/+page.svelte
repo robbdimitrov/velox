@@ -15,7 +15,6 @@
   onMount(() => {
     if (typeof EventSource === 'undefined') return;
 
-    // Connect to the SSE metrics stream
     const source = new EventSource(sseUrl);
 
     source.onmessage = (event) => {
@@ -27,8 +26,8 @@
           metrics.activeUsers = data.activeUsers;
         if (data.requestsPerSecond !== undefined)
           metrics.requestsPerSecond = data.requestsPerSecond;
-      } catch (e) {
-        // ignore
+      } catch {
+        return;
       }
     };
     source.onerror = () => source.close();

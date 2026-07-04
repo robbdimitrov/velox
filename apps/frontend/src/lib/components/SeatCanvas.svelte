@@ -44,10 +44,20 @@
 
   $effect(() => {
     if (seats.length > 0) {
-      minX = Math.min(...seats.map((s) => s.x));
-      maxX = Math.max(...seats.map((s) => s.x));
-      minY = Math.min(...seats.map((s) => s.y));
-      maxY = Math.max(...seats.map((s) => s.y));
+      let nextMinX = seats[0].x;
+      let nextMaxX = seats[0].x;
+      let nextMinY = seats[0].y;
+      let nextMaxY = seats[0].y;
+      for (const seat of seats) {
+        if (seat.x < nextMinX) nextMinX = seat.x;
+        if (seat.x > nextMaxX) nextMaxX = seat.x;
+        if (seat.y < nextMinY) nextMinY = seat.y;
+        if (seat.y > nextMaxY) nextMaxY = seat.y;
+      }
+      minX = nextMinX;
+      maxX = nextMaxX;
+      minY = nextMinY;
+      maxY = nextMaxY;
 
       const gridWidth = maxX - minX + SEAT_SIZE;
       const gridHeight = maxY - minY + SEAT_SIZE;

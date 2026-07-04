@@ -41,28 +41,29 @@
     zoomLevel = 1;
   });
 
-  let source: EventSource | null = null;
-
   $effect(() => {
     if (data.isRateLimited) return;
     if (typeof EventSource === 'undefined') return;
-    if (source) source.close();
 
-    source = new EventSource(data.seatSseURL);
+    const source = new EventSource(data.seatSseURL);
     source.onmessage = (event) => {
-      const delta = JSON.parse(event.data) as SeatDelta;
-      seatState.applyDelta(delta);
-      eventLog = [
-        `${delta.seat_id} ${delta.status} v${delta.version}`,
-        ...eventLog
-      ].slice(0, 6);
+      try {
+        const delta = JSON.parse(event.data) as SeatDelta;
+        seatState.applyDelta(delta);
+        eventLog = [
+          `${delta.seat_id} ${delta.status} v${delta.version}`,
+          ...eventLog
+        ].slice(0, 6);
+      } catch {
+        eventLog = ['Ignored malformed seat update', ...eventLog].slice(0, 6);
+      }
     };
     source.onerror = () => {
       eventLog = ['Connection lost, reconnecting...', ...eventLog].slice(0, 6);
     };
 
     return () => {
-      if (source) source.close();
+      source.close();
     };
   });
 

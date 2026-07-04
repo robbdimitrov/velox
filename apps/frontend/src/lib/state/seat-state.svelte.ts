@@ -5,6 +5,7 @@ export class SeatSelectionState {
   seats = $state<Seat[]>([]);
   selectedSeatIDs = new SvelteSet<string>();
   seatVersionByID = new SvelteMap<string, number>();
+  seatIndexByID = new SvelteMap<string, number>();
   serverOffsetMs = $state(0);
 
   selectedSeats = $derived(
@@ -17,8 +18,10 @@ export class SeatSelectionState {
   load(seats: Seat[], serverTimeMs: number) {
     this.seats = seats;
     this.seatVersionByID.clear();
-    for (const seat of seats) {
+    this.seatIndexByID.clear();
+    for (const [index, seat] of seats.entries()) {
       this.seatVersionByID.set(seat.seat_id, seat.version);
+      this.seatIndexByID.set(seat.seat_id, index);
     }
     this.serverOffsetMs = serverTimeMs - Date.now();
     this.selectedSeatIDs.clear();
@@ -40,16 +43,20 @@ export class SeatSelectionState {
     if (delta.version < observedVersion) return;
 
     this.seatVersionByID.set(delta.seat_id, delta.version);
-    this.seats = this.seats.map((seat) =>
-      seat.seat_id === delta.seat_id
-        ? {
-            ...seat,
-            status: delta.status,
-            version: delta.version,
-            expires_at_server_ms: delta.expires_at_server_ms
-          }
-        : seat
-    );
+    const seatIndex = this.seatIndexByID.get(delta.seat_id);
+    if (seatIndex !== undefined) {
+      const seat = this.seats[seatIndex];
+      if (seat) {
+        const nextSeats = this.seats.slice();
+        nextSeats[seatIndex] = {
+          ...seat,
+          status: delta.status,
+          version: delta.version,
+          expires_at_server_ms: delta.expires_at_server_ms
+        };
+        this.seats = nextSeats;
+      }
+    }
 
     if (delta.status !== 'AVAILABLE') {
       this.selectedSeatIDs.delete(delta.seat_id);

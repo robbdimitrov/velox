@@ -28,6 +28,7 @@
 
   onMount(() => {
     if (typeof EventSource === 'undefined') return;
+    let fallbackInterval: ReturnType<typeof setInterval> | undefined;
 
     const source = new EventSource(
       `${data.gatewayBaseURL}/organizer/metrics/stream`
@@ -55,7 +56,7 @@
 
     source.onerror = () => {
       source.close();
-      setInterval(() => {
+      fallbackInterval ??= setInterval(() => {
         metrics.totalReservations += Math.floor(Math.random() * 5);
         metrics.activeHolds = Math.max(
           0,
@@ -69,7 +70,10 @@
       }, 2000);
     };
 
-    return () => source.close();
+    return () => {
+      source.close();
+      if (fallbackInterval) clearInterval(fallbackInterval);
+    };
   });
 </script>
 

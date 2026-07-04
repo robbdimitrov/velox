@@ -108,4 +108,21 @@ describe('SeatSelectionState', () => {
     );
     expect(state.seatVersionByID.get('1')).toBe(1);
   });
+
+  it('tracks unknown-seat versions without rebuilding seats', () => {
+    state.load(mockSeats, Date.now() + 5000);
+    const currentSeats = state.seats;
+
+    state.applyDelta({
+      event_id: 'E1',
+      section_id: 'S1',
+      seat_id: 'missing',
+      status: 'HELD',
+      version: 1,
+      expires_at_server_ms: 0
+    });
+
+    expect(state.seats).toBe(currentSeats);
+    expect(state.seatVersionByID.get('missing')).toBe(1);
+  });
 });

@@ -81,6 +81,9 @@ State sync:
   replace only changed entries.
 - Reject any message with a version lower than the locally observed version for
   the same seat.
+- Live SSE and WebSocket effects must close streams and fallback timers on
+  component teardown. Malformed live payloads are ignored or logged in bounded
+  UI state rather than breaking the seat selector.
 
 ## High-Velocity Reservation Pipeline
 
