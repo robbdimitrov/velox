@@ -72,3 +72,7 @@ cluster or registry. Images are pushed to `IMAGE_PREFIX-<service>:<GIT_SHA>`
 (default `localhost:5000/velox-<service>:<git-sha>`); when a `velox-control-plane`
 kind node is running, `scripts/deploy.sh` also loads the built images directly
 into it. Full `kind` cluster creation is still follow-up automation work.
+
+Frontend container builds use `npm ci` against the committed lockfile in the
+builder stage and copy only the adapter-node build output into the Node runner
+image.
