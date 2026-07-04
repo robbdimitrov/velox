@@ -22,14 +22,14 @@ type Server struct {
 	idempotency      map[string]idempotencyRecord
 	loginFails       map[string]loginFailure
 	store            *DatabaseStore
-	rdb              *redis.Client
+	cacheClient      *redis.Client
 	seatClients      map[string]map[chan string]struct{}
 	organizerClients map[string]map[chan string]struct{}
 	httpClient       *http.Client
 	orderSvcURL      string
 }
 
-func NewServerWithStore(secret string, store *DatabaseStore, rdb *redis.Client) *Server {
+func NewServerWithStore(secret string, store *DatabaseStore, cacheClient *redis.Client) *Server {
 	s := &Server{
 		secret:           []byte(secret),
 		now:              time.Now,
@@ -41,7 +41,7 @@ func NewServerWithStore(secret string, store *DatabaseStore, rdb *redis.Client) 
 		idempotency:      map[string]idempotencyRecord{},
 		loginFails:       map[string]loginFailure{},
 		store:            store,
-		rdb:              rdb,
+		cacheClient:      cacheClient,
 		seatClients:      map[string]map[chan string]struct{}{},
 		organizerClients: map[string]map[chan string]struct{}{},
 		httpClient:       &http.Client{Timeout: 3 * time.Second},

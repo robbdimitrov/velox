@@ -31,13 +31,13 @@ func main() {
 		slog.Info("apigateway using Database reservation store")
 	}
 
-	rdbUrl := os.Getenv("REDIS_URL")
-	if rdbUrl == "" {
-		rdbUrl = "localhost:6379"
+	cacheURL := os.Getenv("REDIS_URL")
+	if cacheURL == "" {
+		cacheURL = "localhost:6379"
 	}
-	rdb := redis.NewClient(&redis.Options{Addr: rdbUrl})
+	cacheClient := redis.NewClient(&redis.Options{Addr: cacheURL})
 
-	server := api.NewServerWithStore(secret, store, rdb)
+	server := api.NewServerWithStore(secret, store, cacheClient)
 
 	if os.Getenv("ORDER_SERVICE_ADDR") != "" {
 		server.SetOrderServiceURL("http://" + os.Getenv("ORDER_SERVICE_ADDR") + "/orders")

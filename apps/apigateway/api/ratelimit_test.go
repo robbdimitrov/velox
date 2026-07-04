@@ -11,14 +11,14 @@ import (
 )
 
 func TestRateLimiter(t *testing.T) {
-	mr, err := miniredis.Run()
+	cacheServer, err := miniredis.Run()
 	if err != nil {
 		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
 	}
-	defer mr.Close()
+	defer cacheServer.Close()
 
 	client := redis.NewClient(&redis.Options{
-		Addr: mr.Addr(),
+		Addr: cacheServer.Addr(),
 	})
 
 	limiter := NewRateLimiter(client, 1, 2) // 1 per sec, capacity 2

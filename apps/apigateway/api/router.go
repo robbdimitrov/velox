@@ -21,8 +21,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /events/{eventId}", s.handleEvent)
 	mux.HandleFunc("GET /events/{eventId}/sections/{sectionId}/seats", s.handleSeats)
 	mux.HandleFunc("GET /events/{eventId}/stream", s.handleSeatStream)
-	
-	rl := NewRateLimiter(s.rdb, 10.0, 100) // 10 TPS, 100 max burst
+
+	rl := NewRateLimiter(s.cacheClient, 10.0, 100) // 10 TPS, 100 max burst
 	mux.HandleFunc("POST /reservations", rl.Middleware(s.requireAuth(s.handleCreateReservation)))
 	mux.HandleFunc("POST /reservations/{reservationId}/confirm", s.requireAuth(s.handleConfirmReservation))
 	mux.HandleFunc("GET /orders", s.requireAuth(s.handleOrders))
