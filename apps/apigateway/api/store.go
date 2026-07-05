@@ -39,6 +39,10 @@ func (s *DatabaseStore) Close() error {
 	return s.db.Close()
 }
 
+func (s *DatabaseStore) Ping(ctx context.Context) error {
+	return s.db.PingContext(ctx)
+}
+
 func (s *DatabaseStore) ListOrders(ctx context.Context, user User) ([]Order, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id::text

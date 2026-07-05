@@ -75,9 +75,20 @@ spec:
                   key: audience
           readinessProbe:
             httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
               path: /healthz
               port: http
             periodSeconds: 10
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            failureThreshold: 30
+            periodSeconds: 2
 ---
 apiVersion: v1
 kind: Service
@@ -137,9 +148,20 @@ spec:
                   key: key
           readinessProbe:
             httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
               path: /healthz
               port: http
             periodSeconds: 10
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            failureThreshold: 30
+            periodSeconds: 2
 ---
 apiVersion: v1
 kind: Service
@@ -204,9 +226,20 @@ spec:
                   key: key
           readinessProbe:
             httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
               path: /healthz
               port: http
             periodSeconds: 10
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            failureThreshold: 30
+            periodSeconds: 2
 ---
 apiVersion: v1
 kind: Service
@@ -266,9 +299,20 @@ spec:
                   key: key
           readinessProbe:
             httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
               path: /healthz
               port: http
             periodSeconds: 10
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            failureThreshold: 30
+            periodSeconds: 2
 ---
 apiVersion: v1
 kind: Service

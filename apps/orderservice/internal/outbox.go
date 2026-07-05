@@ -15,7 +15,7 @@ const (
 	outboxBackoffMax  = 60 * time.Second
 )
 
-func StartOutboxRelay(ctx context.Context, db *sql.DB, cl *kgo.Client) {
+func StartOutboxRelay(ctx context.Context, db *sql.DB, cl *kgo.Client, health *PipelineHealth) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	for {
@@ -23,7 +23,7 @@ func StartOutboxRelay(ctx context.Context, db *sql.DB, cl *kgo.Client) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			processOutbox(ctx, db, cl)
+			processOutbox(ctx, db, cl, health)
 		}
 	}
 }
@@ -44,9 +44,10 @@ func outboxBackoff(attempts int) time.Duration {
 	return delay
 }
 
-func processOutbox(ctx context.Context, db *sql.DB, cl *kgo.Client) {
+func processOutbox(ctx context.Context, db *sql.DB, cl *kgo.Client, health *PipelineHealth) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
+		health.MarkError("outbox", err)
 		slog.Error("outbox begin tx error", "error", err)
 		return
 	}
@@ -64,6 +65,7 @@ func processOutbox(ctx context.Context, db *sql.DB, cl *kgo.Client) {
 		LIMIT 100 FOR UPDATE SKIP LOCKED
 	`)
 	if err != nil {
+		health.MarkError("outbox", err)
 		slog.Error("outbox query error", "error", err)
 		return
 	}
@@ -81,10 +83,16 @@ func processOutbox(ctx context.Context, db *sql.DB, cl *kgo.Client) {
 	for rows.Next() {
 		var r record
 		if err := rows.Scan(&r.id, &r.eType, &r.payload, &r.headers, &r.attempts, &r.lastAttemptAt); err != nil {
+			health.MarkError("outbox", err)
 			slog.Error("outbox scan error", "error", err)
 			return
 		}
 		records = append(records, r)
+	}
+	if err := rows.Err(); err != nil {
+		health.MarkError("outbox", err)
+		slog.Error("outbox rows error", "error", err)
+		return
 	}
 	rows.Close()
 
@@ -120,21 +128,27 @@ func processOutbox(ctx context.Context, db *sql.DB, cl *kgo.Client) {
 		cancel()
 		if produceErr == nil {
 			if _, err := tx.ExecContext(ctx, `UPDATE orders.outbox_events SET published_at = now() WHERE id = $1`, r.id); err != nil {
+				health.MarkError("outbox", err)
 				slog.Error("failed to mark outbox event published", "error", err)
 			}
 			continue
 		}
 
+		health.MarkError("outbox", produceErr)
 		slog.Error("broker publish error", "error", produceErr)
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE orders.outbox_events
 			SET publish_attempts = publish_attempts + 1, last_error = $2, last_attempt_at = now()
 			WHERE id = $1
 		`, r.id, produceErr.Error()); err != nil {
+			health.MarkError("outbox", err)
 			slog.Error("failed to record outbox publish failure", "error", err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
+		health.MarkError("outbox", err)
 		slog.Error("outbox tx commit error", "error", err)
+		return
 	}
+	health.MarkSuccess("outbox")
 }

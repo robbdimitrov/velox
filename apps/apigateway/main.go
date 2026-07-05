@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"velox/apps/apigateway/api"
@@ -40,7 +41,11 @@ func main() {
 	if cacheURL == "" {
 		cacheURL = "localhost:6379"
 	}
-	cacheClient := redis.NewClient(&redis.Options{Addr: cacheURL})
+	cacheClient := redis.NewClient(&redis.Options{
+		Addr:            cacheURL,
+		ConnMaxLifetime: 30 * time.Minute,
+		ConnMaxIdleTime: 5 * time.Minute,
+	})
 
 	server := api.NewServerWithStore(secret, store, cacheClient)
 	server.SetTokenIssuerAudience(os.Getenv("JWT_ISSUER"), os.Getenv("JWT_AUDIENCE"))

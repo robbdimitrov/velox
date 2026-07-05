@@ -6,6 +6,11 @@ use seatservice::processor::MessageMeta;
 use seatservice::{expiry, logging, processor};
 use sqlx::postgres::PgPoolOptions;
 use std::env;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
+use std::time::Duration;
 use tracing::{error, info};
 
 #[tokio::main]
@@ -18,6 +23,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
+        .max_lifetime(Duration::from_secs(30 * 60))
+        .idle_timeout(Duration::from_secs(5 * 60))
         .connect(&db_url)
         .await?;
 
@@ -43,9 +50,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let (shutdown_tx, mut shutdown_rx) = tokio::sync::watch::channel(false);
 
-    // Healthz endpoint
+    let broker_errors = Arc::new(AtomicUsize::new(0));
+
+    // Probe endpoint: /healthz is process liveness, /readyz checks dependencies.
+    let probe_pool = pool.clone();
+    let probe_broker_errors = broker_errors.clone();
     tokio::spawn(async move {
-        use tokio::io::AsyncWriteExt;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
         use tokio::net::TcpListener;
 
         let listener = match TcpListener::bind("0.0.0.0:8080").await {
@@ -58,7 +69,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         loop {
             tokio::select! {
                 Ok((mut socket, _)) = listener.accept() => {
-                    let response = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK";
+                    let mut buf = [0_u8; 512];
+                    let n = socket.read(&mut buf).await.unwrap_or(0);
+                    let request = String::from_utf8_lossy(&buf[..n]);
+                    let path = request
+                        .lines()
+                        .next()
+                        .and_then(|line| line.split_whitespace().nth(1))
+                        .unwrap_or("/healthz");
+                    let ready = if path == "/readyz" {
+                        let db_ready = tokio::time::timeout(
+                            Duration::from_secs(2),
+                            sqlx::query("SELECT 1").execute(&probe_pool),
+                        )
+                        .await
+                        .is_ok_and(|result| result.is_ok());
+                        db_ready && probe_broker_errors.load(Ordering::Relaxed) < 5
+                    } else {
+                        true
+                    };
+                    let response = if ready {
+                        "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK"
+                    } else {
+                        "HTTP/1.1 503 Service Unavailable\r\nContent-Length: 8\r\n\r\nDEGRADED"
+                    };
                     let _ = socket.write_all(response.as_bytes()).await;
                 }
                 _ = shutdown_rx.changed() => {
@@ -70,6 +104,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let mut shutdown_rx2 = shutdown_tx.subscribe();
+    let consumer_broker_errors = broker_errors.clone();
 
     let expiry_task = tokio::spawn(expiry::run(
         db_client.clone(),
@@ -82,8 +117,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             tokio::select! {
                 result = consumer.recv() => {
                     match result {
-                        Err(e) => error!(error = %e, "Broker consumer error"),
+                        Err(e) => {
+                            consumer_broker_errors.fetch_add(1, Ordering::Relaxed);
+                            error!(error = %e, "Broker consumer error");
+                        }
                         Ok(m) => {
+                            consumer_broker_errors.store(0, Ordering::Relaxed);
                             use rdkafka::message::Message;
                             let mut req_id = None;
                             if let Some(headers) = m.headers() {

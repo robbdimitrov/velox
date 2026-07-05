@@ -37,6 +37,10 @@ func (s *DatabaseStore) Close() error {
 	return s.db.Close()
 }
 
+func (s *DatabaseStore) Ping(ctx context.Context) error {
+	return s.db.PingContext(ctx)
+}
+
 func (s *DatabaseStore) IsEventProcessed(ctx context.Context, eventID string) (bool, error) {
 	var count int
 	err := s.db.QueryRowContext(ctx, "SELECT count(*) FROM projection.processed_events WHERE event_id = $1", eventID).Scan(&count)

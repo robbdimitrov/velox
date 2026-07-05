@@ -11,7 +11,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-func StartConsumer(ctx context.Context, db *sql.DB, cl *kgo.Client) {
+func StartConsumer(ctx context.Context, db *sql.DB, cl *kgo.Client, health *PipelineHealth) {
 	for {
 		if ctx.Err() != nil {
 			return
@@ -20,9 +20,15 @@ func StartConsumer(ctx context.Context, db *sql.DB, cl *kgo.Client) {
 		if fetches.IsClientClosed() {
 			return
 		}
+		hadError := false
 		fetches.EachError(func(t string, p int32, err error) {
+			hadError = true
+			health.MarkError("consumer", err)
 			slog.Error("fetch error", "topic", t, "partition", p, "error", err)
 		})
+		if !hadError {
+			health.MarkSuccess("consumer")
+		}
 
 		fetches.EachRecord(func(r *kgo.Record) {
 			var eventType string
@@ -43,6 +49,7 @@ func StartConsumer(ctx context.Context, db *sql.DB, cl *kgo.Client) {
 
 			var payload map[string]interface{}
 			if err := json.Unmarshal(r.Value, &payload); err != nil {
+				health.MarkError("consumer", err)
 				slog.Error("invalid payload JSON", "error", err)
 				return
 			}
@@ -78,15 +85,21 @@ func StartConsumer(ctx context.Context, db *sql.DB, cl *kgo.Client) {
 			}
 
 			if orderID != "" {
+				var err error
 				switch eventType {
 				case "SeatReservationHeld":
-					handleSeatReservationHeld(recordCtx, db, orderID)
+					err = handleSeatReservationHeld(recordCtx, db, orderID)
 				case "SeatReservationFailed":
-					handleSeatReservationFailed(recordCtx, db, orderID)
+					err = handleSeatReservationFailed(recordCtx, db, orderID)
 				case "SeatReservationExpired":
-					handleSeatReservationExpired(recordCtx, db, orderID)
+					err = handleSeatReservationExpired(recordCtx, db, orderID)
 				case "SeatReservationConfirmationFailed":
-					handleSeatReservationConfirmationFailed(recordCtx, db, orderID)
+					err = handleSeatReservationConfirmationFailed(recordCtx, db, orderID)
+				}
+				if err != nil {
+					health.MarkError("consumer", err)
+				} else {
+					health.MarkSuccess("consumer")
 				}
 			}
 		})
@@ -97,51 +110,62 @@ func StartConsumer(ctx context.Context, db *sql.DB, cl *kgo.Client) {
 // requested seat(s). No outbox event is produced here: nothing external
 // cares that a hold succeeded until the user explicitly confirms or cancels,
 // or the hold expires.
-func handleSeatReservationHeld(ctx context.Context, db *sql.DB, orderID string) {
+func handleSeatReservationHeld(ctx context.Context, db *sql.DB, orderID string) error {
 	res, err := db.ExecContext(ctx, `UPDATE orders.orders SET status = 'HELD', updated_at = now() WHERE id = $1 AND status = 'PENDING'`, orderID)
 	if err != nil {
 		slog.Error("failed to update HELD", "error", err)
-		return
+		return err
 	}
-	rows, _ := res.RowsAffected()
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
 	if rows == 0 {
 		slog.Info("order not in PENDING state or not found", "order_id", orderID)
 	}
+	return nil
 }
 
-func handleSeatReservationFailed(ctx context.Context, db *sql.DB, orderID string) {
+func handleSeatReservationFailed(ctx context.Context, db *sql.DB, orderID string) error {
 	res, err := db.ExecContext(ctx, `UPDATE orders.orders SET status = 'FAILED', updated_at = now() WHERE id = $1 AND status = 'PENDING'`, orderID)
 	if err != nil {
 		slog.Error("failed to update FAILED", "error", err)
-		return
+		return err
 	}
-	rows, _ := res.RowsAffected()
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
 	if rows == 0 {
 		slog.Info("order not in PENDING state or not found", "order_id", orderID)
 	}
+	return nil
 }
 
 // handleSeatReservationExpired records that seatservice's periodic expiry
 // sweep timed out the hold before the user confirmed or cancelled. The
 // status guard ensures a timeout that races with a user's confirm/cancel
 // never clobbers that outcome.
-func handleSeatReservationExpired(ctx context.Context, db *sql.DB, orderID string) {
+func handleSeatReservationExpired(ctx context.Context, db *sql.DB, orderID string) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		slog.Error("failed to begin tx", "error", err)
-		return
+		return err
 	}
 	defer tx.Rollback()
 
 	res, err := tx.ExecContext(ctx, `UPDATE orders.orders SET status = 'EXPIRED', updated_at = now() WHERE id = $1 AND status IN ('PENDING', 'HELD')`, orderID)
 	if err != nil {
 		slog.Error("failed to update EXPIRED", "error", err)
-		return
+		return err
 	}
-	rows, _ := res.RowsAffected()
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
 	if rows == 0 {
 		slog.Info("order not in PENDING/HELD state or not found", "order_id", orderID)
-		return
+		return nil
 	}
 
 	var eventIDStr string
@@ -153,7 +177,7 @@ func handleSeatReservationExpired(ctx context.Context, db *sql.DB, orderID strin
 		WHERE s.order_id = $1 LIMIT 1
 	`, orderID).Scan(&eventIDStr, &totalAmount); err != nil {
 		slog.Error("failed to get order event id", "error", err)
-		return
+		return err
 	}
 
 	eventID := uuid.New().String()
@@ -181,10 +205,10 @@ func handleSeatReservationExpired(ctx context.Context, db *sql.DB, orderID strin
 	`, eventID, orderID, payloadBytes, headersBytes)
 	if err != nil {
 		slog.Error("failed to insert outbox event", "error", err)
-		return
+		return err
 	}
 
-	tx.Commit()
+	return tx.Commit()
 }
 
 // handleSeatReservationConfirmationFailed self-corrects an order that
@@ -195,23 +219,26 @@ func handleSeatReservationExpired(ctx context.Context, db *sql.DB, orderID strin
 // to exactly that impossible state (CONFIRMED with no ticket) - it must never
 // fire against a PENDING/HELD order, since this event is only ever emitted
 // synchronously while seatservice handles that same order's OrderConfirmed.
-func handleSeatReservationConfirmationFailed(ctx context.Context, db *sql.DB, orderID string) {
+func handleSeatReservationConfirmationFailed(ctx context.Context, db *sql.DB, orderID string) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		slog.Error("failed to begin tx", "error", err)
-		return
+		return err
 	}
 	defer tx.Rollback()
 
 	res, err := tx.ExecContext(ctx, `UPDATE orders.orders SET status = 'EXPIRED', updated_at = now() WHERE id = $1 AND status = 'CONFIRMED'`, orderID)
 	if err != nil {
 		slog.Error("failed to update EXPIRED", "error", err)
-		return
+		return err
 	}
-	rows, _ := res.RowsAffected()
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
 	if rows == 0 {
 		slog.Info("order not in CONFIRMED state or not found", "order_id", orderID)
-		return
+		return nil
 	}
 
 	var eventIDStr string
@@ -223,7 +250,7 @@ func handleSeatReservationConfirmationFailed(ctx context.Context, db *sql.DB, or
 		WHERE s.order_id = $1 LIMIT 1
 	`, orderID).Scan(&eventIDStr, &totalAmount); err != nil {
 		slog.Error("failed to get order event id", "error", err)
-		return
+		return err
 	}
 
 	eventID := uuid.New().String()
@@ -251,8 +278,8 @@ func handleSeatReservationConfirmationFailed(ctx context.Context, db *sql.DB, or
 	`, eventID, orderID, payloadBytes, headersBytes)
 	if err != nil {
 		slog.Error("failed to insert outbox event", "error", err)
-		return
+		return err
 	}
 
-	tx.Commit()
+	return tx.Commit()
 }

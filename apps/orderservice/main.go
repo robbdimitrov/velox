@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
 
@@ -57,10 +58,11 @@ func main() {
 	defer cl.Close()
 
 	ctx := context.Background()
+	pipelineHealth := internal.NewPipelineHealth("outbox", "consumer")
 
 	// Start background processes
-	go internal.StartOutboxRelay(ctx, store.DB(), cl)
-	go internal.StartConsumer(ctx, store.DB(), cl)
+	go internal.StartOutboxRelay(ctx, store.DB(), cl, pipelineHealth)
+	go internal.StartConsumer(ctx, store.DB(), cl, pipelineHealth)
 
 	api := &internal.API{Store: store}
 
@@ -68,6 +70,22 @@ func main() {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "service": "orderservice"})
+	})
+	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		pingCtx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		if err := store.Ping(pingCtx); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "degraded", "database": "unavailable"})
+			return
+		}
+		if err := pipelineHealth.Err(); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "degraded", "pipelines": pipelineHealth.Snapshot()})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok", "service": "orderservice", "pipelines": pipelineHealth.Snapshot()})
 	})
 	mux.HandleFunc("POST /orders", api.HandleCreateOrder)
 	mux.HandleFunc("POST /orders/{id}/confirm", api.HandleConfirmOrder)

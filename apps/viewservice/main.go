@@ -73,13 +73,30 @@ func main() {
 	defer cl.Close()
 
 	var wg sync.WaitGroup
+	consumerHealth := &consumerHealth{}
 	wg.Add(1)
-	go consumeEvents(ctx, cl, store, &wg)
+	go consumeEvents(ctx, cl, store, consumerHealth, &wg)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "service": "viewservice"})
+	})
+	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		pingCtx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		if err := store.Ping(pingCtx); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "degraded", "database": "unavailable"})
+			return
+		}
+		if err := consumerHealth.err(); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "degraded", "consumer": consumerHealth.snapshot()})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok", "service": "viewservice", "consumer": consumerHealth.snapshot()})
 	})
 
 	srv := &http.Server{
@@ -123,7 +140,7 @@ type EventStore interface {
 	ApplyEvent(ctx context.Context, event internal.Event, sourceTopic string, sourcePartition int32, sourceOffset int64) error
 }
 
-func consumeEvents(ctx context.Context, cl *kgo.Client, store EventStore, wg *sync.WaitGroup) {
+func consumeEvents(ctx context.Context, cl *kgo.Client, store EventStore, health *consumerHealth, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for {
 		fetches := cl.PollFetches(ctx)
@@ -131,9 +148,13 @@ func consumeEvents(ctx context.Context, cl *kgo.Client, store EventStore, wg *sy
 			return
 		}
 		if errs := fetches.Errors(); len(errs) > 0 {
+			for _, err := range errs {
+				health.markError(err.Err)
+			}
 			slog.Error("broker fetch errors", "errors", errs)
 			continue
 		}
+		health.markSuccess()
 
 		fetches.EachRecord(func(record *kgo.Record) {
 			var reqID string
@@ -145,6 +166,7 @@ func consumeEvents(ctx context.Context, cl *kgo.Client, store EventStore, wg *sy
 
 			var event internal.Event
 			if err := json.Unmarshal(record.Value, &event); err != nil {
+				health.markError(err)
 				slog.Error("failed to unmarshal event", "error", err, "request_id", reqID)
 				sendToDLQ(ctx, cl, record, reqID, "envelope_deserialize_error", err.Error())
 				cl.CommitRecords(ctx, record)
@@ -156,6 +178,7 @@ func consumeEvents(ctx context.Context, cl *kgo.Client, store EventStore, wg *sy
 			switch {
 			case err == nil:
 				cl.CommitRecords(ctx, record)
+				health.markSuccess()
 			case errors.Is(err, internal.ErrStaleAggregateVersion):
 				// Expected under duplicate/out-of-order delivery: drop and
 				// commit rather than retrying a message that will never
@@ -166,6 +189,7 @@ func consumeEvents(ctx context.Context, cl *kgo.Client, store EventStore, wg *sy
 				// Transient/infra failure: leave the offset uncommitted so
 				// this record is retried with backoff via redelivery.
 				slog.Error("failed to apply event", "topic", record.Topic, "offset", record.Offset, "error", err, "request_id", reqID)
+				health.markError(err)
 			}
 		})
 	}

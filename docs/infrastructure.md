@@ -180,3 +180,21 @@ Rules:
 - Checkout must fail closed if idempotency storage is unavailable.
 - WebSocket gateways should drop nonessential ticker messages before seat-state
   messages.
+
+## Dependency Connection Lifetimes and Probes
+
+Services that pool connections to restartable dependencies must bound pooled
+connection reuse. PostgreSQL, Redis, and similar clients should configure max
+connection lifetime and idle lifetime instead of relying on library defaults.
+
+Application probes are split by purpose:
+
+- `/healthz` is process liveness and must stay lightweight.
+- `/readyz` checks dependencies required to serve traffic plus local background
+  pipeline health where the service owns a consumer or relay.
+- Kubernetes readiness probes use `/readyz`; liveness and startup probes use
+  `/healthz`.
+
+Background relays and consumers must expose enough process-local state for
+readiness to detect repeated infrastructure failures without treating an empty
+topic or outbox as unhealthy.
