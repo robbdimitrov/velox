@@ -117,16 +117,24 @@ pub async fn process_message(
             let now = Utc::now();
             match db.process_reservation(&order, now).await {
                 Ok(reserved_events) => {
+                    let mut published = true;
                     for event in reserved_events {
-                        publish(producer, &event.event_type.clone(), &event.aggregate_id.clone(), &event, request_id.as_deref()).await;
+                        published &= publish(producer, &event.event_type.clone(), &event.aggregate_id.clone(), &event, request_id.as_deref()).await;
                     }
                     info!(order_id = %order.order_id, count = order.seat_ids.len(), "Successfully reserved seats");
+                    if !published {
+                        return false;
+                    }
                 }
                 Err(reason) => {
                     warn!(order_id = %order.order_id, reason = %reason, "Failed to reserve seats");
+                    let mut published = true;
                     for failed_event in db.build_reservation_failed_events(&order, &reason, now) {
                         let aggregate_id = failed_event.aggregate_id.clone();
-                        publish(producer, "SeatReservationFailed", &aggregate_id, &failed_event, request_id.as_deref()).await;
+                        published &= publish(producer, "SeatReservationFailed", &aggregate_id, &failed_event, request_id.as_deref()).await;
+                    }
+                    if !published {
+                        return false;
                     }
                 }
             }
@@ -144,10 +152,11 @@ pub async fn process_message(
             info!(order_id = %order_id, "Processing OrderCancelled");
             match db.process_reservation_cancelled(&order_id, &outbox_event_id, Utc::now()).await {
                 Ok(expired_events) => {
+                    let mut published = true;
                     for event in expired_events {
-                        publish(producer, &event.event_type.clone(), &event.aggregate_id.clone(), &event, request_id.as_deref()).await;
+                        published &= publish(producer, &event.event_type.clone(), &event.aggregate_id.clone(), &event, request_id.as_deref()).await;
                     }
-                    true
+                    published
                 }
                 Err(e) => {
                     warn!("Failed to process reservation cancellation: {}", e);
@@ -167,10 +176,11 @@ pub async fn process_message(
             info!(order_id = %order_id, "Processing OrderConfirmed");
             match db.process_reservation_confirmed(&order_id, &outbox_event_id, Utc::now()).await {
                 Ok(confirmed_events) => {
+                    let mut published = true;
                     for event in confirmed_events {
-                        publish(producer, &event.event_type.clone(), &event.aggregate_id.clone(), &event, request_id.as_deref()).await;
+                        published &= publish(producer, &event.event_type.clone(), &event.aggregate_id.clone(), &event, request_id.as_deref()).await;
                     }
-                    true
+                    published
                 }
                 Err(e) => {
                     warn!("Failed to process reservation confirmation: {}", e);
@@ -191,12 +201,12 @@ pub(crate) async fn publish<T: serde::Serialize>(
     key: &str,
     event: &T,
     request_id: Option<&str>,
-) {
+) -> bool {
     let msg_str = match serde_json::to_string(event) {
         Ok(s) => s,
         Err(e) => {
             error!(error = %e, event_type, "Failed to serialize event");
-            return;
+            return false;
         }
     };
 
@@ -216,5 +226,7 @@ pub(crate) async fn publish<T: serde::Serialize>(
 
     if let Err((e, _)) = producer.send(record, Duration::from_secs(5)).await {
         error!(error = %e, event_type, "Failed to produce event");
+        return false;
     }
+    true
 }

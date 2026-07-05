@@ -122,7 +122,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             error!(error = %e, "Broker consumer error");
                         }
                         Ok(m) => {
-                            consumer_broker_errors.store(0, Ordering::Relaxed);
                             use rdkafka::message::Message;
                             let mut req_id = None;
                             if let Some(headers) = m.headers() {
@@ -144,9 +143,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 };
                                 let should_commit = processor::process_message(&db_client, &producer, payload, meta).await;
                                 if should_commit {
+                                    consumer_broker_errors.store(0, Ordering::Relaxed);
                                     if let Err(e) = consumer.commit_message(&m, CommitMode::Async) {
                                         error!(error = %e, "Failed to commit offset");
                                     }
+                                } else {
+                                    consumer_broker_errors.fetch_add(1, Ordering::Relaxed);
                                 }
                             }
                         }

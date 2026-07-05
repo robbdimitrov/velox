@@ -97,6 +97,7 @@ func processOutbox(ctx context.Context, db *sql.DB, cl *kgo.Client, health *Pipe
 	rows.Close()
 
 	now := time.Now()
+	hadError := false
 	for _, r := range records {
 		if r.attempts > 0 && r.lastAttemptAt.Valid {
 			if now.Before(r.lastAttemptAt.Time.Add(outboxBackoff(r.attempts))) {
@@ -128,12 +129,14 @@ func processOutbox(ctx context.Context, db *sql.DB, cl *kgo.Client, health *Pipe
 		cancel()
 		if produceErr == nil {
 			if _, err := tx.ExecContext(ctx, `UPDATE orders.outbox_events SET published_at = now() WHERE id = $1`, r.id); err != nil {
+				hadError = true
 				health.MarkError("outbox", err)
 				slog.Error("failed to mark outbox event published", "error", err)
 			}
 			continue
 		}
 
+		hadError = true
 		health.MarkError("outbox", produceErr)
 		slog.Error("broker publish error", "error", produceErr)
 		if _, err := tx.ExecContext(ctx, `
@@ -148,6 +151,9 @@ func processOutbox(ctx context.Context, db *sql.DB, cl *kgo.Client, health *Pipe
 	if err := tx.Commit(); err != nil {
 		health.MarkError("outbox", err)
 		slog.Error("outbox tx commit error", "error", err)
+		return
+	}
+	if hadError {
 		return
 	}
 	health.MarkSuccess("outbox")
