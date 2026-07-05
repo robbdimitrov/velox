@@ -1,8 +1,9 @@
-use rdkafka::consumer::{Consumer, StreamConsumer};
+use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
 use rdkafka::producer::FutureProducer;
 use rdkafka::ClientConfig;
 use seatservice::db_client::DbClient;
-use seatservice::{logging, processor};
+use seatservice::processor::MessageMeta;
+use seatservice::{expiry, logging, processor};
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 use tracing::{error, info};
@@ -28,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .set("group.id", "seatservice_group")
         .set("bootstrap.servers", &broker_addrs)
         .set("auto.offset.reset", "earliest")
-        .set("enable.auto.commit", "true")
+        .set("enable.auto.commit", "false")
         .create()?;
 
     consumer.subscribe(&["order.events.v1"])?;
@@ -70,6 +71,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut shutdown_rx2 = shutdown_tx.subscribe();
 
+    let expiry_task = tokio::spawn(expiry::run(
+        db_client.clone(),
+        producer.clone(),
+        shutdown_tx.subscribe(),
+    ));
+
     let consumer_task = tokio::spawn(async move {
         loop {
             tokio::select! {
@@ -91,7 +98,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     }
                                 }
                             if let Some(payload) = m.payload() {
-                                processor::process_message(&db_client, &producer, payload, req_id).await;
+                                let meta = MessageMeta {
+                                    source_partition: m.partition(),
+                                    source_offset: m.offset(),
+                                    request_id: req_id,
+                                };
+                                let should_commit = processor::process_message(&db_client, &producer, payload, meta).await;
+                                if should_commit {
+                                    if let Err(e) = consumer.commit_message(&m, CommitMode::Async) {
+                                        error!(error = %e, "Failed to commit offset");
+                                    }
+                                }
                             }
                         }
                     }
@@ -111,6 +128,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("shutting down");
     let _ = shutdown_tx.send(true);
     let _ = consumer_task.await;
+    let _ = expiry_task.await;
     pool.close().await;
 
     Ok(())

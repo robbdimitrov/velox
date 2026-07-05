@@ -1,6 +1,8 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+pub const INVENTORY_EVENT_SCHEMA_VERSION: u32 = 1;
+
 #[derive(Debug, Deserialize)]
 pub struct EventEnvelope {
     #[serde(
@@ -16,6 +18,8 @@ pub struct EventEnvelope {
 
 #[derive(Debug, Deserialize)]
 pub struct OrderCreatedPayload {
+    #[serde(alias = "OutboxEventID", alias = "outbox_event_id")]
+    pub outbox_event_id: String,
     #[serde(alias = "OrderID", alias = "id", alias = "ID")]
     pub order_id: String,
     #[serde(alias = "UserID", alias = "user_id", alias = "UserId")]
@@ -34,16 +38,21 @@ pub struct OrderCreatedPayload {
     pub seat_ids: Vec<String>,
 }
 
+/// Emitted for every seatservice-owned inventory transition (held, expired,
+/// confirmed). `event_type` carries the specific transition name.
 #[derive(Debug, Serialize)]
-pub struct SeatReservedEvent {
+pub struct SeatInventoryEvent {
     pub event_id: String,
     pub aggregate_id: String,
     pub aggregate_version: u64,
     #[serde(rename = "type")]
-    pub event_type: String, // "SeatReserved"
-    pub correlation_id: String, // Maps to order_id
+    pub event_type: String,
+    pub correlation_id: String,
+    pub causation_id: String,
+    pub schema_version: u32,
     pub seat: SeatDto,
     pub occurred_at: DateTime<Utc>,
+    pub signature: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -51,15 +60,22 @@ pub struct SeatDto {
     pub event_id: String,
     pub section_id: String,
     pub seat_id: String,
-    pub status: String, // "HELD"
+    pub status: String, // "HELD" | "AVAILABLE" | "SOLD"
     pub version: u64,
     pub expires_at_ms: i64,
 }
 
 #[derive(Debug, Serialize)]
 pub struct SeatReservationFailedEvent {
+    pub event_id: String,
+    pub aggregate_id: String,
     #[serde(rename = "type")]
     pub event_type: String, // "SeatReservationFailed"
+    pub correlation_id: String,
+    pub causation_id: String,
+    pub schema_version: u32,
     pub order_id: String,
     pub reason: String,
+    pub occurred_at: DateTime<Utc>,
+    pub signature: String,
 }
