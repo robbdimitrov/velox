@@ -117,8 +117,9 @@ export const mockWallet: WalletResponse = {
       event: 'Midnight Array',
       venue: 'North Pier Hall',
       seat: 'A-4-12',
-      gate: 'N3',
+      status: 'ISSUED',
       transfer_status: 'AVAILABLE',
+      qr_token: 'mock-qr-token.mock-signature',
       qr_token_expires_at: new Date(now + 90_000).toISOString(),
       ledger: [
         {

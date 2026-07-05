@@ -92,8 +92,9 @@ export type WalletTicket = {
   event: string;
   venue: string;
   seat: string;
-  gate: string;
+  status: 'ISSUED' | 'TRANSFERRED' | 'USED' | 'UPGRADED';
   transfer_status: 'LOCKED' | 'AVAILABLE' | 'PENDING';
+  qr_token: string;
   qr_token_expires_at: string;
   ledger: Array<{
     event_type: string;

@@ -1,6 +1,8 @@
+import { env } from '$env/dynamic/private';
 import type { RequestHandler } from './$types';
 
-const GATEWAY_URL = 'http://apigateway.velox.svc.cluster.local';
+const GATEWAY_URL =
+  env.GATEWAY_URL ?? 'http://apigateway.velox.svc.cluster.local';
 
 export const fallback: RequestHandler = async ({ request, url }) => {
   const path = url.pathname.replace(/^\/api/, '');

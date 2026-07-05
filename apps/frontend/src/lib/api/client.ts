@@ -57,13 +57,11 @@ export function createGatewayClient(
   return {
     apiBase,
     listEvents(params: URLSearchParams) {
+      // Caching is set on the response by apigateway (discoveryCacheControl),
+      // not the request — Cache-Control on an outbound fetch request has no
+      // effect on CDN/browser caching of the response.
       return request<{ events: GatewayEvent[]; projection_lag_ms?: number }>(
-        `/events?${params.toString()}`,
-        {
-          headers: {
-            'Cache-Control': 'max-age=1, stale-while-revalidate=5'
-          }
-        }
+        `/events?${params.toString()}`
       ).then(mapDiscovery);
     },
     getSeatSnapshot(eventID: string, sectionID: string) {
@@ -87,14 +85,15 @@ export function createGatewayClient(
     checkout(
       body: CheckoutRequest,
       idempotencyKey: string,
-      _reservationToken: string
+      reservationToken: string
     ) {
       return request<{ order?: GatewayOrder; status?: string }>(
         `/reservations/${encodeURIComponent(body.reservation_id)}/confirm`,
         {
           method: 'POST',
           headers: {
-            'Idempotency-Key': idempotencyKey
+            'Idempotency-Key': idempotencyKey,
+            'Reservation-Token': reservationToken
           },
           body: JSON.stringify({
             payment_method_token: body.payment_method_token
@@ -103,7 +102,7 @@ export function createGatewayClient(
       ).then((res) => mapCheckout(body.reservation_id, res));
     },
     wallet() {
-      return request<{ orders: GatewayOrder[] }>('/orders').then(mapWallet);
+      return request<WalletResponse>('/wallet/tickets');
     },
     tickerURL(params = new URLSearchParams()) {
       return `${apiBase}/events/evt_neon_riot/stream?${params.toString()}`;
@@ -276,32 +275,5 @@ function mapCheckout(
     wallet_ticket_ids: order.seat_ids.map(
       (seatID) => `tkt_${order.id}_${seatID}`
     )
-  };
-}
-
-function mapWallet(body: { orders: GatewayOrder[] }): WalletResponse {
-  return {
-    verification_state: 'VERIFIED',
-    tickets: body.orders
-      .filter((order) => order.status === 'CONFIRMED')
-      .flatMap((order) =>
-        order.seat_ids.map((seatID) => ({
-          ticket_id: `tkt_${order.id}_${seatID}`,
-          event: order.event_id,
-          venue: 'Velox Arena',
-          seat: `${order.section_id} ${seatID}`,
-          gate: 'N1',
-          transfer_status: 'AVAILABLE' as const,
-          qr_token_expires_at: new Date(Date.now() + 90_000).toISOString(),
-          ledger: [
-            {
-              event_type: 'TicketIssued',
-              timestamp: new Date().toISOString(),
-              actor: 'seatservice',
-              correlation_id: order.id
-            }
-          ]
-        }))
-      )
   };
 }
