@@ -22,6 +22,7 @@ type PipelineStatus struct {
 	LastErrorAt       time.Time `json:"last_error_at,omitempty"`
 	LastError         string    `json:"last_error,omitempty"`
 	ConsecutiveErrors int       `json:"consecutive_errors"`
+	ErrorCount        uint64    `json:"error_count"`
 }
 
 type PipelineHealth struct {
@@ -67,6 +68,7 @@ func (h *PipelineHealth) MarkError(name string, err error) {
 	status.LastErrorAt = now
 	status.LastError = err.Error()
 	status.ConsecutiveErrors++
+	status.ErrorCount++
 	h.statuses[name] = status
 }
 
@@ -100,11 +102,19 @@ func (h *PipelineHealth) Metrics(service string) string {
 		labels := fmt.Sprintf(`service=%q,pipeline=%q`, service, status.Name)
 		fmt.Fprintf(&b, "velox_pipeline_consecutive_errors{%s} %d\n", labels, status.ConsecutiveErrors)
 		fmt.Fprintf(&b, "velox_pipeline_unhealthy{%s} %d\n", labels, boolMetric(pipelineStatusDegraded(status, now)))
+		canonicalLabels := fmt.Sprintf(`app=%q,service=%q,pipeline=%q`, "velox", service, status.Name)
+		fmt.Fprintf(&b, "app_pipeline_running{%s} 1\n", canonicalLabels)
+		fmt.Fprintf(&b, "app_pipeline_unhealthy{%s} %d\n", canonicalLabels, boolMetric(pipelineStatusDegraded(status, now)))
+		fmt.Fprintf(&b, "app_pipeline_error_streak{%s} %d\n", canonicalLabels, status.ConsecutiveErrors)
+		fmt.Fprintf(&b, "app_pipeline_errors_total{%s} %d\n", canonicalLabels, status.ErrorCount)
 		if !status.LastSuccessAt.IsZero() {
 			fmt.Fprintf(&b, "velox_pipeline_last_success_age_seconds{%s} %.0f\n", labels, now.Sub(status.LastSuccessAt).Seconds())
+			fmt.Fprintf(&b, "app_pipeline_last_success_age_seconds{%s} %.0f\n", canonicalLabels, now.Sub(status.LastSuccessAt).Seconds())
+			fmt.Fprintf(&b, "app_pipeline_last_progress_age_seconds{%s} %.0f\n", canonicalLabels, now.Sub(status.LastSuccessAt).Seconds())
 		}
 		if !status.FirstErrorAt.IsZero() {
 			fmt.Fprintf(&b, "velox_pipeline_first_error_age_seconds{%s} %.0f\n", labels, now.Sub(status.FirstErrorAt).Seconds())
+			fmt.Fprintf(&b, "app_pipeline_first_error_age_seconds{%s} %.0f\n", canonicalLabels, now.Sub(status.FirstErrorAt).Seconds())
 		}
 	}
 	return b.String()

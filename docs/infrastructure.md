@@ -205,7 +205,9 @@ errors or after the first unrecovered error remains present for 30 seconds.
 Successful progress clears the error streak and the failure window.
 `orderservice` and `viewservice` expose the same pipeline and consumer health as
 Prometheus text metrics on `/metrics`, including consecutive errors, unhealthy
-state, and age since last success or first unrecovered error.
+state, and age since last success or first unrecovered error. Metrics include
+the existing `velox_*` names plus canonical `app_pipeline_*` aliases with labels
+`app="velox"`, `service`, and `pipeline`.
 
 Run `scripts/failure-drill.sh` after changing dependency clients, probes, or
 consumer loops. The script restarts PostgreSQL, cache, and broker workloads,

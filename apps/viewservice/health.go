@@ -22,6 +22,7 @@ type consumerHealth struct {
 	lastErrorAt       time.Time
 	lastError         string
 	consecutiveErrors int
+	errorCount        uint64
 }
 
 type consumerHealthSnapshot struct {
@@ -30,6 +31,7 @@ type consumerHealthSnapshot struct {
 	LastErrorAt       time.Time `json:"last_error_at,omitempty"`
 	LastError         string    `json:"last_error,omitempty"`
 	ConsecutiveErrors int       `json:"consecutive_errors"`
+	ErrorCount        uint64    `json:"error_count"`
 }
 
 func (h *consumerHealth) markSuccess() {
@@ -54,6 +56,7 @@ func (h *consumerHealth) markError(err error) {
 	h.lastErrorAt = now
 	h.lastError = err.Error()
 	h.consecutiveErrors++
+	h.errorCount++
 }
 
 func (h *consumerHealth) snapshot() consumerHealthSnapshot {
@@ -65,6 +68,7 @@ func (h *consumerHealth) snapshot() consumerHealthSnapshot {
 		LastErrorAt:       h.lastErrorAt,
 		LastError:         h.lastError,
 		ConsecutiveErrors: h.consecutiveErrors,
+		ErrorCount:        h.errorCount,
 	}
 }
 
@@ -83,11 +87,19 @@ func (h *consumerHealth) metrics(service string) string {
 	labels := fmt.Sprintf(`service=%q,consumer=%q`, service, "events")
 	fmt.Fprintf(&b, "velox_consumer_consecutive_errors{%s} %d\n", labels, snapshot.ConsecutiveErrors)
 	fmt.Fprintf(&b, "velox_consumer_unhealthy{%s} %d\n", labels, boolMetric(consumerStatusDegraded(snapshot, now)))
+	canonicalLabels := fmt.Sprintf(`app=%q,service=%q,pipeline=%q`, "velox", service, "events")
+	fmt.Fprintf(&b, "app_pipeline_running{%s} 1\n", canonicalLabels)
+	fmt.Fprintf(&b, "app_pipeline_unhealthy{%s} %d\n", canonicalLabels, boolMetric(consumerStatusDegraded(snapshot, now)))
+	fmt.Fprintf(&b, "app_pipeline_error_streak{%s} %d\n", canonicalLabels, snapshot.ConsecutiveErrors)
+	fmt.Fprintf(&b, "app_pipeline_errors_total{%s} %d\n", canonicalLabels, snapshot.ErrorCount)
 	if !snapshot.LastSuccessAt.IsZero() {
 		fmt.Fprintf(&b, "velox_consumer_last_success_age_seconds{%s} %.0f\n", labels, now.Sub(snapshot.LastSuccessAt).Seconds())
+		fmt.Fprintf(&b, "app_pipeline_last_success_age_seconds{%s} %.0f\n", canonicalLabels, now.Sub(snapshot.LastSuccessAt).Seconds())
+		fmt.Fprintf(&b, "app_pipeline_last_progress_age_seconds{%s} %.0f\n", canonicalLabels, now.Sub(snapshot.LastSuccessAt).Seconds())
 	}
 	if !snapshot.FirstErrorAt.IsZero() {
 		fmt.Fprintf(&b, "velox_consumer_first_error_age_seconds{%s} %.0f\n", labels, now.Sub(snapshot.FirstErrorAt).Seconds())
+		fmt.Fprintf(&b, "app_pipeline_first_error_age_seconds{%s} %.0f\n", canonicalLabels, now.Sub(snapshot.FirstErrorAt).Seconds())
 	}
 	return b.String()
 }
