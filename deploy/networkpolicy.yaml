@@ -148,6 +148,9 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: viewservice
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: broker-topics-init
       ports:
         - protocol: TCP
           port: 9092

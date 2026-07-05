@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: broker-topics-init
+  namespace: velox
+  labels:
+    app.kubernetes.io/name: broker-topics-init
+    app.kubernetes.io/part-of: velox
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: broker-topics-init
+        app.kubernetes.io/part-of: velox
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: create-topics
+          image: redpandadata/redpanda:v24.2.9
+          imagePullPolicy: IfNotPresent
+          # A freshly created pod's IP takes a few seconds to propagate into
+          # the NetworkPolicy controller's ipset-based allow-list, so the very
+          # first connection attempt can see a real "connection refused" even
+          # though this pod's label is correctly allow-listed in
+          # networkpolicy.yaml. Retry on that specific failure instead of
+          # masking it. `rpk topic create` reports TOPIC_ALREADY_EXISTS per
+          # topic and still exits non-zero even when that's the only reason,
+          # so only "unable to dial"/connection failures are treated as
+          # retryable; anything else (including partial already-exists) ends
+          # the loop successfully, keeping this idempotent across redeploys.
+          command:
+            - /bin/sh
+            - -c
+            - |
+              topics="order.events.v1 inventory.events.v1 dlq.order.events.v1 dlq.inventory.events.v1"
+              broker="broker.velox.svc.cluster.local:9092"
+              attempt=0
+              max_attempts=15
+              while :; do
+                attempt=$((attempt + 1))
+                output=$(rpk topic create $topics --brokers="$broker" 2>&1)
+                status=$?
+                echo "$output"
+                if [ "$status" -eq 0 ]; then
+                  exit 0
+                fi
+                if ! echo "$output" | grep -q "unable to dial\|connection refused"; then
+                  exit 0
+                fi
+                if [ "$attempt" -ge "$max_attempts" ]; then
+                  echo "giving up after $max_attempts attempts: broker unreachable" >&2
+                  exit 1
+                fi
+                echo "attempt $attempt: broker unreachable, retrying in 2s"
+                sleep 2
+              done
