@@ -42,6 +42,50 @@
     offsetY = $state(0);
   const SEAT_SIZE = 28;
 
+  // docs/frontend.md: "Use Canvas for individual seat nodes once a section
+  // exceeds 1,000 seats; use SVG for low-density sections and semantic
+  // outlines." Canvas below this threshold has no rendering benefit and
+  // loses native per-node accessibility/hit-testing that SVG gives for free.
+  const CANVAS_SEAT_THRESHOLD = 1000;
+  let useCanvas = $derived(seats.length > CANVAS_SEAT_THRESHOLD);
+
+  function seatPosition(seat: Seat) {
+    return {
+      x: offsetX + (seat.x - minX) * scale,
+      y: offsetY + (seat.y - minY) * scale,
+      size: SEAT_SIZE * scale
+    };
+  }
+
+  function seatFill(seat: Seat, selected: boolean, isDimmed: boolean) {
+    if (isDimmed) return 'rgba(255,255,255,0.05)';
+    return selected ? colors.SELECTED : colors[seat.status];
+  }
+
+  function seatStroke(
+    seat: Seat,
+    selected: boolean,
+    isHovered: boolean,
+    isDimmed: boolean
+  ) {
+    if (isDimmed) return 'rgba(255,255,255,0.02)';
+    if (selected || isHovered) return '#FFFFFF';
+    if (seat.status === 'UNKNOWN') return '#4B5563';
+    return 'rgba(255,255,255,0.1)';
+  }
+
+  function seatCursor(seat: Seat) {
+    return seat.status !== 'SOLD' && (!accessibleOnly || seat.accessibility)
+      ? 'pointer'
+      : 'default';
+  }
+
+  function handleSeatClick(seat: Seat) {
+    if (seat.status === 'SOLD') return;
+    if (accessibleOnly && !seat.accessibility) return;
+    onToggle(seat);
+  }
+
   $effect(() => {
     if (seats.length > 0) {
       let nextMinX = seats[0].x;
@@ -222,23 +266,64 @@
 
 <div
   bind:this={container}
-  class="relative min-h-[420px] h-full rounded-2xl border border-white/10 bg-black/40 shadow-lg overflow-hidden backdrop-blur-md"
+  class="relative min-h-[420px] h-full rounded border border-white/10 bg-black/40 shadow-lg overflow-hidden backdrop-blur-md"
 >
-  <canvas
-    bind:this={canvas}
-    class="absolute inset-0 z-10 transition-opacity duration-300 hover:opacity-95"
-    style="width: {width}px; height: {height}px; display: block; cursor: {hoveredSeat &&
-    hoveredSeat.status !== 'SOLD' &&
-    (!accessibleOnly || hoveredSeat.accessibility)
-      ? 'pointer'
-      : 'default'};"
-    width={width * devicePixelRatio}
-    height={height * devicePixelRatio}
-    onclick={handleClick}
-    onmousemove={handleMouseMove}
-    onmouseleave={handleMouseLeave}
-    aria-label="Interactive seat map"
-  ></canvas>
+  {#if useCanvas}
+    <canvas
+      bind:this={canvas}
+      class="absolute inset-0 z-10 transition-opacity duration-300 hover:opacity-95"
+      style="width: {width}px; height: {height}px; display: block; cursor: {hoveredSeat &&
+      hoveredSeat.status !== 'SOLD' &&
+      (!accessibleOnly || hoveredSeat.accessibility)
+        ? 'pointer'
+        : 'default'};"
+      width={width * devicePixelRatio}
+      height={height * devicePixelRatio}
+      onclick={handleClick}
+      onmousemove={handleMouseMove}
+      onmouseleave={handleMouseLeave}
+      aria-label="Interactive seat map"
+    ></canvas>
+  {:else}
+    <svg
+      class="absolute inset-0 z-10 transition-opacity duration-300 hover:opacity-95"
+      {width}
+      {height}
+      viewBox="0 0 {width} {height}"
+      role="group"
+      aria-label="Interactive seat map"
+    >
+      {#each seats as seat (seat.seat_id)}
+        {@const selected = selectedSeatIDs.has(seat.seat_id)}
+        {@const isDimmed = accessibleOnly && !seat.accessibility}
+        {@const isHovered = hoveredSeat?.seat_id === seat.seat_id}
+        {@const pos = seatPosition(seat)}
+        <rect
+          x={pos.x}
+          y={pos.y}
+          width={pos.size}
+          height={pos.size}
+          rx={6 * scale}
+          fill={seatFill(seat, selected, isDimmed)}
+          stroke={seatStroke(seat, selected, isHovered, isDimmed)}
+          stroke-width={selected || (isHovered && !isDimmed) ? 2 : 1}
+          style="cursor: {seatCursor(seat)}; transition: fill 0.15s ease;"
+          role="button"
+          aria-label={`Seat ${seat.seat_id}, ${selected ? 'selected' : seat.status.toLowerCase()}`}
+          tabindex="0"
+          onclick={() => handleSeatClick(seat)}
+          onkeydown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleSeatClick(seat);
+            }
+          }}
+          onmouseenter={() => (hoveredSeat = seat)}
+          onmouseleave={() => (hoveredSeat = null)}
+        />
+      {/each}
+    </svg>
+  {/if}
 
   <div
     class="absolute inset-0 pointer-events-none flex flex-col justify-between items-center py-6 z-0"
