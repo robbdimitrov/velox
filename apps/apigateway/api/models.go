@@ -95,6 +95,27 @@ type idempotencyRecord struct {
 	Response Order
 }
 
+type WalletTicketLedgerEntry struct {
+	EventType     string `json:"event_type"`
+	Timestamp     string `json:"timestamp"`
+	Actor         string `json:"actor"`
+	CorrelationID string `json:"correlation_id"`
+}
+
+type WalletTicket struct {
+	TicketID         string                    `json:"ticket_id"`
+	EventID          string                    `json:"event_id"`
+	Event            string                    `json:"event"`
+	Venue            string                    `json:"venue"`
+	SectionID        string                    `json:"section_id"`
+	Seat             string                    `json:"seat"`
+	Status           string                    `json:"status"`
+	TransferStatus   string                    `json:"transfer_status"`
+	QRToken          string                    `json:"qr_token"`
+	QRTokenExpiresAt string                    `json:"qr_token_expires_at"`
+	Ledger           []WalletTicketLedgerEntry `json:"ledger"`
+}
+
 type loginFailure struct {
 	Count       int
 	LockedUntil time.Time

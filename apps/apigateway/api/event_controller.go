@@ -7,11 +7,22 @@ import (
 	"time"
 )
 
+// discoveryCacheControl matches docs/frontend.md's discovery-page rule:
+// "Cache hot discovery responses at the CDN for 1 second with
+// stale-while-revalidate." Query-only, non-authenticated read endpoints set
+// this; command/mutation and per-user endpoints must not.
+const discoveryCacheControl = "public, max-age=1, stale-while-revalidate=5"
+
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", discoveryCacheControl)
 	if s.store != nil {
 		events, err := s.store.GetEvents(r.Context())
 		if err == nil {
-			writeJSON(w, http.StatusOK, map[string]any{"events": events, "projection_lag_ms": 0})
+			lagMS, lagErr := s.store.GetGlobalProjectionLagMS(r.Context())
+			if lagErr != nil {
+				lagMS = 0
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"events": events, "projection_lag_ms": lagMS})
 			return
 		}
 	}
@@ -27,11 +38,16 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleEvent(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", discoveryCacheControl)
 	eventID := r.PathValue("eventId")
 	if s.store != nil {
 		event, err := s.store.GetEvent(r.Context(), eventID)
 		if err == nil {
-			writeJSON(w, http.StatusOK, map[string]any{"event": event, "projection_lag_ms": 0})
+			lagMS, lagErr := s.store.GetProjectionLagMS(r.Context(), eventID)
+			if lagErr != nil {
+				lagMS = 0
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"event": event, "projection_lag_ms": lagMS})
 			return
 		}
 	}
@@ -48,10 +64,17 @@ func (s *Server) handleEvent(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"event": event, "projection_lag_ms": 0})
 }
 
+// dynamicSeatCacheControl is deliberately tighter than discoveryCacheControl:
+// seat availability changes far faster than event listings, but a 1s CDN
+// floor (HTTP max-age has no sub-second granularity) still meaningfully
+// absorbs stampede traffic ahead of the Redis-backed single-flight cache.
+const dynamicSeatCacheControl = "public, max-age=1, stale-while-revalidate=1"
+
 func (s *Server) handleSeats(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", dynamicSeatCacheControl)
 	eventID, sectionID := r.PathValue("eventId"), r.PathValue("sectionId")
 	if s.store != nil {
-		seats, err := s.store.ListSeats(r.Context(), eventID, sectionID)
+		seats, snapshotAgeMS, err := s.getSeatsCached(r.Context(), eventID, sectionID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "seat_snapshot_unavailable")
 			return
@@ -60,7 +83,7 @@ func (s *Server) handleSeats(w http.ResponseWriter, r *http.Request) {
 		if seats == nil {
 			seats = []Seat{}
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"seats": seats, "snapshot_age_ms": 0})
+		writeJSON(w, http.StatusOK, map[string]any{"seats": seats, "snapshot_age_ms": snapshotAgeMS})
 		return
 	}
 	s.mu.Lock()

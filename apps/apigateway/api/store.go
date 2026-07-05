@@ -84,29 +84,169 @@ func (s *DatabaseStore) GetOrder(ctx context.Context, user User, orderID string)
 	return order, nil
 }
 
-func (s *DatabaseStore) ListSeats(ctx context.Context, eventID, sectionID string) ([]Seat, error) {
+// ListSeats returns seats for a section plus the age of the staleset snapshot
+// row returned, in milliseconds, so callers can surface real staleness
+// (docs/infrastructure.md's snapshot_age_ms) instead of a hardcoded value.
+func (s *DatabaseStore) ListSeats(ctx context.Context, eventID, sectionID string) ([]Seat, int64, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT seat_id, status, aggregate_version, COALESCE(extract(epoch from expires_at) * 1000, 0)::bigint, price_amount_minor
+		SELECT seat_id, status, aggregate_version, COALESCE(extract(epoch from expires_at) * 1000, 0)::bigint, price_amount_minor,
+			COALESCE(extract(epoch from (now() - updated_at)) * 1000, 0)::bigint
 		FROM projection.seat_snapshots
 		WHERE event_id = $1 AND section_id = $2
 		ORDER BY seat_id
 	`, eventID, sectionID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 	var seats []Seat
+	var snapshotAgeMS int64
 	for rows.Next() {
 		var seat Seat
+		var ageMS int64
 		seat.EventID = eventID
 		seat.SectionID = sectionID
-		if err := rows.Scan(&seat.ID, &seat.Status, &seat.Version, &seat.ExpiresAtServerMS, &seat.PriceCents); err != nil {
-			return nil, err
+		if err := rows.Scan(&seat.ID, &seat.Status, &seat.Version, &seat.ExpiresAtServerMS, &seat.PriceCents, &ageMS); err != nil {
+			return nil, 0, err
 		}
 		seat.Row, seat.Number = splitSeatLabel(seat.ID)
 		seats = append(seats, seat)
+		if ageMS > snapshotAgeMS {
+			snapshotAgeMS = ageMS
+		}
 	}
-	return seats, rows.Err()
+	return seats, snapshotAgeMS, rows.Err()
+}
+
+// GetSeatStatusMap returns the current projected status for each seat in a
+// section. projection.seat_snapshots is this codebase's actual seat
+// existence source: catalog.venue_seats is defined in the schema but never
+// populated by any code path, and every seat (including brand-new ones) gets
+// its snapshot row pre-created with status AVAILABLE (see
+// apps/database/seeds/999_demo_reservation_mvp.sql and
+// CreateEvent's inventory.event_streams pre-seed) rather than lazily on
+// first inventory event. So an empty result for a section means the section
+// itself is unknown, and a seat_id missing from an otherwise-populated
+// section means that seat_id doesn't exist.
+func (s *DatabaseStore) GetSeatStatusMap(ctx context.Context, eventID, sectionID string) (map[string]string, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT seat_id, status FROM projection.seat_snapshots
+		WHERE event_id = $1 AND section_id = $2
+	`, eventID, sectionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	statuses := map[string]string{}
+	for rows.Next() {
+		var seatID, status string
+		if err := rows.Scan(&seatID, &status); err != nil {
+			return nil, err
+		}
+		statuses[seatID] = status
+	}
+	return statuses, rows.Err()
+}
+
+// GetProjectionLagMS approximates read-model staleness for an event as the
+// age of its most recently updated seat snapshot. This is a proxy for true
+// Kafka consumer-group lag (which would require broker offset/watermark
+// polling, a larger addition); it's still a real, measured signal rather
+// than the previously hardcoded 0.
+func (s *DatabaseStore) GetProjectionLagMS(ctx context.Context, eventID string) (int64, error) {
+	var lagMS int64
+	err := s.db.QueryRowContext(ctx, `
+		SELECT COALESCE(extract(epoch from (now() - MAX(updated_at))) * 1000, 0)::bigint
+		FROM projection.seat_snapshots
+		WHERE event_id = $1
+	`, eventID).Scan(&lagMS)
+	return lagMS, err
+}
+
+// GetGlobalProjectionLagMS is the same signal across all events, used for
+// list endpoints that don't scope to a single event_id.
+func (s *DatabaseStore) GetGlobalProjectionLagMS(ctx context.Context) (int64, error) {
+	var lagMS int64
+	err := s.db.QueryRowContext(ctx, `
+		SELECT COALESCE(extract(epoch from (now() - MAX(updated_at))) * 1000, 0)::bigint
+		FROM projection.seat_snapshots
+	`).Scan(&lagMS)
+	return lagMS, err
+}
+
+// GetWalletTickets returns a user's real issued tickets from the event-sourced
+// projection (projection.wallet_tickets), each with its provenance ledger
+// drawn from the actual inventory.events history for that order — not a
+// client-fabricated placeholder. Ticket lifecycle transitions beyond issuance
+// (transfer/use/upgrade) aren't modeled by any producer yet, so every ticket
+// today is status ISSUED; the ledger reflects only the events that actually
+// occurred (seat held, then confirmed).
+func (s *DatabaseStore) GetWalletTickets(ctx context.Context, userID string) ([]WalletTicket, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT wt.ticket_id, wt.order_id::text, wt.event_id, wt.section_id, wt.seat_id, wt.status,
+			e.name, v.name
+		FROM projection.wallet_tickets wt
+		JOIN catalog.events e ON e.id = wt.event_id
+		JOIN catalog.venues v ON v.id = e.venue_id
+		WHERE wt.user_id = $1
+		ORDER BY wt.updated_at DESC
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tickets []WalletTicket
+	var orderIDs []string
+	for rows.Next() {
+		var t WalletTicket
+		var orderID string
+		if err := rows.Scan(&t.TicketID, &orderID, &t.EventID, &t.SectionID, &t.Seat, &t.Status, &t.Event, &t.Venue); err != nil {
+			return nil, err
+		}
+		t.TransferStatus = "AVAILABLE"
+		tickets = append(tickets, t)
+		orderIDs = append(orderIDs, orderID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	for i := range tickets {
+		ledger, err := s.getTicketLedger(ctx, orderIDs[i])
+		if err != nil {
+			return nil, err
+		}
+		tickets[i].Ledger = ledger
+	}
+	return tickets, nil
+}
+
+func (s *DatabaseStore) getTicketLedger(ctx context.Context, orderID string) ([]WalletTicketLedgerEntry, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT event_type, occurred_at, correlation_id
+		FROM inventory.events
+		WHERE correlation_id = $1
+		ORDER BY occurred_at ASC
+	`, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ledger []WalletTicketLedgerEntry
+	for rows.Next() {
+		var entry WalletTicketLedgerEntry
+		var occurredAt time.Time
+		if err := rows.Scan(&entry.EventType, &occurredAt, &entry.CorrelationID); err != nil {
+			return nil, err
+		}
+		entry.Timestamp = occurredAt.Format(time.RFC3339)
+		entry.Actor = "seatservice"
+		ledger = append(ledger, entry)
+	}
+	return ledger, rows.Err()
 }
 
 func (s *DatabaseStore) GetOrganizerInventory(ctx context.Context, eventID string) (map[string]int, map[string]map[string]int, error) {
@@ -446,7 +586,11 @@ func (s *DatabaseStore) CreateEvent(ctx context.Context, event Event) error {
 	}
 
 	for _, st := range seats {
-		streamKey := "seat-" + event.ID + "-" + st.SeatID
+		// Must match the stream_key format seatservice itself computes
+		// (format!("seat:{}:{}:{}", event_id, section_id, seat_id) in
+		// db_client.rs) — a mismatch here pre-creates orphaned rows that
+		// seatservice's own lazy stream creation never reuses.
+		streamKey := fmt.Sprintf("seat:%s:%s:%s", event.ID, st.SectionID, st.SeatID)
 		_, err = tx.ExecContext(ctx, `
 			INSERT INTO inventory.event_streams (stream_key, event_id, section_id, seat_id)
 			VALUES ($1, $2, $3, $4)
@@ -469,8 +613,9 @@ func (s *DatabaseStore) CreateEvent(ctx context.Context, event Event) error {
 
 func (s *DatabaseStore) GetEvents(ctx context.Context) ([]Event, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, venue_id, name, starts_at, status
-		FROM catalog.events
+		SELECT e.id, e.venue_id, e.name, e.starts_at, e.status, v.name, v.city
+		FROM catalog.events e
+		JOIN catalog.venues v ON v.id = e.venue_id
 	`)
 	if err != nil {
 		return nil, err
@@ -480,7 +625,7 @@ func (s *DatabaseStore) GetEvents(ctx context.Context) ([]Event, error) {
 	var events []Event
 	for rows.Next() {
 		var e Event
-		if err := rows.Scan(&e.ID, &e.VenueID, &e.Name, &e.StartsAt, &e.Status); err != nil {
+		if err := rows.Scan(&e.ID, &e.VenueID, &e.Name, &e.StartsAt, &e.Status, &e.Venue, &e.City); err != nil {
 			return nil, err
 		}
 
@@ -496,10 +641,11 @@ func (s *DatabaseStore) GetEvents(ctx context.Context) ([]Event, error) {
 func (s *DatabaseStore) GetEvent(ctx context.Context, id string) (Event, error) {
 	var e Event
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id, venue_id, name, starts_at, status
-		FROM catalog.events
-		WHERE id = $1
-	`, id).Scan(&e.ID, &e.VenueID, &e.Name, &e.StartsAt, &e.Status)
+		SELECT e.id, e.venue_id, e.name, e.starts_at, e.status, v.name, v.city
+		FROM catalog.events e
+		JOIN catalog.venues v ON v.id = e.venue_id
+		WHERE e.id = $1
+	`, id).Scan(&e.ID, &e.VenueID, &e.Name, &e.StartsAt, &e.Status, &e.Venue, &e.City)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Event{}, ErrStoreNotFound
 	}

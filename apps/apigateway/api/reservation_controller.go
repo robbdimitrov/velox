@@ -2,10 +2,45 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"sort"
 )
+
+// validateSeatsAvailable checks each requested seat against the real
+// event-sourced projection (projection.seat_snapshots) rather than the
+// in-memory demo seed. Every seat in this codebase gets its snapshot row
+// pre-created with status AVAILABLE (see GetSeatStatusMap's doc comment), so
+// an empty result for the section means the section is unknown, and a
+// missing seat_id within a known section means that seat doesn't exist. This
+// is a cheap early rejection only — the authoritative check-and-reserve
+// happens in seatservice via expected-version locking once the order reaches
+// Kafka, so a race here just means the request proceeds to orderservice and
+// fails downstream instead of failing fast.
+func (s *Server) validateSeatsAvailable(w http.ResponseWriter, ctx context.Context, eventID, sectionID string, seatIDs []string) bool {
+	statuses, err := s.store.GetSeatStatusMap(ctx, eventID, sectionID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return false
+	}
+	if len(statuses) == 0 {
+		writeError(w, http.StatusNotFound, "section_not_found")
+		return false
+	}
+	for _, seatID := range seatIDs {
+		status, exists := statuses[seatID]
+		if !exists {
+			writeError(w, http.StatusNotFound, "seat_not_found")
+			return false
+		}
+		if status != StatusAvailable {
+			writeError(w, http.StatusConflict, "seat_not_available")
+			return false
+		}
+	}
+	return true
+}
 
 func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request, user User) {
 	key := r.Header.Get("Idempotency-Key")
@@ -18,7 +53,7 @@ func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request,
 		SectionID string   `json:"section_id"`
 		SeatIDs   []string `json:"seat_ids"`
 	}
-	body, ok := decodeJSONBytes(w, r, &req)
+	body, ok := decodeJSONStrict(w, r, &req)
 	if !ok {
 		return
 	}
@@ -43,34 +78,40 @@ func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request,
 		writeJSON(w, http.StatusOK, map[string]any{"order": rec.Response})
 		return
 	}
-	section, ok := s.seats[req.EventID][req.SectionID]
-	if !ok {
+
+	if s.store != nil {
 		s.mu.Unlock()
-		writeError(w, http.StatusNotFound, "section_not_found")
-		return
-	}
-	for _, seatID := range req.SeatIDs {
-		seat, ok := section[seatID]
+		if !s.validateSeatsAvailable(w, r.Context(), req.EventID, req.SectionID, req.SeatIDs) {
+			return
+		}
+	} else {
+		section, ok := s.seats[req.EventID][req.SectionID]
 		if !ok {
 			s.mu.Unlock()
-			writeError(w, http.StatusNotFound, "seat_not_found")
+			writeError(w, http.StatusNotFound, "section_not_found")
 			return
 		}
-		s.expireSeatIfNeededLocked(seat)
-		if s.store == nil && seat.Status != StatusAvailable {
-			s.mu.Unlock()
-			writeError(w, http.StatusConflict, "seat_not_available")
-			return
+		for _, seatID := range req.SeatIDs {
+			seat, ok := section[seatID]
+			if !ok {
+				s.mu.Unlock()
+				writeError(w, http.StatusNotFound, "seat_not_found")
+				return
+			}
+			s.expireSeatIfNeededLocked(seat)
+			if seat.Status != StatusAvailable {
+				s.mu.Unlock()
+				writeError(w, http.StatusConflict, "seat_not_available")
+				return
+			}
 		}
-	}
-	if s.store == nil {
 		for _, seatID := range req.SeatIDs {
 			seat := section[seatID]
 			seat.Status = StatusHeld
 			seat.HeldByOrderID = idemKey
 		}
+		s.mu.Unlock()
 	}
-	s.mu.Unlock()
 
 	orderReq := map[string]any{
 		"event_id":        req.EventID,
