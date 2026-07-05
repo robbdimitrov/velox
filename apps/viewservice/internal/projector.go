@@ -8,29 +8,57 @@ import (
 
 var ErrStaleAggregateVersion = errors.New("stale aggregate version")
 
+// Event unifies two producer shapes onto one struct: seatservice's
+// SeatInventoryEvent is flat (top-level event_id/aggregate_id/aggregate_version),
+// while orderservice's envelope nests everything under "Order" and has no
+// top-level event_id/aggregate_id/aggregate_version at all. ResolvedEventID
+// and ResolvedAggregateID paper over that difference so callers don't need to
+// know which producer sent a given message.
 type Event struct {
-	EventID          string
-	AggregateID      string
-	AggregateVersion int64
+	EventID          string `json:"event_id"`
+	AggregateID      string `json:"aggregate_id"`
+	AggregateVersion int64  `json:"aggregate_version"`
 	Type             string
+	CorrelationID    string `json:"correlation_id"`
 	Seat             Seat
 	Order            Order
-	OccurredAt       time.Time
+	OccurredAt       time.Time `json:"occurred_at"`
+}
+
+// ResolvedEventID is the top-level event_id for seatservice-originated
+// events, or orderservice's nested outbox_event_id when the top-level field
+// is absent (orderservice's envelope has no top-level event_id).
+func (e Event) ResolvedEventID() string {
+	if e.EventID != "" {
+		return e.EventID
+	}
+	return e.Order.OutboxEventID
+}
+
+// ResolvedAggregateID is the top-level aggregate_id for seatservice-originated
+// events, or the order_id for orderservice-originated events (which have no
+// concept of a seat-stream aggregate).
+func (e Event) ResolvedAggregateID() string {
+	if e.AggregateID != "" {
+		return e.AggregateID
+	}
+	return e.Order.OrderID
 }
 
 type Seat struct {
-	EventID     string
-	SectionID   string
-	SeatID      string
+	EventID     string `json:"event_id"`
+	SectionID   string `json:"section_id"`
+	SeatID      string `json:"seat_id"`
 	Status      string
 	Version     int64
-	ExpiresAtMS int64
+	ExpiresAtMS int64 `json:"expires_at_ms"`
 }
 
 type Order struct {
-	OrderID string
-	UserID  string
-	EventID string
+	OutboxEventID    string `json:"outbox_event_id"`
+	OrderID          string `json:"order_id"`
+	UserID           string `json:"user_id"`
+	EventID          string `json:"event_id"`
 	Status           string
 	TotalAmountMinor int64 `json:"total_amount_minor"`
 }
@@ -58,20 +86,22 @@ func NewProjector() *Projector {
 func (p *Projector) Apply(event Event) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if _, ok := p.processed[event.EventID]; ok {
+	eventID := event.ResolvedEventID()
+	aggregateID := event.ResolvedAggregateID()
+	if _, ok := p.processed[eventID]; ok {
 		return nil
 	}
-	last := p.aggregateVer[event.AggregateID]
+	last := p.aggregateVer[aggregateID]
 	if event.AggregateVersion > 0 && last >= event.AggregateVersion {
 		return ErrStaleAggregateVersion
 	}
-	p.processed[event.EventID] = struct{}{}
-	p.aggregateVer[event.AggregateID] = event.AggregateVersion
+	p.processed[eventID] = struct{}{}
+	p.aggregateVer[aggregateID] = event.AggregateVersion
 	if !event.OccurredAt.IsZero() {
 		p.ProjectionLagMS = time.Since(event.OccurredAt).Milliseconds()
 	}
 	switch event.Type {
-	case "SeatReservationHeld", "SeatReservationExpired", "SeatTicketIssued":
+	case "SeatReservationHeld", "SeatReservationExpired", "SeatReservationConfirmed", "SeatTicketIssued":
 		key := event.Seat.EventID + ":" + event.Seat.SectionID + ":" + event.Seat.SeatID
 		event.Seat.Version = event.AggregateVersion
 		p.Seats[key] = event.Seat
