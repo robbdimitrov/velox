@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -55,6 +56,9 @@ func (s *Store) CreateOrder(ctx context.Context, req OrderRequest) (string, erro
 	`, req.UserID, req.IdempotencyKey).Scan(&existingHash, &responseRef)
 
 	if err == nil {
+		if !bytes.Equal(existingHash, hash[:]) {
+			return "", ErrIdempotencyConflict
+		}
 		if responseRef.Valid {
 			return responseRef.String, nil
 		}
@@ -108,9 +112,11 @@ func (s *Store) CreateOrder(ctx context.Context, req OrderRequest) (string, erro
 		}
 	}
 
+	eventID := uuid.New().String()
 	envelope := map[string]any{
 		"Type": "OrderCreated",
 		"Order": map[string]any{
+			"outbox_event_id":    eventID,
 			"order_id":           orderID,
 			"user_id":            req.UserID,
 			"event_id":           req.EventID,
@@ -123,7 +129,6 @@ func (s *Store) CreateOrder(ctx context.Context, req OrderRequest) (string, erro
 		},
 	}
 	payloadBytes, _ := json.Marshal(envelope)
-	eventID := uuid.New().String()
 
 	headers := map[string]string{}
 	// Since we are in orderservice package 'internal', we don't have access to 'main.RequestIDKey'

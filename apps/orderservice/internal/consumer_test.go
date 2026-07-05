@@ -3,7 +3,7 @@ package internal
 import (
 	"context"
 	"testing"
-	
+
 	"github.com/DATA-DOG/go-sqlmock"
 )
 
@@ -34,7 +34,7 @@ func TestHandleSeatReserved_IdempotentCheck(t *testing.T) {
 	defer db.Close()
 
 	orderID := "ord-123"
-	
+
 	mock.ExpectBegin()
 
 	// Return a status of 'CONFIRMED' (not 'PENDING'), so it should rollback and exit

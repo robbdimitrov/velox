@@ -6,15 +6,58 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"os"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
+// defaultPaymentWorkerPoolSize bounds concurrent payment-processing jobs when
+// PAYMENT_WORKER_POOL_SIZE is unset. 10 keeps external Stripe-call concurrency
+// modest by default while still lifting the prior de facto limit of 1.
+const defaultPaymentWorkerPoolSize = 10
+
+// paymentWorkerPoolSize returns the bounded worker pool size for validation
+// and payment jobs dispatched from the Kafka consume loop, configurable per
+// deployment via PAYMENT_WORKER_POOL_SIZE.
+func paymentWorkerPoolSize() int {
+	if v := os.Getenv("PAYMENT_WORKER_POOL_SIZE"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return defaultPaymentWorkerPoolSize
+}
+
+// dispatchJob acquires a slot from the bounded pool and runs job on its own
+// goroutine, tracked by wg so the caller can wait for in-flight jobs to drain
+// on shutdown. It does not dispatch once ctx is cancelled, but never aborts a
+// job already running.
+func dispatchJob(ctx context.Context, sem chan struct{}, wg *sync.WaitGroup, job func()) {
+	select {
+	case sem <- struct{}{}:
+	case <-ctx.Done():
+		return
+	}
+	wg.Go(func() {
+		defer func() { <-sem }()
+		job()
+	})
+}
+
 func StartConsumer(ctx context.Context, db *sql.DB, cl *kgo.Client) {
+	sem := make(chan struct{}, paymentWorkerPoolSize())
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
 	for {
+		if ctx.Err() != nil {
+			return
+		}
 		fetches := cl.PollFetches(ctx)
 		if fetches.IsClientClosed() {
 			return
@@ -65,8 +108,8 @@ func StartConsumer(ctx context.Context, db *sql.DB, cl *kgo.Client) {
 
 			if eventType == "" {
 				s := string(r.Value)
-				if strings.Contains(s, "SeatReserved") {
-					eventType = "SeatReserved"
+				if strings.Contains(s, "SeatReservationHeld") {
+					eventType = "SeatReservationHeld"
 				} else if strings.Contains(s, "SeatReservationFailed") {
 					eventType = "SeatReservationFailed"
 				}
@@ -74,17 +117,23 @@ func StartConsumer(ctx context.Context, db *sql.DB, cl *kgo.Client) {
 
 			if orderID != "" {
 				switch eventType {
-				case "SeatReserved":
-					handleSeatReserved(recordCtx, db, orderID)
+				case "SeatReservationHeld":
+					dispatchJob(ctx, sem, &wg, func() { handleSeatReserved(recordCtx, db, orderID) })
 				case "SeatReservationFailed":
-					handleSeatReservationFailed(recordCtx, db, orderID)
+					dispatchJob(ctx, sem, &wg, func() { handleSeatReservationFailed(recordCtx, db, orderID) })
 				}
 			}
 		})
 	}
 }
 
-func mockStripePayment(ctx context.Context, amount int64) error {
+// mockStripePayment stands in for a real payment provider call. idempotencyKey
+// is threaded through because docs/architecture.md requires payment providers
+// receive the same idempotency key the client used, to prevent duplicate
+// charges on retry; a real Stripe client would pass this as its own
+// Idempotency-Key request header.
+func mockStripePayment(ctx context.Context, amount int64, idempotencyKey string) error {
+	_ = idempotencyKey
 	time.Sleep(800 * time.Millisecond)
 	if amount%10 == 9 {
 		return errors.New("card declined")
@@ -102,12 +151,13 @@ func handleSeatReserved(ctx context.Context, db *sql.DB, orderID string) {
 	var totalAmount int64
 	var eventIDStr string
 	var status string
+	var idempotencyKey string
 	err = tx.QueryRowContext(ctx, `
-		SELECT o.total_amount_minor, s.event_id, o.status
-		FROM orders.orders o 
-		JOIN orders.order_seats s ON s.order_id = o.id 
+		SELECT o.total_amount_minor, s.event_id, o.status, o.idempotency_key
+		FROM orders.orders o
+		JOIN orders.order_seats s ON s.order_id = o.id
 		WHERE o.id = $1 LIMIT 1
-	`, orderID).Scan(&totalAmount, &eventIDStr, &status)
+	`, orderID).Scan(&totalAmount, &eventIDStr, &status, &idempotencyKey)
 	if err != nil {
 		slog.Error("failed to get order details", "error", err)
 		tx.Rollback()
@@ -119,15 +169,15 @@ func handleSeatReserved(ctx context.Context, db *sql.DB, orderID string) {
 		return
 	}
 
-	_, err = tx.ExecContext(ctx, `UPDATE orders.orders SET status = 'PAYMENT_PENDING', updated_at = now() WHERE id = $1`, orderID)
+	_, err = tx.ExecContext(ctx, `UPDATE orders.orders SET status = 'AWAITING_PAYMENT', updated_at = now() WHERE id = $1`, orderID)
 	if err != nil {
-		slog.Error("failed to update PAYMENT_PENDING", "error", err)
+		slog.Error("failed to update AWAITING_PAYMENT", "error", err)
 		tx.Rollback()
 		return
 	}
 	tx.Commit()
 
-	err = mockStripePayment(ctx, totalAmount)
+	err = mockStripePayment(ctx, totalAmount, idempotencyKey)
 
 	tx, errTx := db.BeginTx(ctx, nil)
 	if errTx != nil {
@@ -150,6 +200,7 @@ func handleSeatReserved(ctx context.Context, db *sql.DB, orderID string) {
 		envelope = map[string]any{
 			"Type": "PaymentFailed",
 			"Order": map[string]any{
+				"outbox_event_id":    eventID,
 				"order_id":           orderID,
 				"event_id":           eventIDStr,
 				"status":             "FAILED",
@@ -166,6 +217,7 @@ func handleSeatReserved(ctx context.Context, db *sql.DB, orderID string) {
 		envelope = map[string]any{
 			"Type": "OrderConfirmed",
 			"Order": map[string]any{
+				"outbox_event_id":    eventID,
 				"order_id":           orderID,
 				"event_id":           eventIDStr,
 				"status":             "CONFIRMED",
