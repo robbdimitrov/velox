@@ -44,7 +44,7 @@
 
 <div class="flex items-center justify-center min-h-[80vh] px-4">
   <div
-    class="glass-panel w-full max-w-md p-8 rounded-3xl shadow-glow relative overflow-hidden group"
+    class="glass-panel w-full max-w-md p-8 rounded shadow-glow relative overflow-hidden group"
   >
     <div
       class="absolute inset-0 bg-gradient-to-br from-signal/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
@@ -59,7 +59,7 @@
 
       {#if error}
         <div
-          class="bg-danger/20 border border-danger/50 text-danger p-3 rounded-xl mb-6 text-sm backdrop-blur-sm animate-pulse"
+          class="bg-danger/20 border border-danger/50 text-danger p-3 rounded mb-6 text-sm backdrop-blur-sm animate-pulse"
         >
           {error}
         </div>
@@ -78,7 +78,7 @@
               type="text"
               bind:value={name}
               required
-              class="w-full bg-black/40 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-ink placeholder:text-inkMuted/50 focus:border-signal focus:ring-1 focus:ring-signal transition-all outline-none shadow-inner"
+              class="w-full bg-black/40 border border-white/10 rounded py-3 pl-10 pr-4 text-ink placeholder:text-inkMuted/50 focus:border-signal focus:ring-1 focus:ring-signal transition-all outline-none shadow-inner"
               placeholder="John Doe"
             />
           </div>
@@ -96,7 +96,7 @@
               type="email"
               bind:value={email}
               required
-              class="w-full bg-black/40 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-ink placeholder:text-inkMuted/50 focus:border-signal focus:ring-1 focus:ring-signal transition-all outline-none shadow-inner"
+              class="w-full bg-black/40 border border-white/10 rounded py-3 pl-10 pr-4 text-ink placeholder:text-inkMuted/50 focus:border-signal focus:ring-1 focus:ring-signal transition-all outline-none shadow-inner"
               placeholder="you@example.com"
             />
           </div>
@@ -114,7 +114,7 @@
               type="password"
               bind:value={password}
               required
-              class="w-full bg-black/40 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-ink placeholder:text-inkMuted/50 focus:border-signal focus:ring-1 focus:ring-signal transition-all outline-none shadow-inner"
+              class="w-full bg-black/40 border border-white/10 rounded py-3 pl-10 pr-4 text-ink placeholder:text-inkMuted/50 focus:border-signal focus:ring-1 focus:ring-signal transition-all outline-none shadow-inner"
               placeholder="••••••••"
             />
           </div>
@@ -123,7 +123,7 @@
         <button
           type="submit"
           disabled={loading}
-          class="w-full btn border-none bg-gradient-to-r from-signal to-accent text-white rounded-xl shadow-lg shadow-signal/20 hover:shadow-signal/40 hover:scale-[1.02] transition-all flex items-center justify-center gap-2 mt-4"
+          class="w-full btn border-none bg-gradient-to-r from-signal to-accent text-white rounded shadow-lg shadow-signal/20 hover:shadow-signal/40 hover:scale-[1.02] transition-all flex items-center justify-center gap-2 mt-4"
         >
           {#if loading}
             <span class="loading loading-spinner loading-sm"></span>

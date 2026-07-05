@@ -24,10 +24,10 @@
 </script>
 
 <a
-  class="group relative grid grid-cols-[110px_1fr_auto] gap-4 rounded-xl border border-white/5 bg-black/40 p-3 transition-all duration-300 hover:-translate-y-1 hover:border-signal/40 hover:bg-black/60 hover:shadow-glow"
+  class="group relative grid grid-cols-[110px_1fr_auto] gap-4 rounded border border-white/5 bg-black/40 p-3 transition-all duration-300 hover:-translate-y-1 hover:border-signal/40 hover:bg-black/60 hover:shadow-glow"
   href={`/events/${event.id}`}
 >
-  <div class="overflow-hidden rounded-lg shadow-md bg-carbon">
+  <div class="overflow-hidden rounded shadow-md bg-carbon">
     <img
       class="h-24 w-full object-cover transition-transform duration-500 group-hover:scale-110"
       src={event.image_url}
@@ -48,11 +48,11 @@
       class="mt-3 flex flex-wrap items-center gap-4 text-xs font-semibold uppercase text-inkMuted"
     >
       <span
-        class="flex items-center gap-1.5 bg-white/5 px-2 py-1 rounded-md shadow-sm"
+        class="flex items-center gap-1.5 bg-white/5 px-2 py-1 rounded shadow-sm"
         ><Clock size={13} class="text-info" /> {saleTime}</span
       >
       <span
-        class={`font-mono px-2 py-1 bg-white/5 rounded-md shadow-sm ${scarcityTone}`}
+        class={`font-mono px-2 py-1 bg-white/5 rounded shadow-sm ${scarcityTone}`}
       >
         {event.remaining_bucket.replace('_', ' ')}
       </span>
@@ -60,7 +60,7 @@
   </div>
   <div class="flex flex-col items-end justify-between py-1 font-mono">
     <div
-      class="bg-black/50 p-2 rounded-lg border border-white/5 flex flex-col items-center gap-1 shadow-inner group-hover:border-signal/30 transition-colors"
+      class="bg-black/50 p-2 rounded border border-white/5 flex flex-col items-center gap-1 shadow-inner group-hover:border-signal/30 transition-colors"
     >
       <Gauge class="text-signal group-hover:animate-spin-slow" size={20} />
       <span class="text-2xl font-black text-white">{event.demand_score}</span>

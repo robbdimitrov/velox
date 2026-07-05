@@ -18,7 +18,7 @@
   </div>
 
   <div class="grid grid-cols-2 gap-4">
-    <div class="bg-black/40 rounded-lg p-4 border border-white/5">
+    <div class="bg-black/40 rounded p-4 border border-white/5">
       <div class="flex items-center gap-2 text-inkMuted mb-2">
         <Server size={14} />
         <span class="text-xs font-bold uppercase tracking-widest"
@@ -31,7 +31,7 @@
       </div>
     </div>
 
-    <div class="bg-black/40 rounded-lg p-4 border border-white/5">
+    <div class="bg-black/40 rounded p-4 border border-white/5">
       <div class="flex items-center gap-2 text-inkMuted mb-2">
         <Database size={14} />
         <span class="text-xs font-bold uppercase tracking-widest">Memory</span>
@@ -45,7 +45,7 @@
       </div>
     </div>
 
-    <div class="bg-black/40 rounded-lg p-4 border border-white/5">
+    <div class="bg-black/40 rounded p-4 border border-white/5">
       <div class="flex items-center gap-2 text-inkMuted mb-2">
         <Users size={14} />
         <span class="text-xs font-bold uppercase tracking-widest"
@@ -55,7 +55,7 @@
       <div class="text-2xl font-mono text-white">{activeUsers}</div>
     </div>
 
-    <div class="bg-black/40 rounded-lg p-4 border border-white/5">
+    <div class="bg-black/40 rounded p-4 border border-white/5">
       <div class="flex items-center gap-2 text-inkMuted mb-2">
         <Activity size={14} />
         <span class="text-xs font-bold uppercase tracking-widest"

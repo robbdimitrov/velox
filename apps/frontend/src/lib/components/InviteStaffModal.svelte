@@ -27,7 +27,7 @@
 
       <div class="p-6">
         <div class="flex items-center gap-3 mb-6 border-b border-white/10 pb-4">
-          <div class="p-2 bg-signal/20 rounded-lg text-signal">
+          <div class="p-2 bg-signal/20 rounded text-signal">
             <UserPlus size={20} />
           </div>
           <h3 class="text-lg font-black uppercase tracking-wider text-white">
@@ -41,7 +41,7 @@
               >Email Address</span
             >
             <div
-              class="flex items-center gap-2 border border-white/10 bg-black/40 px-3 py-2 rounded-lg focus-within:border-signal transition-colors"
+              class="flex items-center gap-2 border border-white/10 bg-black/40 px-3 py-2 rounded focus-within:border-signal transition-colors"
             >
               <Mail size={16} class="text-inkMuted" />
               <input
@@ -57,7 +57,7 @@
             <span class="label-text text-inkMuted font-medium mb-1">Role</span>
             <select
               bind:value={role}
-              class="select select-bordered border-white/10 bg-black/40 text-white rounded-lg focus:border-signal w-full"
+              class="select select-bordered border-white/10 bg-black/40 text-white rounded focus:border-signal w-full"
             >
               <option value="ADMIN">Admin</option>
               <option value="MANAGER">Manager</option>
@@ -68,13 +68,13 @@
 
         <div class="mt-8 flex justify-end gap-3">
           <button
-            class="btn btn-sm btn-ghost hover:bg-white/5 text-ink rounded-lg"
+            class="btn btn-sm btn-ghost hover:bg-white/5 text-ink rounded"
             onclick={() => (show = false)}
           >
             Cancel
           </button>
           <button
-            class="btn btn-sm bg-signal hover:bg-signal/80 border-none text-white rounded-lg shadow-glow"
+            class="btn btn-sm bg-signal hover:bg-signal/80 border-none text-white rounded shadow-glow"
             onclick={handleInvite}
             disabled={!email}
           >

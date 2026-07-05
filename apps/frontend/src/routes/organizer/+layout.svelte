@@ -22,7 +22,7 @@
   <!-- Sidebar -->
   <aside class="w-64 flex-shrink-0">
     <div
-      class="glass-panel sticky top-28 p-4 rounded-3xl shadow-glow flex flex-col h-[calc(100vh-8rem)]"
+      class="glass-panel sticky top-28 p-4 rounded shadow-glow flex flex-col h-[calc(100vh-8rem)]"
     >
       <div class="mb-8 px-2">
         <h2 class="text-xl font-black uppercase tracking-tight text-info">
@@ -39,7 +39,7 @@
               page.url.pathname.startsWith(link.href))}
           <a
             href={link.href}
-            class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 {isActive
+            class="flex items-center gap-3 px-4 py-3 rounded transition-all duration-300 {isActive
               ? 'bg-info/20 text-info font-semibold shadow-inner shadow-info/20'
               : 'text-inkMuted hover:bg-white/5 hover:text-ink'}"
           >
@@ -52,7 +52,7 @@
       <div class="pt-4 border-t border-white/10 mt-auto">
         <a
           href="/api/auth/logout"
-          class="flex items-center gap-3 px-4 py-3 rounded-xl text-danger/80 hover:bg-danger/10 hover:text-danger transition-all duration-300"
+          class="flex items-center gap-3 px-4 py-3 rounded text-danger/80 hover:bg-danger/10 hover:text-danger transition-all duration-300"
         >
           <LogOut size={20} />
           Logout

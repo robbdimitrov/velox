@@ -65,11 +65,11 @@
   </div>
 
   <div
-    class="glass-panel p-8 rounded-3xl shadow-glow min-h-[400px] flex flex-col relative overflow-hidden"
+    class="glass-panel p-8 rounded shadow-glow min-h-[400px] flex flex-col relative overflow-hidden"
   >
     {#if error}
       <div
-        class="bg-danger/20 border border-danger/50 text-danger p-3 rounded-xl mb-6 text-sm backdrop-blur-sm animate-pulse"
+        class="bg-danger/20 border border-danger/50 text-danger p-3 rounded mb-6 text-sm backdrop-blur-sm animate-pulse"
       >
         {error}
       </div>
@@ -92,7 +92,7 @@
           id="name"
           type="text"
           bind:value={venueName}
-          class="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
+          class="w-full bg-black/40 border border-white/10 rounded py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
           placeholder="e.g. Velox Arena"
         />
       </div>
@@ -106,7 +106,7 @@
           id="city"
           type="text"
           bind:value={venueCity}
-          class="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
+          class="w-full bg-black/40 border border-white/10 rounded py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
           placeholder="e.g. Chicago"
         />
       </div>
@@ -120,7 +120,7 @@
           id="address"
           type="text"
           bind:value={venueAddress}
-          class="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
+          class="w-full bg-black/40 border border-white/10 rounded py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
           placeholder="e.g. 123 Main St"
         />
       </div>
@@ -135,7 +135,7 @@
           type="number"
           bind:value={venueCapacity}
           min="1"
-          class="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
+          class="w-full bg-black/40 border border-white/10 rounded py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
           placeholder="e.g. 5000"
         />
       </div>
@@ -145,7 +145,7 @@
     <div class="mt-8 pt-6 border-t border-white/10 flex justify-end">
       <button
         type="button"
-        class="btn btn-sm border-none bg-gradient-to-r from-signal to-accent text-white shadow-lg shadow-signal/20 hover:shadow-signal/40 hover:scale-105 rounded-lg transition-all"
+        class="btn btn-sm border-none bg-gradient-to-r from-signal to-accent text-white shadow-lg shadow-signal/20 hover:shadow-signal/40 hover:scale-105 rounded transition-all"
         onclick={submitVenue}
         disabled={loading ||
           !venueName ||

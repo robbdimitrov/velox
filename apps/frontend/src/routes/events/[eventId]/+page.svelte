@@ -108,7 +108,7 @@
     <aside class="glass-panel h-max p-6 sticky top-28">
       <div class="flex items-center gap-3 border-b border-white/10 pb-4 mb-6">
         <div
-          class="p-2 bg-gradient-to-br from-signal to-primary rounded-lg shadow-md"
+          class="p-2 bg-gradient-to-br from-signal to-primary rounded shadow-md"
         >
           <Layers class="text-white" size={18} />
         </div>
@@ -122,7 +122,7 @@
         <select
           bind:value={sectionID}
           onchange={() => goto(`?section_id=${sectionID}`)}
-          class="select select-bordered select-sm border-white/10 bg-black/40 text-ink rounded-lg focus:border-signal"
+          class="select select-bordered select-sm border-white/10 bg-black/40 text-ink rounded focus:border-signal"
         >
           <option>A</option>
           <option>B</option>
@@ -132,19 +132,19 @@
 
       <div class="grid grid-cols-2 gap-3 mb-6">
         <button
-          class="btn btn-sm border-white/10 bg-black/40 text-ink hover:bg-black/60 rounded-lg shadow-inner"
+          class="btn btn-sm border-white/10 bg-black/40 text-ink hover:bg-black/60 rounded shadow-inner"
           onclick={() => (zoomLevel = Math.min(3, zoomLevel * 1.2))}
           ><Plus size={16} /> Zoom</button
         >
         <button
-          class="btn btn-sm border-white/10 bg-black/40 text-ink hover:bg-black/60 rounded-lg shadow-inner"
+          class="btn btn-sm border-white/10 bg-black/40 text-ink hover:bg-black/60 rounded shadow-inner"
           onclick={() => (zoomLevel = Math.max(0.5, zoomLevel / 1.2))}
           ><Minus size={16} /> Zoom</button
         >
       </div>
 
       <label
-        class="flex items-center gap-3 text-sm cursor-pointer hover:text-white transition-colors group bg-black/20 p-3 rounded-lg border border-white/5 mb-6"
+        class="flex items-center gap-3 text-sm cursor-pointer hover:text-white transition-colors group bg-black/20 p-3 rounded border border-white/5 mb-6"
       >
         <input
           bind:checked={accessibleOnly}
@@ -266,7 +266,7 @@
             <div class="grid grid-cols-2 gap-3">
               {#each seatState.selectedSeats as seat}
                 <div
-                  class="flex items-center justify-center rounded-lg border border-white/5 bg-black/40 p-3 font-mono text-sm shadow-sm"
+                  class="flex items-center justify-center rounded border border-white/5 bg-black/40 p-3 font-mono text-sm shadow-sm"
                   in:slide
                 >
                   <span class="text-white font-bold">{seat.seat_id}</span>
@@ -275,7 +275,7 @@
             </div>
           {:else}
             <div
-              class="h-full flex items-center justify-center border-2 border-dashed border-white/5 rounded-xl p-4"
+              class="h-full flex items-center justify-center border-2 border-dashed border-white/5 rounded p-4"
             >
               <p class="text-sm text-inkMuted text-center">
                 Choose available seats<br />from the map.
@@ -298,7 +298,7 @@
 
         {#if error}
           <p
-            class="mt-4 rounded-lg border border-urgency/50 bg-urgency/10 p-3 text-xs font-medium text-urgency leading-tight"
+            class="mt-4 rounded border border-urgency/50 bg-urgency/10 p-3 text-xs font-medium text-urgency leading-tight"
           >
             {error}
           </p>

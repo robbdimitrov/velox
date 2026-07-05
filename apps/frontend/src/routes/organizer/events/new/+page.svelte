@@ -85,11 +85,11 @@
   </ul>
 
   <div
-    class="glass-panel p-8 rounded-3xl shadow-glow min-h-[400px] flex flex-col relative overflow-hidden"
+    class="glass-panel p-8 rounded shadow-glow min-h-[400px] flex flex-col relative overflow-hidden"
   >
     {#if error}
       <div
-        class="bg-danger/20 border border-danger/50 text-danger p-3 rounded-xl mb-6 text-sm backdrop-blur-sm animate-pulse"
+        class="bg-danger/20 border border-danger/50 text-danger p-3 rounded mb-6 text-sm backdrop-blur-sm animate-pulse"
       >
         {error}
       </div>
@@ -101,7 +101,7 @@
         <h2 class="text-xl font-bold mb-6">Select a Venue</h2>
         {#if data.venues.length === 0}
           <div
-            class="p-6 border border-warning/30 bg-warning/10 rounded-2xl text-center text-warning"
+            class="p-6 border border-warning/30 bg-warning/10 rounded text-center text-warning"
           >
             <p>You need to create a venue first.</p>
             <a href="/organizer/venues" class="btn btn-sm btn-warning mt-4"
@@ -114,7 +114,7 @@
               <button
                 type="button"
                 onclick={() => (selectedVenue = venue.id)}
-                class="text-left p-4 rounded-2xl border transition-all duration-300 {selectedVenue ===
+                class="text-left p-4 rounded border transition-all duration-300 {selectedVenue ===
                 venue.id
                   ? 'bg-info/20 border-info shadow-inner shadow-info/20'
                   : 'bg-black/40 border-white/10 hover:border-white/30'}"
@@ -146,7 +146,7 @@
             id="name"
             type="text"
             bind:value={eventName}
-            class="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
+            class="w-full bg-black/40 border border-white/10 rounded py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
             placeholder="e.g. Summer Music Festival"
           />
         </div>
@@ -160,7 +160,7 @@
             id="desc"
             bind:value={eventDescription}
             rows="3"
-            class="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none resize-none"
+            class="w-full bg-black/40 border border-white/10 rounded py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none resize-none"
             placeholder="Tell attendees what to expect..."></textarea>
         </div>
 
@@ -174,7 +174,7 @@
               id="date"
               type="datetime-local"
               bind:value={eventDate}
-              class="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
+              class="w-full bg-black/40 border border-white/10 rounded py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
             />
           </div>
           <div class="space-y-2">
@@ -188,7 +188,7 @@
               bind:value={eventPrice}
               min="0"
               step="0.01"
-              class="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
+              class="w-full bg-black/40 border border-white/10 rounded py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
             />
           </div>
         </div>
@@ -200,9 +200,7 @@
       <div class="flex-1 animate-in slide-in-from-right fade-in duration-300">
         <h2 class="text-xl font-bold mb-6">Review & Publish</h2>
 
-        <div
-          class="bg-black/40 border border-white/10 rounded-2xl p-6 space-y-4"
-        >
+        <div class="bg-black/40 border border-white/10 rounded p-6 space-y-4">
           <div>
             <div class="text-xs text-inkMuted uppercase font-semibold">
               Event Name
@@ -248,7 +246,7 @@
       {#if currentStep < 3}
         <button
           type="button"
-          class="btn btn-sm border-none bg-info text-white hover:bg-info/80 shadow-lg shadow-info/20 rounded-lg"
+          class="btn btn-sm border-none bg-info text-white hover:bg-info/80 shadow-lg shadow-info/20 rounded"
           onclick={() => currentStep++}
           disabled={(currentStep === 1 && !selectedVenue) ||
             (currentStep === 2 && (!eventName || !eventDate))}
@@ -258,7 +256,7 @@
       {:else}
         <button
           type="button"
-          class="btn btn-sm border-none bg-gradient-to-r from-signal to-accent text-white shadow-lg shadow-signal/20 hover:shadow-signal/40 hover:scale-105 rounded-lg transition-all"
+          class="btn btn-sm border-none bg-gradient-to-r from-signal to-accent text-white shadow-lg shadow-signal/20 hover:shadow-signal/40 hover:scale-105 rounded transition-all"
           onclick={submitEvent}
           disabled={loading}
         >

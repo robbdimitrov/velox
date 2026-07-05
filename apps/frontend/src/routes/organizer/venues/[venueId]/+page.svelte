@@ -42,7 +42,7 @@
       </p>
     </div>
     <button
-      class="btn bg-signal hover:bg-signal/80 border-none text-white rounded-lg shadow-glow flex items-center gap-2"
+      class="btn bg-signal hover:bg-signal/80 border-none text-white rounded shadow-glow flex items-center gap-2"
       onclick={() => (showModal = true)}
     >
       <UserPlus size={18} />

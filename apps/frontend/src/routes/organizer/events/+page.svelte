@@ -16,7 +16,7 @@
   </div>
   <a
     href="/organizer/events/new"
-    class="btn btn-sm border-none bg-gradient-to-r from-info to-accent text-white shadow-lg shadow-info/20 hover:shadow-info/40 rounded-lg"
+    class="btn btn-sm border-none bg-gradient-to-r from-info to-accent text-white shadow-lg shadow-info/20 hover:shadow-info/40 rounded"
   >
     <Plus size={16} /> Create Event
   </a>
@@ -24,7 +24,7 @@
 
 {#if data.events.length === 0}
   <div
-    class="glass-panel p-12 rounded-3xl flex flex-col items-center justify-center text-center shadow-glow"
+    class="glass-panel p-12 rounded flex flex-col items-center justify-center text-center shadow-glow"
   >
     <div
       class="w-16 h-16 rounded-full bg-info/10 flex items-center justify-center mb-4 text-info shadow-inner"
@@ -38,7 +38,7 @@
     </p>
     <a
       href="/organizer/events/new"
-      class="btn btn-sm border-none bg-info text-white hover:bg-info/90 shadow-lg shadow-info/20 rounded-lg"
+      class="btn btn-sm border-none bg-info text-white hover:bg-info/90 shadow-lg shadow-info/20 rounded"
     >
       <Plus size={16} /> Create Your First Event
     </a>
@@ -47,7 +47,7 @@
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     {#each data.events as event}
       <div
-        class="glass-panel p-6 rounded-2xl shadow-glow relative overflow-hidden group hover:-translate-y-1 transition-all duration-300 flex flex-col"
+        class="glass-panel p-6 rounded shadow-glow relative overflow-hidden group hover:-translate-y-1 transition-all duration-300 flex flex-col"
       >
         <div
           class="absolute inset-0 bg-gradient-to-br from-info/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"
@@ -55,7 +55,7 @@
         <div class="relative z-10 flex-1 flex flex-col">
           <div class="flex justify-between items-start mb-4">
             <div
-              class="w-10 h-10 rounded-xl bg-info/20 flex items-center justify-center text-info shadow-inner"
+              class="w-10 h-10 rounded bg-info/20 flex items-center justify-center text-info shadow-inner"
             >
               <Calendar size={20} />
             </div>

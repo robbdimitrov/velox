@@ -73,7 +73,7 @@
       </h1>
 
       <div
-        class="my-6 rounded-xl border border-urgency/20 bg-urgency/5 py-6 text-center shadow-inner relative overflow-hidden shrink-0"
+        class="my-6 rounded border border-urgency/20 bg-urgency/5 py-6 text-center shadow-inner relative overflow-hidden shrink-0"
       >
         <div
           class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-urgency/10 to-transparent blur-xl"
@@ -99,7 +99,7 @@
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {#each checkoutState.reservation.seats as seat}
             <div
-              class="flex items-center justify-center rounded-lg border border-white/5 bg-black/40 p-4 font-mono shadow-sm hover:border-signal/30 transition-colors"
+              class="flex items-center justify-center rounded border border-white/5 bg-black/40 p-4 font-mono shadow-sm hover:border-signal/30 transition-colors"
             >
               <span class="text-xl font-bold text-ink">{seat.seat_id}</span>
             </div>
@@ -118,7 +118,7 @@
     <aside class="glass-panel h-max p-6 sticky top-28">
       <div class="flex items-center gap-3 border-b border-white/10 pb-4 mb-6">
         <div
-          class="p-2 bg-gradient-to-br from-signal to-primary rounded-lg shadow-md"
+          class="p-2 bg-gradient-to-br from-signal to-primary rounded shadow-md"
         >
           <CheckCircle2 class="text-white" size={20} />
         </div>
@@ -128,7 +128,7 @@
       </div>
 
       <label
-        class="flex items-start gap-3 text-sm cursor-pointer hover:text-white transition-colors group mb-6 bg-black/20 p-4 rounded-xl border border-white/5"
+        class="flex items-start gap-3 text-sm cursor-pointer hover:text-white transition-colors group mb-6 bg-black/20 p-4 rounded border border-white/5"
       >
         <input
           bind:checked={termsAccepted}
@@ -143,7 +143,7 @@
 
       {#if checkoutState.error}
         <div
-          class="mb-6 flex items-start gap-2 rounded-lg border border-urgency/50 bg-urgency/10 p-3 text-sm text-urgency"
+          class="mb-6 flex items-start gap-2 rounded border border-urgency/50 bg-urgency/10 p-3 text-sm text-urgency"
         >
           <AlertTriangle size={18} class="shrink-0 mt-0.5" />
           <p>{checkoutState.error}</p>

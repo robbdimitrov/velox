@@ -33,7 +33,7 @@
         class="flex items-center gap-2 text-2xl font-black uppercase tracking-tight hover:scale-105 transition-transform"
       >
         <div
-          class="p-2 bg-gradient-to-br from-signal to-accent rounded-xl shadow-lg shadow-signal/30"
+          class="p-2 bg-gradient-to-br from-signal to-accent rounded shadow-lg shadow-signal/30"
         >
           <Ticket class="text-white" size={24} />
         </div>
@@ -54,7 +54,7 @@
       <div class="flex items-center gap-4">
         {#if authState.user}
           <a
-            class="btn btn-sm border-white/10 bg-black/40 text-ink hover:border-signal hover:bg-signal/20 rounded-lg shadow-sm backdrop-blur-md transition-all duration-300"
+            class="btn btn-sm border-white/10 bg-black/40 text-ink hover:border-signal hover:bg-signal/20 rounded shadow-sm backdrop-blur-md transition-all duration-300"
             href="/wallet"
           >
             <ShieldCheck size={16} class="text-ok" /> Wallet
@@ -79,21 +79,21 @@
               <li>
                 <a
                   href="/organizer"
-                  class="hover:bg-white/10 hover:text-info rounded-lg transition-colors flex items-center gap-2"
+                  class="hover:bg-white/10 hover:text-info rounded transition-colors flex items-center gap-2"
                   ><BriefcaseBusiness size={14} /> Host Events</a
                 >
               </li>
               <li>
                 <a
                   href="/profile"
-                  class="hover:bg-white/10 hover:text-signal rounded-lg transition-colors"
+                  class="hover:bg-white/10 hover:text-signal rounded transition-colors"
                   >Profile</a
                 >
               </li>
               <li>
                 <a
                   href="/api/auth/logout"
-                  class="hover:bg-white/10 hover:text-danger rounded-lg transition-colors"
+                  class="hover:bg-white/10 hover:text-danger rounded transition-colors"
                   >Logout</a
                 >
               </li>
@@ -101,13 +101,13 @@
           </div>
         {:else}
           <a
-            class="btn btn-sm btn-ghost text-ink hover:bg-white/5 rounded-lg transition-colors"
+            class="btn btn-sm btn-ghost text-ink hover:bg-white/5 rounded transition-colors"
             href="/login"
           >
             <LogIn size={16} /> Login
           </a>
           <a
-            class="btn btn-sm border-none bg-gradient-to-r from-signal to-accent text-white shadow-lg shadow-signal/20 hover:shadow-signal/40 hover:scale-105 rounded-lg transition-all"
+            class="btn btn-sm border-none bg-gradient-to-r from-signal to-accent text-white shadow-lg shadow-signal/20 hover:shadow-signal/40 hover:scale-105 rounded transition-all"
             href="/register"
           >
             <UserPlus size={16} /> Register

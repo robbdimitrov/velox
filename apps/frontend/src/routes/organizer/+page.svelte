@@ -124,7 +124,7 @@
             </p>
             <p class="text-xs text-ink/40 mt-2">Total confirmed reservations</p>
           </div>
-          <div class="p-3 bg-signal/20 rounded-xl text-signal shadow-inner">
+          <div class="p-3 bg-signal/20 rounded text-signal shadow-inner">
             <Ticket size={28} />
           </div>
         </div>
@@ -141,7 +141,7 @@
             <p class="text-3xl font-black text-white">{metrics.activeHolds}</p>
             <p class="text-xs text-ink/40 mt-2">Currently in checkout flow</p>
           </div>
-          <div class="p-3 bg-info/20 rounded-xl text-info shadow-inner">
+          <div class="p-3 bg-info/20 rounded text-info shadow-inner">
             <Users size={28} />
           </div>
         </div>
@@ -160,7 +160,7 @@
             </p>
             <p class="text-xs text-ink/40 mt-2">Available for purchase</p>
           </div>
-          <div class="p-3 bg-ok/20 rounded-xl text-ok shadow-inner">
+          <div class="p-3 bg-ok/20 rounded text-ok shadow-inner">
             <Ticket size={28} />
           </div>
         </div>
@@ -181,7 +181,7 @@
         <div class="space-y-4">
           {#each Object.entries(metrics.sectionAvailability) as [section, percentage]}
             <div
-              class="grid grid-cols-[90px_1fr_80px] items-center gap-4 py-3 px-4 rounded-xl bg-black/20 border border-white/5 hover:bg-black/40 hover:border-white/10 transition-colors"
+              class="grid grid-cols-[90px_1fr_80px] items-center gap-4 py-3 px-4 rounded bg-black/20 border border-white/5 hover:bg-black/40 hover:border-white/10 transition-colors"
             >
               <span class="font-mono text-sm font-bold text-white"
                 >SEC {section}</span
@@ -212,7 +212,7 @@
 
         <div class="grid grid-cols-2 gap-4 mb-8">
           <div
-            class="bg-black/30 p-4 rounded-xl border border-white/5 shadow-inner"
+            class="bg-black/30 p-4 rounded border border-white/5 shadow-inner"
           >
             <p
               class="text-[10px] uppercase font-bold tracking-widest text-inkMuted mb-1"
@@ -224,7 +224,7 @@
             </p>
           </div>
           <div
-            class="bg-black/30 p-4 rounded-xl border border-white/5 shadow-inner"
+            class="bg-black/30 p-4 rounded border border-white/5 shadow-inner"
           >
             <p
               class="text-[10px] uppercase font-bold tracking-widest text-inkMuted mb-1"
@@ -246,7 +246,7 @@
             </div>
           </div>
           <div
-            class="flex items-start gap-3 border-l-2 border-warn pl-4 py-2 bg-warn/10 rounded-r-lg"
+            class="flex items-start gap-3 border-l-2 border-warn pl-4 py-2 bg-warn/10 rounded-r"
           >
             <span class="text-warn mt-0.5">▲</span>
             <div>
