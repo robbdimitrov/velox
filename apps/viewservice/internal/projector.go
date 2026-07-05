@@ -105,7 +105,7 @@ func (p *Projector) Apply(event Event) error {
 		key := event.Seat.EventID + ":" + event.Seat.SectionID + ":" + event.Seat.SeatID
 		event.Seat.Version = event.AggregateVersion
 		p.Seats[key] = event.Seat
-	case "OrderCreated", "OrderConfirmed", "OrderExpired":
+	case "OrderCreated", "OrderConfirmed", "OrderCancelled", "OrderExpired":
 		p.Orders[event.Order.OrderID] = event.Order
 		p.VendorOrderIDs[event.Order.EventID] = appendUnique(p.VendorOrderIDs[event.Order.EventID], event.Order.OrderID)
 	}

@@ -50,6 +50,34 @@ func TestOrderEvents(t *testing.T) {
 	}
 }
 
+func TestOrderCancelledAndExpiredEvents(t *testing.T) {
+	cases := []struct {
+		eventType string
+		status    string
+	}{
+		{eventType: "OrderCancelled", status: "CANCELLED"},
+		{eventType: "OrderExpired", status: "EXPIRED"},
+	}
+
+	for _, tc := range cases {
+		p := NewProjector()
+		order := Order{OrderID: "order1", UserID: "user1", EventID: "event1", Status: tc.status}
+		event := Event{EventID: "evt1", AggregateID: "order1", AggregateVersion: 1, Type: tc.eventType, Order: order}
+
+		if err := p.Apply(event); err != nil {
+			t.Fatal(err)
+		}
+
+		if got := p.Orders["order1"].Status; got != tc.status {
+			t.Fatalf("expected status %s, got %s", tc.status, got)
+		}
+
+		if len(p.VendorOrderIDs["event1"]) != 1 || p.VendorOrderIDs["event1"][0] != "order1" {
+			t.Fatalf("expected vendor order ID to be recorded")
+		}
+	}
+}
+
 func TestAllowsZeroAggregateVersion(t *testing.T) {
 	p := NewProjector()
 	// Set an initial version

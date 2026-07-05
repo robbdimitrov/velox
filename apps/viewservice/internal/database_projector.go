@@ -162,7 +162,7 @@ func (s *DatabaseStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 			}
 		}
 
-	case "OrderCreated", "OrderConfirmed", "OrderExpired":
+	case "OrderCreated", "OrderConfirmed", "OrderCancelled", "OrderExpired":
 		// Handle Order projection
 		_, err = tx.ExecContext(ctx, `
 			INSERT INTO projection.order_summaries (order_id, user_id, status, total_amount_minor, currency, event_id)
