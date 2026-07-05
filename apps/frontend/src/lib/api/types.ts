@@ -76,14 +76,12 @@ export type ReserveOrderResponse = {
 
 export type CheckoutRequest = {
   reservation_id: string;
-  payment_method_token: string;
-  billing_postal_code: string;
   terms_accepted: boolean;
 };
 
 export type CheckoutResponse = {
   order_id: string;
-  status: 'CONFIRMED' | 'FAILED' | 'EXPIRED';
+  status: 'CONFIRMED' | 'CANCELLED';
   wallet_ticket_ids: string[];
 };
 

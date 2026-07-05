@@ -129,9 +129,9 @@ export const mockWallet: WalletResponse = {
           correlation_id: 'corr_4PMY2E'
         },
         {
-          event_type: 'PaymentConfirmed',
+          event_type: 'SeatReservationConfirmed',
           timestamp: new Date(now - 160_000).toISOString(),
-          actor: 'payment-provider',
+          actor: 'seatservice',
           correlation_id: 'corr_4PMY2E'
         }
       ]

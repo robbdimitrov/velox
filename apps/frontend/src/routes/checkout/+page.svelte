@@ -1,14 +1,24 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { createGatewayClient, createIdempotencyKey } from '$lib/api/client';
+  import {
+    createGatewayClient,
+    createIdempotencyKey,
+    GatewayError
+  } from '$lib/api/client';
   import {
     checkoutState,
     formatCountdown
   } from '$lib/state/checkout-state.svelte';
-  import { LockKeyhole, AlertTriangle, CheckCircle2 } from '@lucide/svelte';
+  import {
+    LockKeyhole,
+    AlertTriangle,
+    CheckCircle2,
+    XCircle
+  } from '@lucide/svelte';
   import PrimaryButton from '$lib/components/PrimaryButton.svelte';
 
   let termsAccepted = $state(false);
+  let cancelling = $state(false);
   let tick = $state(Date.now());
 
   $effect(() => {
@@ -41,8 +51,6 @@
       const result = await client.checkout(
         {
           reservation_id: checkoutState.reservation.reservation_id,
-          payment_method_token: 'pm_test_token', // Hardcoded as payment is disabled
-          billing_postal_code: '12345',
           terms_accepted: termsAccepted
         },
         createIdempotencyKey(),
@@ -59,6 +67,35 @@
       checkoutState.error =
         'Reservation could not be confirmed. The idempotency key prevents duplicate requests.';
       checkoutState.submitted = false;
+    }
+  }
+
+  async function cancel() {
+    if (!checkoutState.reservation || checkoutState.submitted || cancelling)
+      return;
+    cancelling = true;
+    checkoutState.error = '';
+
+    try {
+      const client = createGatewayClient(fetch, '/api');
+      await client.cancelReservation(
+        checkoutState.reservation.reservation_id,
+        createIdempotencyKey(),
+        checkoutState.reservation.reservation_token
+      );
+      checkoutState.clear();
+      await goto('/');
+    } catch (err) {
+      // A 409 means the order already settled elsewhere (confirmed in
+      // another tab, or a retried request) — retrying cancel can never
+      // succeed for it, so tell the user that plainly instead of "try again".
+      if (err instanceof GatewayError && err.status === 409) {
+        checkoutState.error =
+          'This reservation was already confirmed or cancelled elsewhere.';
+      } else {
+        checkoutState.error = 'Reservation could not be cancelled. Try again.';
+      }
+      cancelling = false;
     }
   }
 </script>
@@ -157,6 +194,15 @@
         <LockKeyhole size={18} />
         {checkoutState.submitted ? 'Securing...' : 'Complete Reservation'}
       </PrimaryButton>
+
+      <button
+        class="btn btn-ghost btn-block mt-3 rounded border border-white/10 text-inkMuted hover:text-urgency hover:border-urgency/40"
+        disabled={checkoutState.submitted || cancelling}
+        onclick={cancel}
+      >
+        <XCircle size={18} />
+        {cancelling ? 'Cancelling...' : 'Cancel Reservation'}
+      </button>
     </aside>
   {:else}
     <section

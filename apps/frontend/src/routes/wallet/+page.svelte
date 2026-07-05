@@ -7,8 +7,7 @@
     'Issued',
     'Transferred',
     'Used',
-    'Upgraded',
-    'Refunded'
+    'Upgraded'
   ] as const;
   let historyFilter = $state<(typeof HISTORY_FILTERS)[number]>('All');
 

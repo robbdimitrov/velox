@@ -87,19 +87,32 @@ export function createGatewayClient(
       idempotencyKey: string,
       reservationToken: string
     ) {
-      return request<{ order?: GatewayOrder; status?: string }>(
+      return request<{ order_id?: string; status?: string }>(
         `/reservations/${encodeURIComponent(body.reservation_id)}/confirm`,
         {
           method: 'POST',
           headers: {
             'Idempotency-Key': idempotencyKey,
             'Reservation-Token': reservationToken
-          },
-          body: JSON.stringify({
-            payment_method_token: body.payment_method_token
-          })
+          }
         }
       ).then((res) => mapCheckout(body.reservation_id, res));
+    },
+    cancelReservation(
+      reservationId: string,
+      idempotencyKey: string,
+      reservationToken: string
+    ) {
+      return request<{ order_id?: string; status?: string }>(
+        `/reservations/${encodeURIComponent(reservationId)}/cancel`,
+        {
+          method: 'POST',
+          headers: {
+            'Idempotency-Key': idempotencyKey,
+            'Reservation-Token': reservationToken
+          }
+        }
+      ).then((res) => mapCheckout(reservationId, res));
     },
     wallet() {
       return request<WalletResponse>('/wallet/tickets');
@@ -247,33 +260,14 @@ function mapReservation(body: { order: GatewayOrder }): ReserveOrderResponse {
 
 function mapCheckout(
   reservationId: string,
-  body: { order?: GatewayOrder; status?: string }
+  body: { order_id?: string; status?: string }
 ): CheckoutResponse {
-  if (
-    body.status === 'CONFIRMING' ||
-    (body.order && body.order.status === 'CONFIRMED')
-  ) {
-    return {
-      order_id: body.order?.id ?? reservationId.replace('res_', ''),
-      status: 'CONFIRMED',
-      wallet_ticket_ids: []
-    };
-  }
+  const status: CheckoutResponse['status'] =
+    body.status === 'CANCELLED' ? body.status : 'CONFIRMED';
 
-  if (!body.order) {
-    return {
-      order_id: reservationId.replace('res_', ''),
-      status: 'FAILED',
-      wallet_ticket_ids: []
-    };
-  }
-
-  const order = body.order;
   return {
-    order_id: order.id,
-    status: order.status === 'EXPIRED' ? 'EXPIRED' : 'FAILED',
-    wallet_ticket_ids: order.seat_ids.map(
-      (seatID) => `tkt_${order.id}_${seatID}`
-    )
+    order_id: body.order_id ?? reservationId.replace('res_', ''),
+    status,
+    wallet_ticket_ids: []
   };
 }
