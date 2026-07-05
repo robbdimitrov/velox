@@ -198,3 +198,16 @@ Application probes are split by purpose:
 Background relays and consumers must expose enough process-local state for
 readiness to detect repeated infrastructure failures without treating an empty
 topic or outbox as unhealthy.
+
+Consumer and relay readiness uses a sustained-failure policy. A transient poll
+or publish error is recorded, but `/readyz` fails only after five consecutive
+errors or after the first unrecovered error remains present for 30 seconds.
+Successful progress clears the error streak and the failure window.
+`orderservice` and `viewservice` expose the same pipeline and consumer health as
+Prometheus text metrics on `/metrics`, including consecutive errors, unhealthy
+state, and age since last success or first unrecovered error.
+
+Run `scripts/failure-drill.sh` after changing dependency clients, probes, or
+consumer loops. The script restarts PostgreSQL, cache, and broker workloads,
+then waits for the application deployments to remain rolled out. Override the
+namespace and wait budget with `NAMESPACE=...` and `TIMEOUT=...`.

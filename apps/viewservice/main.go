@@ -98,6 +98,10 @@ func main() {
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok", "service": "viewservice", "consumer": consumerHealth.snapshot()})
 	})
+	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, _ = w.Write([]byte(consumerHealth.metrics("viewservice")))
+	})
 
 	srv := &http.Server{
 		Addr:    addr,

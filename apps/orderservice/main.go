@@ -87,6 +87,10 @@ func main() {
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok", "service": "orderservice", "pipelines": pipelineHealth.Snapshot()})
 	})
+	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, _ = w.Write([]byte(pipelineHealth.Metrics("orderservice")))
+	})
 	mux.HandleFunc("POST /orders", api.HandleCreateOrder)
 	mux.HandleFunc("POST /orders/{id}/confirm", api.HandleConfirmOrder)
 	mux.HandleFunc("POST /orders/{id}/cancel", api.HandleCancelOrder)

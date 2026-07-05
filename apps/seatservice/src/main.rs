@@ -7,10 +7,10 @@ use seatservice::{expiry, logging, processor};
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 use std::sync::{
-    atomic::{AtomicUsize, Ordering},
+    atomic::{AtomicU64, AtomicUsize, Ordering},
     Arc,
 };
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tracing::{error, info};
 
 #[tokio::main]
@@ -51,10 +51,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (shutdown_tx, mut shutdown_rx) = tokio::sync::watch::channel(false);
 
     let broker_errors = Arc::new(AtomicUsize::new(0));
+    let broker_first_error = Arc::new(AtomicU64::new(0));
 
     // Probe endpoint: /healthz is process liveness, /readyz checks dependencies.
     let probe_pool = pool.clone();
     let probe_broker_errors = broker_errors.clone();
+    let probe_broker_first_error = broker_first_error.clone();
     tokio::spawn(async move {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
         use tokio::net::TcpListener;
@@ -84,7 +86,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         )
                         .await
                         .is_ok_and(|result| result.is_ok());
-                        db_ready && probe_broker_errors.load(Ordering::Relaxed) < 5
+                        db_ready && !broker_degraded(
+                            &probe_broker_errors,
+                            &probe_broker_first_error,
+                        )
                     } else {
                         true
                     };
@@ -105,6 +110,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut shutdown_rx2 = shutdown_tx.subscribe();
     let consumer_broker_errors = broker_errors.clone();
+    let consumer_broker_first_error = broker_first_error.clone();
 
     let expiry_task = tokio::spawn(expiry::run(
         db_client.clone(),
@@ -118,7 +124,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 result = consumer.recv() => {
                     match result {
                         Err(e) => {
-                            consumer_broker_errors.fetch_add(1, Ordering::Relaxed);
+                            note_broker_error(&consumer_broker_errors, &consumer_broker_first_error);
                             error!(error = %e, "Broker consumer error");
                         }
                         Ok(m) => {
@@ -143,12 +149,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 };
                                 let should_commit = processor::process_message(&db_client, &producer, payload, meta).await;
                                 if should_commit {
-                                    consumer_broker_errors.store(0, Ordering::Relaxed);
+                                    note_broker_success(&consumer_broker_errors, &consumer_broker_first_error);
                                     if let Err(e) = consumer.commit_message(&m, CommitMode::Async) {
                                         error!(error = %e, "Failed to commit offset");
                                     }
                                 } else {
-                                    consumer_broker_errors.fetch_add(1, Ordering::Relaxed);
+                                    note_broker_error(&consumer_broker_errors, &consumer_broker_first_error);
                                 }
                             }
                         }
@@ -173,4 +179,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     pool.close().await;
 
     Ok(())
+}
+
+fn note_broker_error(errors: &AtomicUsize, first_error: &AtomicU64) {
+    if errors.fetch_add(1, Ordering::Relaxed) == 0 {
+        first_error.store(unix_secs_now(), Ordering::Relaxed);
+    }
+}
+
+fn note_broker_success(errors: &AtomicUsize, first_error: &AtomicU64) {
+    errors.store(0, Ordering::Relaxed);
+    first_error.store(0, Ordering::Relaxed);
+}
+
+fn broker_degraded(errors: &AtomicUsize, first_error: &AtomicU64) -> bool {
+    if errors.load(Ordering::Relaxed) >= 5 {
+        return true;
+    }
+    let first_error_at = first_error.load(Ordering::Relaxed);
+    first_error_at != 0 && unix_secs_now().saturating_sub(first_error_at) >= 30
+}
+
+fn unix_secs_now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
 }
