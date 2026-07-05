@@ -131,18 +131,18 @@ pub async fn process_message(
                 }
             }
             true
-        } else if envelope.event_type == "PaymentFailed" {
+        } else if envelope.event_type == "OrderCancelled" {
             let Some(payload_val) = envelope.payload else { return true };
             let order_id = payload_val.get("order_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
             let outbox_event_id = payload_val.get("outbox_event_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
             if order_id.is_empty() || outbox_event_id.is_empty() {
-                warn!("PaymentFailed missing order_id or outbox_event_id");
-                send_to_dlq(producer, &meta, payload_bytes, "missing_required_fields", "PaymentFailed missing required fields").await;
+                warn!("OrderCancelled missing order_id or outbox_event_id");
+                send_to_dlq(producer, &meta, payload_bytes, "missing_required_fields", "OrderCancelled missing required fields").await;
                 return true;
             }
 
-            info!(order_id = %order_id, "Processing PaymentFailed");
-            match db.process_payment_failed(&order_id, &outbox_event_id, Utc::now()).await {
+            info!(order_id = %order_id, "Processing OrderCancelled");
+            match db.process_reservation_cancelled(&order_id, &outbox_event_id, Utc::now()).await {
                 Ok(expired_events) => {
                     for event in expired_events {
                         publish(producer, &event.event_type.clone(), &event.aggregate_id.clone(), &event, request_id.as_deref()).await;
@@ -150,7 +150,7 @@ pub async fn process_message(
                     true
                 }
                 Err(e) => {
-                    warn!("Failed to process payment failed: {}", e);
+                    warn!("Failed to process reservation cancellation: {}", e);
                     false
                 }
             }
@@ -165,7 +165,7 @@ pub async fn process_message(
             }
 
             info!(order_id = %order_id, "Processing OrderConfirmed");
-            match db.process_payment_confirmed(&order_id, &outbox_event_id, Utc::now()).await {
+            match db.process_reservation_confirmed(&order_id, &outbox_event_id, Utc::now()).await {
                 Ok(confirmed_events) => {
                     for event in confirmed_events {
                         publish(producer, &event.event_type.clone(), &event.aggregate_id.clone(), &event, request_id.as_deref()).await;
@@ -173,7 +173,7 @@ pub async fn process_message(
                     true
                 }
                 Err(e) => {
-                    warn!("Failed to process payment confirmed: {}", e);
+                    warn!("Failed to process reservation confirmation: {}", e);
                     false
                 }
             }

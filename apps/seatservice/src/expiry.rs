@@ -7,8 +7,8 @@ use tracing::{error, info};
 const SWEEP_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// Periodically expires reservations whose hold deadline has passed with no
-/// follow-up payment outcome (success or failure). Without this sweep a held
-/// seat with no confirming/failing order event would stay HELD forever.
+/// follow-up confirmation or cancellation. Without this sweep a held
+/// seat with no confirming/cancelling order event would stay HELD forever.
 pub async fn run(
     db: DbClient,
     producer: FutureProducer,

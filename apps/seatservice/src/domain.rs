@@ -106,7 +106,7 @@ mod tests {
     }
 
     #[test]
-    fn handles_saga_compensating_action_for_payment_failed() {
+    fn handles_saga_compensating_action_for_cancellation() {
         let mut seat = SeatState::default();
         seat.apply_reserved("ord1".into(), 1000);
         assert!(matches!(seat.status, SeatStatus::Held { .. }));

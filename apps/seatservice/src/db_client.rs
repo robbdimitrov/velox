@@ -246,7 +246,7 @@ impl DbClient {
     /// Distinct stream_keys held for an order, i.e. the seats a
     /// SeatReservationHeld was appended for under this order's correlation_id.
     /// Shared by every place that needs to act on "all seats held for order X"
-    /// (payment failure, payment confirmation, expiry sweep).
+    /// (reservation cancellation, reservation confirmation, expiry sweep).
     async fn held_stream_keys_for_order(
         tx: &mut Transaction<'_, Postgres>,
         order_id: &str,
@@ -463,7 +463,9 @@ impl DbClient {
         }))
     }
 
-    pub async fn process_payment_failed(
+    /// Expires all held seats for an order because the user or an external
+    /// process explicitly cancelled a held reservation.
+    pub async fn process_reservation_cancelled(
         &self,
         order_id: &str,
         causation_event_id: &str,
@@ -475,7 +477,7 @@ impl DbClient {
             .await
             .map_err(|e| format!("Failed to begin tx: {}", e))?;
 
-        if !Self::claim_event(&mut tx, causation_event_id, "PaymentFailed").await? {
+        if !Self::claim_event(&mut tx, causation_event_id, "OrderCancelled").await? {
             tx.rollback().await.ok();
             return Ok(Vec::new());
         }
@@ -508,10 +510,11 @@ impl DbClient {
         Ok(expired_events)
     }
 
-    /// Confirms all held seats for an order after payment succeeds. Seats whose
-    /// hold already expired are skipped (rejected) rather than confirmed, since
-    /// there is no later valid hold to honor.
-    pub async fn process_payment_confirmed(
+    /// Confirms all held seats for an order after the user explicitly confirmed
+    /// a held reservation. Seats whose hold already expired are skipped
+    /// (rejected) rather than confirmed, since there is no later valid hold to
+    /// honor.
+    pub async fn process_reservation_confirmed(
         &self,
         order_id: &str,
         causation_event_id: &str,
@@ -609,7 +612,8 @@ impl DbClient {
     }
 
     /// Background sweep: expires held reservations whose deadline has passed
-    /// with no follow-up payment outcome. Bounded to a fixed batch per call.
+    /// with no follow-up confirmation or cancellation. Bounded to a fixed batch
+    /// per call.
     pub async fn expire_due_reservations(
         &self,
         now: DateTime<Utc>,
