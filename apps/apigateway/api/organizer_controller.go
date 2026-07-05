@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -186,6 +187,10 @@ func (s *Server) handleListVenueStaff(w http.ResponseWriter, r *http.Request, us
 		writeJSON(w, http.StatusOK, map[string]any{"staff": []User{}})
 		return
 	}
+	if !s.organizerOwnsVenue(r.Context(), user.ID, venueID) {
+		writeError(w, http.StatusNotFound, "venue_not_found")
+		return
+	}
 	staff, err := s.store.GetVenueStaff(r.Context(), venueID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")
@@ -195,6 +200,21 @@ func (s *Server) handleListVenueStaff(w http.ResponseWriter, r *http.Request, us
 		staff = []User{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"staff": staff})
+}
+
+// organizerOwnsVenue reports whether venueID belongs to organizerID, so
+// venue-scoped endpoints never leak or mutate another organizer's venue.
+func (s *Server) organizerOwnsVenue(ctx context.Context, organizerID, venueID string) bool {
+	venues, err := s.store.GetOrganizerVenues(ctx, organizerID)
+	if err != nil {
+		return false
+	}
+	for _, v := range venues {
+		if v.ID == venueID {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) handleCreateEvent(w http.ResponseWriter, r *http.Request, user User) {
