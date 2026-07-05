@@ -11,7 +11,7 @@ per service. Keep product and architecture documents in `docs/`.
 - `apps/apigateway/` — Go public HTTP API, auth boundary, rate limiting,
   validation, and gRPC orchestration.
 - `apps/orderservice/` — Go order state, idempotency, reservation tokens,
-  payments, and PostgreSQL outbox.
+  confirm/cancel actions, and PostgreSQL outbox.
 - `apps/seatservice/` — Rust Tokio inventory validator, event store integration,
   Kafka consumers/producers.
 - `apps/viewservice/` — Go Kafka projection workers, read APIs, and
@@ -38,7 +38,8 @@ scripts/deploy.sh  # build images, apply manifests, and port-forward
   store, or another durable shared system.
 - `apigateway` owns public command ingress, authentication boundaries, request
   limits, and safe error mapping. `orderservice` owns order state, idempotency
-  checks, payment orchestration, and transactional outbox writes. `seatservice`
+  checks, reservation confirmation and cancellation, and transactional outbox
+  writes. `seatservice`
   owns seat availability, reservation expiry, event-sourced stream versions, and
   double-allocation prevention. `viewservice` owns read-model materialization
   and must not become a write-path authority.
@@ -97,8 +98,7 @@ Security controls are design constraints, not review-time additions.
 - Never render user-controlled HTML directly. Validate user-controlled URLs
   against an explicit scheme and origin policy.
 - Log structured operational metadata without credentials, session values,
-  payment data, request bodies, unnecessary personal data, or raw
-  user-controlled text.
+  request bodies, unnecessary personal data, or raw user-controlled text.
 - Justify new dependencies by their maintenance, security, image-size, and
   runtime cost.
 

@@ -10,8 +10,8 @@ The reservation MVP transport contract lives in `pkg/pb/velox.proto`. It covers:
 - reservation creation, reservation confirmation, and order lookup RPCs;
 - signed Kafka event envelopes with correlation, causation, aggregate version,
   schema version, and occurrence time metadata;
-- order, payment, reservation, ticket, and seat-delta messages used by the
-  order, seat, and view services.
+- order, reservation, ticket, and seat-delta messages used by the order, seat,
+  and view services.
 
 Generated language bindings are not committed yet.
 
@@ -20,8 +20,7 @@ Generated language bindings are not committed yet.
 `apps/database/migrations/001_init_logical_schemas.sql` creates three logical
 PostgreSQL schemas:
 
-- `orders`: order state, payment state, idempotency keys, and transactional
-  outbox rows;
+- `orders`: order state, idempotency keys, and transactional outbox rows;
 - `inventory`: seat event streams, immutable inventory events, and reservation
   expiry state;
 - `projection`: processed-event dedupe, seat snapshots, order summaries, and

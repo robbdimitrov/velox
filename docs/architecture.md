@@ -16,7 +16,7 @@ PostgreSQL Outbox
   | Debezium or polling publisher
   v
 Kafka
-  | order.events.v1, inventory.events.v1, payment.events.v1
+  | order.events.v1, inventory.events.v1
   v
 seatservice <-> Append-Only Event Store
   |
@@ -56,9 +56,10 @@ audit, and replay.
 `orderservice` responsibilities:
 
 - Validate idempotency headers, reservation tokens, and order command payloads.
-- Use bounded goroutine worker pools for validation and external payment calls.
-- Store orders in PostgreSQL with states `PENDING`, `AWAITING_PAYMENT`,
-  `CONFIRMED`, `FAILED`, `EXPIRED`.
+- Handle explicit user actions via `POST /reservations/{id}/confirm` and
+  `POST /reservations/{id}/cancel`.
+- Store orders in PostgreSQL with states `PENDING`, `HELD`, `CONFIRMED`,
+  `CANCELLED`, `FAILED`, `EXPIRED`.
 - Write outbox rows in the same transaction as order state transitions.
 
 Order command HTTP handlers must cap request bodies at 1 MiB, reject unknown
@@ -81,8 +82,8 @@ publication must flow through the outbox relay.
 
 Responsibilities:
 
-- Consume `OrderCreated`, `PaymentConfirmed`, `PaymentFailed`, and timeout
-  control events.
+- Consume `OrderCreated`, `OrderConfirmed`, and `OrderCancelled` events, and
+  run a periodic sweep for its own hold-expiry timeouts.
 - Validate seat availability through event stream replay or cached stream
   snapshots.
 - Append immutable inventory events with expected stream version.
@@ -114,7 +115,7 @@ SeatTicketUpgraded
 
 - `seatservice`: append-only event store, backed by PostgreSQL event table or
   RocksDB segments with durable WAL.
-- `orderservice`: PostgreSQL tables for orders, payments, and `outbox_events`.
+- `orderservice`: PostgreSQL tables for orders and `outbox_events`.
 - Read model: Elasticsearch for search-heavy discovery or MongoDB for
   document-oriented wallet and seat snapshots.
 - Redis: idempotency keys, token buckets, hot layout locks, and short-lived
@@ -125,10 +126,10 @@ SeatTicketUpgraded
 `seatservice` mutations append events only:
 
 ```text
-OrderCreated -> SeatReservationHeld
-hold expires -> SeatReservationExpired
-PaymentConfirmed -> SeatReservationConfirmed
-PaymentFailed -> SeatReservationExpired
+OrderCreated     -> SeatReservationHeld
+OrderConfirmed   -> SeatReservationConfirmed
+OrderCancelled   -> SeatReservationExpired
+hold expires (seatservice sweep, no order trigger) -> SeatReservationExpired
 ```
 
 `viewservice` workers consume Kafka and flatten immutable facts into read
@@ -155,26 +156,46 @@ Successful path:
 5. `seatservice` appends SeatReservationHeld expected_version=N
 6. `seatservice` publishes SeatReservationHeld
 7. `viewservice` updates seat as HELD and WebSocket broadcasts
-8. Client POST /reservations/{reservation_id}/confirm idempotency_key=K2
-9. Payment succeeds and PaymentConfirmed is published
-10. `seatservice` appends SeatReservationConfirmed
-11. `viewservice` marks seat SOLD and wallet ticket ISSUED
-12. `orderservice` observes PaymentConfirmed and marks CONFIRMED
+8. `orderservice` consumes SeatReservationHeld and marks the order HELD
+9. Client POST /reservations/{reservation_id}/confirm idempotency_key=K2
+10. `orderservice` validates the order is HELD, marks it CONFIRMED, and
+    writes outbox OrderConfirmed
+11. Outbox relay publishes OrderConfirmed to Kafka
+12. `seatservice` consumes OrderConfirmed and appends SeatReservationConfirmed
+13. `viewservice` marks seat SOLD and issues a wallet ticket ISSUED
 ```
 
-Payment rejection path:
+Cancellation path (explicit user action):
 
 ```text
-PaymentFailed -> `seatservice` appends SeatReservationExpired -> `viewservice` marks AVAILABLE -> `orderservice` marks FAILED
+1. Client POST /reservations/{reservation_id}/cancel idempotency_key=K3
+2. `orderservice` validates the order is PENDING or HELD, marks it
+   CANCELLED, and writes outbox OrderCancelled
+3. Outbox relay publishes OrderCancelled to Kafka
+4. `seatservice` consumes OrderCancelled and appends SeatReservationExpired
+   for the held seat stream(s)
+5. `viewservice` marks the seat(s) AVAILABLE again
 ```
 
-Timeout path:
+Reservation-failed path (seat unavailable at hold time):
 
 ```text
-reservation deadline reached -> expiry scheduler emits ReservationTimeoutDue
-`seatservice` appends SeatReservationExpired if not confirmed
-`viewservice` marks AVAILABLE
-`orderservice` marks EXPIRED
+`seatservice` appends SeatReservationFailed -> `viewservice` marks AVAILABLE -> `orderservice` consumes SeatReservationFailed and marks FAILED
+```
+
+Timeout path (no confirm or cancel before the hold deadline):
+
+```text
+1. `seatservice`'s periodic expiry sweep finds a HELD reservation past its
+   deadline with no confirm or cancel
+2. `seatservice` appends SeatReservationExpired directly, guarded by
+   compare-and-append (only if the latest event is still
+   SeatReservationHeld)
+3. `viewservice` marks the seat AVAILABLE
+4. `orderservice` consumes this same SeatReservationExpired event, marks
+   its order row EXPIRED, and writes outbox OrderExpired
+5. `viewservice` consumes OrderExpired and updates the order's read-model
+   status
 ```
 
 Every event must carry `event_id`, `correlation_id`, `causation_id`,
@@ -230,9 +251,6 @@ in-memory hold before responding. Successful reservation responses are cached by
 idempotency key so retries return the original order without re-calling the
 order service.
 
-Payment providers must receive the same idempotency key to prevent duplicate
-charges.
-
 ## Zero-Trust Security and Rate Limiting
 
 - Validate JWT issuer, audience, expiry, subject, and scopes at ingress.
@@ -245,4 +263,4 @@ charges.
   version, and producer identity before applying events.
 - Encrypt secrets through deployment secret stores. Do not place secrets in repo
   files.
-- Log correlation IDs, not card data or raw tokens.
+- Log correlation IDs, not raw tokens or other sensitive request data.

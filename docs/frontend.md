@@ -103,7 +103,8 @@ Layout:
 
 Rules:
 
-- Svelte generates a UUID `idempotency_key` before submitting payment.
+- Svelte generates a UUID `idempotency_key` before submitting a reservation
+  confirm/cancel action.
 - Disable submit after the first click and attach `Idempotency-Key` plus
   reservation token headers.
 - Timer display is client-side interpolation from `expires_at_server_ms` and
@@ -121,13 +122,13 @@ Layout:
    state.
 2. Ticket pass list: QR code, event, seat, gate, transfer controls.
 3. Provenance ledger: expandable immutable timeline per ticket.
-4. History filters: Issued, Transferred, Used, Upgraded, Refunded.
+4. History filters: Issued, Transferred, Used, Upgraded.
 
 Ledger examples:
 
 ```text
 2026-06-24T22:30:00Z TicketIssued ticket_id=velox_8831
-2026-06-24T22:32:11Z PaymentConfirmed provider=stripe charge_id=...
+2026-06-24T22:32:11Z SeatReservationConfirmed order_id=ord_5521
 2026-06-24T22:40:19Z TicketUpgraded tier=VIP_Lounge
 ```
 

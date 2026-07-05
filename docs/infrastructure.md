@@ -55,7 +55,6 @@ Topic pattern:
 ```text
 order.events.v1
 inventory.events.v1
-payment.events.v1
 dlq.order.events.v1
 dlq.inventory.events.v1
 ```
@@ -110,14 +109,12 @@ Required controls:
 append SeatReservationExpired only if latest event is SeatReservationHeld and now >= expires_at
 ```
 
-5. Payment confirmation after expiry must be rejected unless a later valid hold
-   exists.
+5. Reservation confirmation after expiry must be rejected unless a later valid
+   hold exists.
 
 Operational rules:
 
 - Run NTP or chrony on all nodes and alert on skew above 50 ms.
-- Add a small grace window only to payment settlement, not to seat availability
-  display.
 - Never rely on Kafka event arrival time for expiry.
 - Persist deadlines in the event payload and projection document.
 
@@ -168,8 +165,8 @@ Rules:
 - Reject lower aggregate versions.
 - Buffer or retry missing intermediate versions when strict sequence is
   required.
-- Never apply payment, ticket issuance, or transfer effects from an unsigned
-  event.
+- Never apply reservation confirmation, ticket issuance, or transfer effects
+  from an unsigned event.
 
 ## Backpressure and Load Shedding
 

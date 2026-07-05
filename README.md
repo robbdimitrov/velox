@@ -14,7 +14,7 @@ Redpanda-compatible Kafka event flow, and Dragonfly-backed coordination.
 - **Virtual Waiting Room & Rate Limiting**: Token-bucket rate limiting via Dragonfly/Redis at the Go ingress, paired with a frontend virtual waiting room to gracefully handle `429 Too Many Requests` during flash sales.
 - **Idempotent commands**: Reservation requests require `Idempotency-Key`; duplicate matching requests return the original order while conflicting bodies are rejected.
 - **Optimistic Concurrency**: Seat double-booking is prevented using Sequence Version Numbers (`VersionMismatch`) in the Rust Event Store, avoiding slow SQL table locks.
-- **Compensating Sagas**: Order lifecycle changes (e.g. `PaymentFailed`) trigger Kafka-choreographed compensating transactions (`SeatReservationExpired`) to instantly free up inventory.
+- **Compensating Sagas**: Order lifecycle changes (explicit cancellation via `OrderCancelled`, or a hold timing out in `seatservice`'s own expiry sweep) trigger Kafka-choreographed compensating transactions (`SeatReservationExpired`) to instantly free up inventory.
 - **Immutable Ledger**: User ticket wallets showcase a provenence ledger built directly from the backend's Event Sourcing streams.
 - **Kubernetes runtime**: Manifests and `scripts/deploy.sh` build images, create development secrets, apply resources, wait for rollouts, and port-forward the frontend and gateway.
 

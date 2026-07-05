@@ -41,17 +41,11 @@ message ReservationToken {
 enum OrderStatus {
   ORDER_STATUS_UNSPECIFIED = 0;
   ORDER_STATUS_PENDING = 1;
-  ORDER_STATUS_AWAITING_PAYMENT = 2;
+  ORDER_STATUS_HELD = 2;
   ORDER_STATUS_CONFIRMED = 3;
   ORDER_STATUS_FAILED = 4;
   ORDER_STATUS_EXPIRED = 5;
-}
-
-enum PaymentStatus {
-  PAYMENT_STATUS_UNSPECIFIED = 0;
-  PAYMENT_STATUS_PENDING = 1;
-  PAYMENT_STATUS_CONFIRMED = 2;
-  PAYMENT_STATUS_FAILED = 3;
+  ORDER_STATUS_CANCELLED = 6;
 }
 
 enum SeatStatus {
@@ -84,9 +78,9 @@ message ConfirmReservationRequest {
 }
 
 message ConfirmReservationResponse {
+  reserved 3; // was payment_status; no payment step exists anymore
   string order_id = 1;
   OrderStatus status = 2;
-  PaymentStatus payment_status = 3;
 }
 
 message GetOrderRequest {
@@ -114,20 +108,6 @@ message OrderCreated {
   string user_id = 3;
   repeated SeatRef seats = 4;
   string idempotency_key = 5;
-}
-
-message PaymentConfirmed {
-  EventMetadata metadata = 1;
-  string order_id = 2;
-  string payment_id = 3;
-  Money amount = 4;
-}
-
-message PaymentFailed {
-  EventMetadata metadata = 1;
-  string order_id = 2;
-  string payment_id = 3;
-  string reason_code = 4;
 }
 
 message ReservationTimeoutDue {
@@ -195,10 +175,9 @@ message SeatTicketUpgraded {
 }
 
 message BrokerEvent {
+  reserved 2, 3; // were payment_confirmed/payment_failed; no payment step exists anymore
   oneof event {
     OrderCreated order_created = 1;
-    PaymentConfirmed payment_confirmed = 2;
-    PaymentFailed payment_failed = 3;
     ReservationTimeoutDue reservation_timeout_due = 4;
     SeatReservationHeld seat_reservation_held = 5;
     SeatReservationFailed seat_reservation_failed = 6;
