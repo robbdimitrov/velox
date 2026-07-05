@@ -13,7 +13,10 @@ const (
 	StatusSold      = "SOLD"
 
 	OrderPending   = "PENDING"
+	OrderHeld      = "HELD"
 	OrderConfirmed = "CONFIRMED"
+	OrderCancelled = "CANCELLED"
+	OrderFailed    = "FAILED"
 	OrderExpired   = "EXPIRED"
 
 	CookieName = "velox_session"

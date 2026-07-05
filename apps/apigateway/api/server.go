@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,6 +29,7 @@ type Server struct {
 	organizerClients map[string]map[chan string]struct{}
 	httpClient       *http.Client
 	orderSvcURL      string
+	orderSvcBaseURL  string
 	workerID         string
 	tokenIssuer      string
 	tokenAudience    string
@@ -61,8 +63,13 @@ func NewServerWithStore(secret string, store *DatabaseStore, cacheClient *redis.
 	return s
 }
 
+// SetOrderServiceURL sets the create-order endpoint URL (e.g.
+// "http://orderservice/orders") and derives the base URL used for
+// order-scoped actions like confirm/cancel ("http://orderservice") from it,
+// so callers only configure orderservice's location once.
 func (s *Server) SetOrderServiceURL(url string) {
 	s.orderSvcURL = url
+	s.orderSvcBaseURL = strings.TrimSuffix(url, "/orders")
 }
 
 // SetTokenIssuerAudience overrides the session/QR token iss/aud claims,

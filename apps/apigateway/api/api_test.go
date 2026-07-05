@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -39,6 +40,76 @@ func TestReserverCanReserveAndConfirmSeat(t *testing.T) {
 	server.Routes().ServeHTTP(rr, req)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("confirm status = %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestCancelReservationCancelsOrder(t *testing.T) {
+	mockOrderSvc := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		status := OrderPending
+		if strings.HasSuffix(r.URL.Path, "/cancel") {
+			status = OrderCancelled
+		}
+		json.NewEncoder(w).Encode(map[string]any{
+			"order_id": "mock-order-cancel",
+			"status":   status,
+		})
+	}))
+	defer mockOrderSvc.Close()
+
+	server := NewServerWithStore("test", nil, nil)
+	server.SetOrderServiceURL(mockOrderSvc.URL)
+	server.SetHTTPClient(mockOrderSvc.Client())
+
+	client := newTestClient(server)
+	cookie := client.login(t, "reserver@velox.local", "reserver")
+
+	order := client.reserve(t, cookie, "idem-cancel-1", []string{"A-05"}, http.StatusOK)
+
+	req := httptest.NewRequest(http.MethodPost, "/reservations/"+order.ReservationID+"/cancel", nil)
+	req.AddCookie(cookie)
+	rr := httptest.NewRecorder()
+	server.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("cancel status = %d body=%s", rr.Code, rr.Body.String())
+	}
+	var out struct {
+		OrderID string `json:"order_id"`
+		Status  string `json:"status"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode cancel response: %v", err)
+	}
+	if out.Status != OrderCancelled {
+		t.Fatalf("status = %s, want %s", out.Status, OrderCancelled)
+	}
+}
+
+func TestConfirmReservationRejectsNonOwner(t *testing.T) {
+	mockOrderSvc := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"order_id": "mock-order-owner",
+			"status":   OrderPending,
+		})
+	}))
+	defer mockOrderSvc.Close()
+
+	server := NewServerWithStore("test", nil, nil)
+	server.SetOrderServiceURL(mockOrderSvc.URL)
+	server.SetHTTPClient(mockOrderSvc.Client())
+
+	client := newTestClient(server)
+	reserverCookie := client.login(t, "reserver@velox.local", "reserver")
+	order := client.reserve(t, reserverCookie, "idem-owner-1", []string{"A-06"}, http.StatusOK)
+
+	organizerCookie := client.login(t, "organizer@velox.local", "organizer")
+	req := httptest.NewRequest(http.MethodPost, "/reservations/"+order.ReservationID+"/confirm", nil)
+	req.AddCookie(organizerCookie)
+	rr := httptest.NewRecorder()
+	server.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("confirm status = %d, want %d (non-owner) body=%s", rr.Code, http.StatusNotFound, rr.Body.String())
 	}
 }
 

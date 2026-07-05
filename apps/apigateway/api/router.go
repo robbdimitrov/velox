@@ -25,6 +25,7 @@ func (s *Server) Routes() http.Handler {
 	rl := NewRateLimiter(s.cacheClient, 10.0, 100) // 10 TPS, 100 max burst
 	mux.HandleFunc("POST /reservations", s.requireAuth(rl.AuthedMiddleware("reservations_create", s.handleCreateReservation)))
 	mux.HandleFunc("POST /reservations/{reservationId}/confirm", s.requireAuth(rl.AuthedMiddleware("reservations_confirm", s.handleConfirmReservation)))
+	mux.HandleFunc("POST /reservations/{reservationId}/cancel", s.requireAuth(rl.AuthedMiddleware("reservations_cancel", s.handleCancelReservation)))
 	mux.HandleFunc("GET /orders", s.requireAuth(s.handleOrders))
 	mux.HandleFunc("GET /orders/{orderId}", s.requireAuth(s.handleOrder))
 	mux.HandleFunc("GET /wallet/tickets", s.requireAuth(s.handleWalletTickets))

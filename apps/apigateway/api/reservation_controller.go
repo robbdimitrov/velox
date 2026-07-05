@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"sort"
+	"strings"
 )
 
 // validateSeatsAvailable checks each requested seat against the real
@@ -173,8 +174,80 @@ func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request,
 }
 
 func (s *Server) handleConfirmReservation(w http.ResponseWriter, r *http.Request, user User) {
-	// API gateway just acknowledges. The order service saga runs the payment and confirmation automatically.
-	writeJSON(w, http.StatusOK, map[string]any{"status": "CONFIRMING"})
+	s.forwardOrderAction(w, r, user, "confirm")
+}
+
+func (s *Server) handleCancelReservation(w http.ResponseWriter, r *http.Request, user User) {
+	s.forwardOrderAction(w, r, user, "cancel")
+}
+
+// forwardOrderAction proxies a terminal state-transition action (confirm or
+// cancel) to orderservice's internal /orders/{id}/{action} endpoint.
+// orderservice's internal endpoints take no user context and trust apigateway
+// as the auth boundary, so ownership of the order behind the reservation ID
+// must be verified here before forwarding, the same way handleOrder verifies
+// ownership before returning order data.
+func (s *Server) forwardOrderAction(w http.ResponseWriter, r *http.Request, user User, action string) {
+	reservationID := r.PathValue("reservationId")
+	orderID := strings.TrimPrefix(reservationID, "res_")
+
+	if s.store != nil {
+		if _, err := s.store.GetOrder(r.Context(), user, orderID); err != nil {
+			writeStoreError(w, err)
+			return
+		}
+	} else {
+		s.mu.Lock()
+		order, ok := s.orderByReservationLocked(reservationID)
+		s.mu.Unlock()
+		if !ok || order.UserID != user.ID {
+			writeError(w, http.StatusNotFound, "order_not_found")
+			return
+		}
+	}
+
+	if s.orderSvcBaseURL == "" {
+		writeError(w, http.StatusServiceUnavailable, "order_service_unavailable")
+		return
+	}
+
+	httpReq, err := http.NewRequestWithContext(r.Context(), "POST", s.orderSvcBaseURL+"/orders/"+orderID+"/"+action, nil)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	if reqID, ok := r.Context().Value(RequestIDKey).(string); ok {
+		httpReq.Header.Set("X-Request-ID", reqID)
+	}
+
+	resp, err := s.httpClient.Do(httpReq)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "upstream_error")
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		var errResp struct {
+			Error string `json:"error"`
+		}
+		_ = json.NewDecoder(resp.Body).Decode(&errResp)
+		if errResp.Error == "" {
+			errResp.Error = "upstream_error"
+		}
+		writeError(w, resp.StatusCode, errResp.Error)
+		return
+	}
+
+	var upstream struct {
+		OrderID string `json:"order_id"`
+		Status  string `json:"status"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&upstream); err != nil {
+		writeError(w, http.StatusBadGateway, "upstream_error")
+		return
+	}
+	writeJSON(w, resp.StatusCode, map[string]any{"order_id": upstream.OrderID, "status": upstream.Status})
 }
 
 func (s *Server) handleOrders(w http.ResponseWriter, r *http.Request, user User) {
