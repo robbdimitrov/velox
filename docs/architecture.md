@@ -198,6 +198,16 @@ Timeout path (no confirm or cancel before the hold deadline):
    status
 ```
 
+Self-correction path (confirm loses the race against an in-flight expiry):
+if the expiry sweep times out a hold in seatservice's authoritative event
+store just before orderservice consumes the resulting SeatReservationExpired,
+a confirm can still succeed against orderservice's stale local mirror.
+`seatservice`'s compare-and-append guard then finds the stream already
+Expired and, instead of appending SeatReservationConfirmed, publishes
+SeatReservationConfirmationFailed; `orderservice` consumes it and corrects
+the order from CONFIRMED to EXPIRED (guarded to only ever apply to that exact
+state), writing the same outbox OrderExpired the timeout path above uses.
+
 Every event must carry `event_id`, `correlation_id`, `causation_id`,
 `aggregate_id`, `schema_version`, `occurred_at`, and `signature`.
 

@@ -513,7 +513,9 @@ impl DbClient {
     /// Confirms all held seats for an order after the user explicitly confirmed
     /// a held reservation. Seats whose hold already expired are skipped
     /// (rejected) rather than confirmed, since there is no later valid hold to
-    /// honor.
+    /// honor; a SeatReservationConfirmationFailed event is published for each
+    /// rejected seat so orderservice can correct an order that already went
+    /// CONFIRMED locally before consuming the earlier expiry.
     pub async fn process_reservation_confirmed(
         &self,
         order_id: &str,
@@ -540,16 +542,62 @@ impl DbClient {
                     Some(s) => s,
                     None => continue,
                 };
+
+            // Loaded up front (rather than only in the Held branch below) so the
+            // same lookup can back both outcomes: appending SeatReservationConfirmed,
+            // or - if the hold already lost the race against an independent expiry -
+            // building the SeatReservationConfirmationFailed compensating event below.
+            let held = Self::load_held_seat_fields(&mut tx, stream_key).await?;
+
             if !matches!(stream.state.status, crate::domain::SeatStatus::Held { .. }) {
+                // Compare-and-append guard: the hold already expired (e.g. lost
+                // the race against seatservice's own expiry sweep) before this
+                // OrderConfirmed arrived, so this stream must NOT have
+                // SeatReservationConfirmed appended onto it - it's already
+                // Expired. But orderservice's locally-mirrored order may still
+                // be advancing to CONFIRMED for this order, so publish a
+                // compensating, non-stream-mutating event that tells
+                // orderservice to correct itself back to EXPIRED instead of
+                // being stuck CONFIRMED with no ticket.
                 tracing::warn!(
                     order_id,
                     stream_key,
                     "hold no longer active, skipping confirmation"
                 );
+                let payload = json!({
+                    "order_id": order_id,
+                    "event_id": held.event_id,
+                    "section_id": held.section_id,
+                    "seat_id": held.seat_id,
+                });
+                let signature = self.sign(
+                    "SeatReservationConfirmationFailed",
+                    stream_key,
+                    stream.current_version as u64,
+                    &payload,
+                );
+                confirmed_events.push(SeatInventoryEvent {
+                    event_id: Uuid::new_v4().to_string(),
+                    aggregate_id: stream_key.clone(),
+                    aggregate_version: stream.current_version as u64,
+                    event_type: "SeatReservationConfirmationFailed".into(),
+                    correlation_id: order_id.to_string(),
+                    causation_id: causation_event_id.to_string(),
+                    schema_version: INVENTORY_EVENT_SCHEMA_VERSION,
+                    seat: SeatDto {
+                        event_id: held.event_id,
+                        section_id: held.section_id,
+                        seat_id: held.seat_id,
+                        status: "EXPIRED".into(),
+                        version: stream.current_version as u64,
+                        expires_at_ms: 0,
+                    },
+                    occurred_at: now,
+                    signature,
+                });
                 continue;
             }
 
-            let held = Self::load_held_seat_fields(&mut tx, stream_key).await?;
             let version = stream.current_version + 1;
             let payload = json!({
                 "order_id": order_id,

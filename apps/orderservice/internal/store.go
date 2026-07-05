@@ -97,10 +97,17 @@ func (s *Store) CreateOrder(ctx context.Context, req OrderRequest) (string, erro
 		total += price
 	}
 
+	// "res_" + orderID matches the reservation ID convention apigateway
+	// already assumes everywhere else (see completePendingReservation in
+	// apps/apigateway/api/reservation_controller.go), so any client reading
+	// the order back via GET rather than the original create response still
+	// sees a reservation_id that forwardOrderAction's TrimPrefix can recover.
+	reservationID := "res_" + orderID
+
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO orders.orders (id, user_id, status, idempotency_key, request_hash, total_amount_minor)
-		VALUES ($1, $2, 'PENDING', $3, $4, $5)
-	`, orderID, req.UserID, req.IdempotencyKey, hash[:], total)
+		INSERT INTO orders.orders (id, user_id, status, idempotency_key, request_hash, total_amount_minor, reservation_id)
+		VALUES ($1, $2, 'PENDING', $3, $4, $5, $6)
+	`, orderID, req.UserID, req.IdempotencyKey, hash[:], total, reservationID)
 	if err != nil {
 		return "", err
 	}

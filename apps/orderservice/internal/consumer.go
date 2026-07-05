@@ -68,6 +68,8 @@ func StartConsumer(ctx context.Context, db *sql.DB, cl *kgo.Client) {
 				s := string(r.Value)
 				if strings.Contains(s, "SeatReservationHeld") {
 					eventType = "SeatReservationHeld"
+				} else if strings.Contains(s, "SeatReservationConfirmationFailed") {
+					eventType = "SeatReservationConfirmationFailed"
 				} else if strings.Contains(s, "SeatReservationFailed") {
 					eventType = "SeatReservationFailed"
 				} else if strings.Contains(s, "SeatReservationExpired") {
@@ -83,6 +85,8 @@ func StartConsumer(ctx context.Context, db *sql.DB, cl *kgo.Client) {
 					handleSeatReservationFailed(recordCtx, db, orderID)
 				case "SeatReservationExpired":
 					handleSeatReservationExpired(recordCtx, db, orderID)
+				case "SeatReservationConfirmationFailed":
+					handleSeatReservationConfirmationFailed(recordCtx, db, orderID)
 				}
 			}
 		})
@@ -137,6 +141,76 @@ func handleSeatReservationExpired(ctx context.Context, db *sql.DB, orderID strin
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
 		slog.Info("order not in PENDING/HELD state or not found", "order_id", orderID)
+		return
+	}
+
+	var eventIDStr string
+	var totalAmount int64
+	if err := tx.QueryRowContext(ctx, `
+		SELECT s.event_id, o.total_amount_minor
+		FROM orders.order_seats s
+		JOIN orders.orders o ON o.id = s.order_id
+		WHERE s.order_id = $1 LIMIT 1
+	`, orderID).Scan(&eventIDStr, &totalAmount); err != nil {
+		slog.Error("failed to get order event id", "error", err)
+		return
+	}
+
+	eventID := uuid.New().String()
+	envelope := map[string]any{
+		"Type": "OrderExpired",
+		"Order": map[string]any{
+			"outbox_event_id":    eventID,
+			"order_id":           orderID,
+			"event_id":           eventIDStr,
+			"status":             "EXPIRED",
+			"total_amount_minor": totalAmount,
+		},
+	}
+	payloadBytes, _ := json.Marshal(envelope)
+
+	headers := map[string]string{}
+	if reqID, ok := ctx.Value("request_id").(string); ok && reqID != "" {
+		headers["X-Request-ID"] = reqID
+	}
+	headersBytes, _ := json.Marshal(headers)
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO orders.outbox_events (id, aggregate_type, aggregate_id, event_type, payload, headers)
+		VALUES ($1, 'order', $2, 'OrderExpired', $3, $4)
+	`, eventID, orderID, payloadBytes, headersBytes)
+	if err != nil {
+		slog.Error("failed to insert outbox event", "error", err)
+		return
+	}
+
+	tx.Commit()
+}
+
+// handleSeatReservationConfirmationFailed self-corrects an order that
+// confirmed locally before orderservice consumed an earlier, independent
+// SeatReservationExpired: seatservice's compare-and-append guard already
+// refused to append SeatReservationConfirmed onto the expired stream, so this
+// order's seat was never actually confirmed. The status guard restricts this
+// to exactly that impossible state (CONFIRMED with no ticket) - it must never
+// fire against a PENDING/HELD order, since this event is only ever emitted
+// synchronously while seatservice handles that same order's OrderConfirmed.
+func handleSeatReservationConfirmationFailed(ctx context.Context, db *sql.DB, orderID string) {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		slog.Error("failed to begin tx", "error", err)
+		return
+	}
+	defer tx.Rollback()
+
+	res, err := tx.ExecContext(ctx, `UPDATE orders.orders SET status = 'EXPIRED', updated_at = now() WHERE id = $1 AND status = 'CONFIRMED'`, orderID)
+	if err != nil {
+		slog.Error("failed to update EXPIRED", "error", err)
+		return
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		slog.Info("order not in CONFIRMED state or not found", "order_id", orderID)
 		return
 	}
 
