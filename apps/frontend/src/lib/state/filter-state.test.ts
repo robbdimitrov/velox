@@ -14,7 +14,9 @@ describe('filterState URL round-trip', () => {
   });
 
   it('hydrates from URL params, falling back to defaults for missing ones', () => {
-    hydrateFilterStateFromURL(new URLSearchParams('city=Chicago&available=false'));
+    hydrateFilterStateFromURL(
+      new URLSearchParams('city=Chicago&available=false')
+    );
 
     expect(filterState.city).toBe('Chicago');
     expect(filterState.availableOnly).toBe(false);

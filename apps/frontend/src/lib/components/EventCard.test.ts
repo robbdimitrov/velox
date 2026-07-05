@@ -50,13 +50,10 @@ describe('EventCard', () => {
     ['LOW', 'text-accent'],
     ['MEDIUM', 'text-warn'],
     ['HIGH', 'text-ok']
-  ] as const)(
-    'applies the %s scarcity tone class',
-    (bucket, expectedClass) => {
-      render(EventCard, { event: makeEvent({ remaining_bucket: bucket }) });
+  ] as const)('applies the %s scarcity tone class', (bucket, expectedClass) => {
+    render(EventCard, { event: makeEvent({ remaining_bucket: bucket }) });
 
-      const badge = screen.getByText(bucket);
-      expect(badge.className).toContain(expectedClass);
-    }
-  );
+    const badge = screen.getByText(bucket);
+    expect(badge.className).toContain(expectedClass);
+  });
 });
