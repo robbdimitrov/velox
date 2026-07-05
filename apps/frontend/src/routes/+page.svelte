@@ -7,7 +7,13 @@
   } from '@lucide/svelte';
   import EventCard from '$lib/components/EventCard.svelte';
   import LiveTicker from '$lib/components/LiveTicker.svelte';
-  import { filterState } from '$lib/state/filter-state.svelte';
+  import { replaceState } from '$app/navigation';
+  import { page } from '$app/state';
+  import {
+    filterState,
+    hydrateFilterStateFromURL,
+    filterStateToURLParams
+  } from '$lib/state/filter-state.svelte';
 
   let { data } = $props();
   const categories = [
@@ -17,6 +23,23 @@
     'Theatre',
     'Festivals'
   ];
+
+  hydrateFilterStateFromURL(page.url.searchParams);
+
+  const FILTER_SYNC_DEBOUNCE_MS = 300;
+  let filterSyncHandle: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    const params = filterStateToURLParams();
+    clearTimeout(filterSyncHandle);
+    filterSyncHandle = setTimeout(() => {
+      const search = params.toString();
+      const target = search
+        ? `${page.url.pathname}?${search}`
+        : page.url.pathname;
+      replaceState(target, page.state);
+    }, FILTER_SYNC_DEBOUNCE_MS);
+    return () => clearTimeout(filterSyncHandle);
+  });
 
   let filteredEvents = $derived(
     data.discovery.events.filter((event) => {
@@ -64,7 +87,7 @@
         >
         <select
           bind:value={filterState.eventType}
-          class="select select-bordered select-sm border-white/10 bg-black/40 rounded-lg focus:border-signal"
+          class="select select-bordered select-sm border-white/10 bg-black/40 rounded focus:border-signal"
         >
           {#each categories as category}
             <option>{category}</option>
@@ -76,14 +99,14 @@
           >Date window</span
         >
         <input
-          class="input input-bordered input-sm border-white/10 bg-black/40 rounded-lg focus:border-signal cursor-pointer"
+          class="input input-bordered input-sm border-white/10 bg-black/40 rounded focus:border-signal cursor-pointer"
           type="date"
         />
       </label>
       <label class="form-control">
         <span class="label-text text-inkMuted font-medium mb-1">City</span>
         <div
-          class="flex items-center gap-2 border border-white/10 bg-black/40 px-3 py-1.5 rounded-lg focus-within:border-signal transition-colors"
+          class="flex items-center gap-2 border border-white/10 bg-black/40 px-3 py-1.5 rounded focus-within:border-signal transition-colors"
         >
           <MapPin size={15} class="text-signal" />
           <input
@@ -122,7 +145,7 @@
     </div>
 
     <div
-      class="rounded-2xl overflow-hidden shadow-lg border border-white/5 bg-black/40"
+      class="rounded overflow-hidden shadow-lg border border-white/5 bg-black/40"
     >
       <LiveTicker url={data.tickerURL} />
     </div>
@@ -165,7 +188,7 @@
   <aside class="glass-panel h-max p-6 sticky top-28">
     <div class="flex items-center gap-3 border-b border-white/10 pb-4 mb-6">
       <div
-        class="p-2 bg-gradient-to-br from-accent to-orange-500 rounded-lg shadow-md"
+        class="p-2 bg-gradient-to-br from-accent to-orange-500 rounded shadow-md"
       >
         <CalendarDays class="text-white" size={18} />
       </div>
@@ -176,7 +199,7 @@
     <div class="grid gap-5">
       {#each data.discovery.featured as event}
         <a
-          class="group relative block overflow-hidden rounded-2xl border border-white/10 bg-black/50 shadow-lg hover:border-signal/50 hover:shadow-glow transition-all duration-300"
+          class="group relative block overflow-hidden rounded border border-white/10 bg-black/50 shadow-lg hover:border-signal/50 hover:shadow-glow transition-all duration-300"
           href={`/events/${event.id}`}
         >
           <div
