@@ -17,8 +17,16 @@ type OrderCreator interface {
 	CreateOrder(ctx context.Context, req OrderRequest) (string, error)
 }
 
+// OrderLifecycleStore is implemented by the order store to support the
+// explicit user confirm/cancel reservation lifecycle.
+type OrderLifecycleStore interface {
+	OrderCreator
+	ConfirmOrder(ctx context.Context, orderID string) (string, error)
+	CancelOrder(ctx context.Context, orderID string) (string, error)
+}
+
 type API struct {
-	Store OrderCreator
+	Store OrderLifecycleStore
 }
 
 func (api *API) HandleCreateOrder(w http.ResponseWriter, r *http.Request) {
@@ -58,6 +66,50 @@ func (api *API) HandleCreateOrder(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(OrderResponse{
 		OrderID: orderID,
 		Status:  "PENDING",
+	})
+}
+
+func (api *API) HandleConfirmOrder(w http.ResponseWriter, r *http.Request) {
+	orderID := r.PathValue("id")
+	status, err := api.Store.ConfirmOrder(r.Context(), orderID)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrOrderNotFound):
+			writeError(w, http.StatusNotFound, "order_not_found")
+		case errors.Is(err, ErrOrderNotConfirmable):
+			writeError(w, http.StatusConflict, "order_not_confirmable")
+		default:
+			writeError(w, http.StatusInternalServerError, "internal_error")
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(OrderResponse{
+		OrderID: orderID,
+		Status:  status,
+	})
+}
+
+func (api *API) HandleCancelOrder(w http.ResponseWriter, r *http.Request) {
+	orderID := r.PathValue("id")
+	status, err := api.Store.CancelOrder(r.Context(), orderID)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrOrderNotFound):
+			writeError(w, http.StatusNotFound, "order_not_found")
+		case errors.Is(err, ErrOrderNotCancellable):
+			writeError(w, http.StatusConflict, "order_not_cancellable")
+		default:
+			writeError(w, http.StatusInternalServerError, "internal_error")
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(OrderResponse{
+		OrderID: orderID,
+		Status:  status,
 	})
 }
 

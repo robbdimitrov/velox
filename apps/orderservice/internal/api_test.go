@@ -11,11 +11,21 @@ import (
 )
 
 type FakeStore struct {
-	CreateOrderFunc func(ctx context.Context, req OrderRequest) (string, error)
+	CreateOrderFunc  func(ctx context.Context, req OrderRequest) (string, error)
+	ConfirmOrderFunc func(ctx context.Context, orderID string) (string, error)
+	CancelOrderFunc  func(ctx context.Context, orderID string) (string, error)
 }
 
 func (f *FakeStore) CreateOrder(ctx context.Context, req OrderRequest) (string, error) {
 	return f.CreateOrderFunc(ctx, req)
+}
+
+func (f *FakeStore) ConfirmOrder(ctx context.Context, orderID string) (string, error) {
+	return f.ConfirmOrderFunc(ctx, orderID)
+}
+
+func (f *FakeStore) CancelOrder(ctx context.Context, orderID string) (string, error) {
+	return f.CancelOrderFunc(ctx, orderID)
 }
 
 func TestHandleCreateOrder_Idempotency(t *testing.T) {
@@ -91,6 +101,98 @@ func TestHandleCreateOrderRejectsUnknownFields(t *testing.T) {
 		t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
 	}
 	assertErrorCode(t, rr, "invalid_json")
+}
+
+func TestHandleConfirmOrder(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		api := &API{Store: &FakeStore{
+			ConfirmOrderFunc: func(ctx context.Context, orderID string) (string, error) {
+				return "CONFIRMED", nil
+			},
+		}}
+		req := httptest.NewRequest(http.MethodPost, "/orders/order-123/confirm", nil)
+		req.SetPathValue("id", "order-123")
+		rr := httptest.NewRecorder()
+
+		api.HandleConfirmOrder(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		api := &API{Store: &FakeStore{
+			ConfirmOrderFunc: func(ctx context.Context, orderID string) (string, error) {
+				return "", ErrOrderNotFound
+			},
+		}}
+		req := httptest.NewRequest(http.MethodPost, "/orders/missing/confirm", nil)
+		req.SetPathValue("id", "missing")
+		rr := httptest.NewRecorder()
+
+		api.HandleConfirmOrder(rr, req)
+
+		if rr.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want %d", rr.Code, http.StatusNotFound)
+		}
+		assertErrorCode(t, rr, "order_not_found")
+	})
+
+	t.Run("not confirmable", func(t *testing.T) {
+		api := &API{Store: &FakeStore{
+			ConfirmOrderFunc: func(ctx context.Context, orderID string) (string, error) {
+				return "", ErrOrderNotConfirmable
+			},
+		}}
+		req := httptest.NewRequest(http.MethodPost, "/orders/order-123/confirm", nil)
+		req.SetPathValue("id", "order-123")
+		rr := httptest.NewRecorder()
+
+		api.HandleConfirmOrder(rr, req)
+
+		if rr.Code != http.StatusConflict {
+			t.Fatalf("status = %d, want %d", rr.Code, http.StatusConflict)
+		}
+		assertErrorCode(t, rr, "order_not_confirmable")
+	})
+}
+
+func TestHandleCancelOrder(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		api := &API{Store: &FakeStore{
+			CancelOrderFunc: func(ctx context.Context, orderID string) (string, error) {
+				return "CANCELLED", nil
+			},
+		}}
+		req := httptest.NewRequest(http.MethodPost, "/orders/order-123/cancel", nil)
+		req.SetPathValue("id", "order-123")
+		rr := httptest.NewRecorder()
+
+		api.HandleCancelOrder(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+		}
+	})
+
+	t.Run("not cancellable", func(t *testing.T) {
+		api := &API{Store: &FakeStore{
+			CancelOrderFunc: func(ctx context.Context, orderID string) (string, error) {
+				return "", ErrOrderNotCancellable
+			},
+		}}
+		req := httptest.NewRequest(http.MethodPost, "/orders/order-123/cancel", nil)
+		req.SetPathValue("id", "order-123")
+		rr := httptest.NewRecorder()
+
+		api.HandleCancelOrder(rr, req)
+
+		if rr.Code != http.StatusConflict {
+			t.Fatalf("status = %d, want %d", rr.Code, http.StatusConflict)
+		}
+		assertErrorCode(t, rr, "order_not_cancellable")
+	})
 }
 
 func assertErrorCode(t *testing.T, rr *httptest.ResponseRecorder, want string) {

@@ -4,56 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"log/slog"
-	"os"
-	"strconv"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-// defaultPaymentWorkerPoolSize bounds concurrent payment-processing jobs when
-// PAYMENT_WORKER_POOL_SIZE is unset. 10 keeps external Stripe-call concurrency
-// modest by default while still lifting the prior de facto limit of 1.
-const defaultPaymentWorkerPoolSize = 10
-
-// paymentWorkerPoolSize returns the bounded worker pool size for validation
-// and payment jobs dispatched from the Kafka consume loop, configurable per
-// deployment via PAYMENT_WORKER_POOL_SIZE.
-func paymentWorkerPoolSize() int {
-	if v := os.Getenv("PAYMENT_WORKER_POOL_SIZE"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			return n
-		}
-	}
-	return defaultPaymentWorkerPoolSize
-}
-
-// dispatchJob acquires a slot from the bounded pool and runs job on its own
-// goroutine, tracked by wg so the caller can wait for in-flight jobs to drain
-// on shutdown. It does not dispatch once ctx is cancelled, but never aborts a
-// job already running.
-func dispatchJob(ctx context.Context, sem chan struct{}, wg *sync.WaitGroup, job func()) {
-	select {
-	case sem <- struct{}{}:
-	case <-ctx.Done():
-		return
-	}
-	wg.Go(func() {
-		defer func() { <-sem }()
-		job()
-	})
-}
-
 func StartConsumer(ctx context.Context, db *sql.DB, cl *kgo.Client) {
-	sem := make(chan struct{}, paymentWorkerPoolSize())
-	var wg sync.WaitGroup
-	defer wg.Wait()
-
 	for {
 		if ctx.Err() != nil {
 			return
@@ -112,137 +70,39 @@ func StartConsumer(ctx context.Context, db *sql.DB, cl *kgo.Client) {
 					eventType = "SeatReservationHeld"
 				} else if strings.Contains(s, "SeatReservationFailed") {
 					eventType = "SeatReservationFailed"
+				} else if strings.Contains(s, "SeatReservationExpired") {
+					eventType = "SeatReservationExpired"
 				}
 			}
 
 			if orderID != "" {
 				switch eventType {
 				case "SeatReservationHeld":
-					dispatchJob(ctx, sem, &wg, func() { handleSeatReserved(recordCtx, db, orderID) })
+					handleSeatReservationHeld(recordCtx, db, orderID)
 				case "SeatReservationFailed":
-					dispatchJob(ctx, sem, &wg, func() { handleSeatReservationFailed(recordCtx, db, orderID) })
+					handleSeatReservationFailed(recordCtx, db, orderID)
+				case "SeatReservationExpired":
+					handleSeatReservationExpired(recordCtx, db, orderID)
 				}
 			}
 		})
 	}
 }
 
-// mockStripePayment stands in for a real payment provider call. idempotencyKey
-// is threaded through because docs/architecture.md requires payment providers
-// receive the same idempotency key the client used, to prevent duplicate
-// charges on retry; a real Stripe client would pass this as its own
-// Idempotency-Key request header.
-func mockStripePayment(ctx context.Context, amount int64, idempotencyKey string) error {
-	_ = idempotencyKey
-	time.Sleep(800 * time.Millisecond)
-	if amount%10 == 9 {
-		return errors.New("card declined")
-	}
-	return nil
-}
-
-func handleSeatReserved(ctx context.Context, db *sql.DB, orderID string) {
-	tx, err := db.BeginTx(ctx, nil)
+// handleSeatReservationHeld records that seatservice successfully held the
+// requested seat(s). No outbox event is produced here: nothing external
+// cares that a hold succeeded until the user explicitly confirms or cancels,
+// or the hold expires.
+func handleSeatReservationHeld(ctx context.Context, db *sql.DB, orderID string) {
+	res, err := db.ExecContext(ctx, `UPDATE orders.orders SET status = 'HELD', updated_at = now() WHERE id = $1 AND status = 'PENDING'`, orderID)
 	if err != nil {
-		slog.Error("failed to begin tx", "error", err)
+		slog.Error("failed to update HELD", "error", err)
 		return
 	}
-
-	var totalAmount int64
-	var eventIDStr string
-	var status string
-	var idempotencyKey string
-	err = tx.QueryRowContext(ctx, `
-		SELECT o.total_amount_minor, s.event_id, o.status, o.idempotency_key
-		FROM orders.orders o
-		JOIN orders.order_seats s ON s.order_id = o.id
-		WHERE o.id = $1 LIMIT 1
-	`, orderID).Scan(&totalAmount, &eventIDStr, &status, &idempotencyKey)
-	if err != nil {
-		slog.Error("failed to get order details", "error", err)
-		tx.Rollback()
-		return
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		slog.Info("order not in PENDING state or not found", "order_id", orderID)
 	}
-	if status != "PENDING" {
-		slog.Info("order already processed", "order_id", orderID, "status", status)
-		tx.Rollback()
-		return
-	}
-
-	_, err = tx.ExecContext(ctx, `UPDATE orders.orders SET status = 'AWAITING_PAYMENT', updated_at = now() WHERE id = $1`, orderID)
-	if err != nil {
-		slog.Error("failed to update AWAITING_PAYMENT", "error", err)
-		tx.Rollback()
-		return
-	}
-	tx.Commit()
-
-	err = mockStripePayment(ctx, totalAmount, idempotencyKey)
-
-	tx, errTx := db.BeginTx(ctx, nil)
-	if errTx != nil {
-		slog.Error("failed to begin tx for payment result", "error", errTx)
-		return
-	}
-	defer tx.Rollback()
-
-	eventID := uuid.New().String()
-	var envelope map[string]any
-	var eventType string
-
-	if err != nil {
-		_, errDB := tx.ExecContext(ctx, `UPDATE orders.orders SET status = 'FAILED', updated_at = now() WHERE id = $1`, orderID)
-		if errDB != nil {
-			slog.Error("failed to update FAILED", "error", errDB)
-			return
-		}
-		eventType = "PaymentFailed"
-		envelope = map[string]any{
-			"Type": "PaymentFailed",
-			"Order": map[string]any{
-				"outbox_event_id":    eventID,
-				"order_id":           orderID,
-				"event_id":           eventIDStr,
-				"status":             "FAILED",
-				"total_amount_minor": totalAmount,
-			},
-		}
-	} else {
-		_, errDB := tx.ExecContext(ctx, `UPDATE orders.orders SET status = 'CONFIRMED', updated_at = now() WHERE id = $1`, orderID)
-		if errDB != nil {
-			slog.Error("failed to update CONFIRMED", "error", errDB)
-			return
-		}
-		eventType = "OrderConfirmed"
-		envelope = map[string]any{
-			"Type": "OrderConfirmed",
-			"Order": map[string]any{
-				"outbox_event_id":    eventID,
-				"order_id":           orderID,
-				"event_id":           eventIDStr,
-				"status":             "CONFIRMED",
-				"total_amount_minor": totalAmount,
-			},
-		}
-	}
-
-	payloadBytes, _ := json.Marshal(envelope)
-	headers := map[string]string{}
-	if reqID, ok := ctx.Value("request_id").(string); ok && reqID != "" {
-		headers["X-Request-ID"] = reqID
-	}
-	headersBytes, _ := json.Marshal(headers)
-
-	_, errDB := tx.ExecContext(ctx, `
-		INSERT INTO orders.outbox_events (id, aggregate_type, aggregate_id, event_type, payload, headers)
-		VALUES ($1, 'order', $2, $3, $4, $5)
-	`, eventID, orderID, eventType, payloadBytes, headersBytes)
-	if errDB != nil {
-		slog.Error("failed to insert outbox event", "error", errDB)
-		return
-	}
-
-	tx.Commit()
 }
 
 func handleSeatReservationFailed(ctx context.Context, db *sql.DB, orderID string) {
@@ -255,4 +115,70 @@ func handleSeatReservationFailed(ctx context.Context, db *sql.DB, orderID string
 	if rows == 0 {
 		slog.Info("order not in PENDING state or not found", "order_id", orderID)
 	}
+}
+
+// handleSeatReservationExpired records that seatservice's periodic expiry
+// sweep timed out the hold before the user confirmed or cancelled. The
+// status guard ensures a timeout that races with a user's confirm/cancel
+// never clobbers that outcome.
+func handleSeatReservationExpired(ctx context.Context, db *sql.DB, orderID string) {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		slog.Error("failed to begin tx", "error", err)
+		return
+	}
+	defer tx.Rollback()
+
+	res, err := tx.ExecContext(ctx, `UPDATE orders.orders SET status = 'EXPIRED', updated_at = now() WHERE id = $1 AND status IN ('PENDING', 'HELD')`, orderID)
+	if err != nil {
+		slog.Error("failed to update EXPIRED", "error", err)
+		return
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		slog.Info("order not in PENDING/HELD state or not found", "order_id", orderID)
+		return
+	}
+
+	var eventIDStr string
+	var totalAmount int64
+	if err := tx.QueryRowContext(ctx, `
+		SELECT s.event_id, o.total_amount_minor
+		FROM orders.order_seats s
+		JOIN orders.orders o ON o.id = s.order_id
+		WHERE s.order_id = $1 LIMIT 1
+	`, orderID).Scan(&eventIDStr, &totalAmount); err != nil {
+		slog.Error("failed to get order event id", "error", err)
+		return
+	}
+
+	eventID := uuid.New().String()
+	envelope := map[string]any{
+		"Type": "OrderExpired",
+		"Order": map[string]any{
+			"outbox_event_id":    eventID,
+			"order_id":           orderID,
+			"event_id":           eventIDStr,
+			"status":             "EXPIRED",
+			"total_amount_minor": totalAmount,
+		},
+	}
+	payloadBytes, _ := json.Marshal(envelope)
+
+	headers := map[string]string{}
+	if reqID, ok := ctx.Value("request_id").(string); ok && reqID != "" {
+		headers["X-Request-ID"] = reqID
+	}
+	headersBytes, _ := json.Marshal(headers)
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO orders.outbox_events (id, aggregate_type, aggregate_id, event_type, payload, headers)
+		VALUES ($1, 'order', $2, 'OrderExpired', $3, $4)
+	`, eventID, orderID, payloadBytes, headersBytes)
+	if err != nil {
+		slog.Error("failed to insert outbox event", "error", err)
+		return
+	}
+
+	tx.Commit()
 }

@@ -15,6 +15,9 @@ import (
 )
 
 var ErrIdempotencyConflict = errors.New("idempotency key conflict")
+var ErrOrderNotFound = errors.New("order not found")
+var ErrOrderNotConfirmable = errors.New("order not confirmable")
+var ErrOrderNotCancellable = errors.New("order not cancellable")
 
 type Store struct {
 	db *sql.DB
@@ -160,4 +163,151 @@ func (s *Store) CreateOrder(ctx context.Context, req OrderRequest) (string, erro
 	}
 
 	return orderID, nil
+}
+
+// ConfirmOrder transitions an order from HELD to CONFIRMED in response to an
+// explicit user confirmation. It is idempotent: confirming an already
+// CONFIRMED order returns its current status rather than an error, so a
+// retried confirm request never fails.
+func (s *Store) ConfirmOrder(ctx context.Context, orderID string) (string, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+
+	var status string
+	err = tx.QueryRowContext(ctx, `SELECT status FROM orders.orders WHERE id = $1 FOR UPDATE`, orderID).Scan(&status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrOrderNotFound
+	} else if err != nil {
+		return "", err
+	}
+
+	if status == "CONFIRMED" {
+		return status, tx.Commit()
+	}
+	if status != "HELD" {
+		return "", ErrOrderNotConfirmable
+	}
+
+	var totalAmount int64
+	var eventIDStr string
+	if err := tx.QueryRowContext(ctx, `
+		SELECT o.total_amount_minor, s.event_id
+		FROM orders.orders o
+		JOIN orders.order_seats s ON s.order_id = o.id
+		WHERE o.id = $1 LIMIT 1
+	`, orderID).Scan(&totalAmount, &eventIDStr); err != nil {
+		return "", err
+	}
+
+	if _, err := tx.ExecContext(ctx, `UPDATE orders.orders SET status = 'CONFIRMED', updated_at = now() WHERE id = $1`, orderID); err != nil {
+		return "", err
+	}
+
+	eventID := uuid.New().String()
+	envelope := map[string]any{
+		"Type": "OrderConfirmed",
+		"Order": map[string]any{
+			"outbox_event_id":    eventID,
+			"order_id":           orderID,
+			"event_id":           eventIDStr,
+			"status":             "CONFIRMED",
+			"total_amount_minor": totalAmount,
+		},
+	}
+	payloadBytes, _ := json.Marshal(envelope)
+
+	headers := map[string]string{}
+	if reqID, ok := ctx.Value("request_id").(string); ok && reqID != "" {
+		headers["X-Request-ID"] = reqID
+	}
+	headersBytes, _ := json.Marshal(headers)
+
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO orders.outbox_events (id, aggregate_type, aggregate_id, event_type, payload, headers)
+		VALUES ($1, 'order', $2, 'OrderConfirmed', $3, $4)
+	`, eventID, orderID, payloadBytes, headersBytes); err != nil {
+		return "", err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return "", err
+	}
+
+	return "CONFIRMED", nil
+}
+
+// CancelOrder transitions an order from PENDING or HELD to CANCELLED in
+// response to an explicit user cancellation. It is idempotent: cancelling an
+// already CANCELLED order returns success rather than an error.
+func (s *Store) CancelOrder(ctx context.Context, orderID string) (string, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+
+	var status string
+	err = tx.QueryRowContext(ctx, `SELECT status FROM orders.orders WHERE id = $1 FOR UPDATE`, orderID).Scan(&status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrOrderNotFound
+	} else if err != nil {
+		return "", err
+	}
+
+	if status == "CANCELLED" {
+		return status, tx.Commit()
+	}
+	if status != "PENDING" && status != "HELD" {
+		return "", ErrOrderNotCancellable
+	}
+
+	var totalAmount int64
+	var eventIDStr string
+	if err := tx.QueryRowContext(ctx, `
+		SELECT o.total_amount_minor, s.event_id
+		FROM orders.orders o
+		JOIN orders.order_seats s ON s.order_id = o.id
+		WHERE o.id = $1 LIMIT 1
+	`, orderID).Scan(&totalAmount, &eventIDStr); err != nil {
+		return "", err
+	}
+
+	if _, err := tx.ExecContext(ctx, `UPDATE orders.orders SET status = 'CANCELLED', updated_at = now() WHERE id = $1`, orderID); err != nil {
+		return "", err
+	}
+
+	eventID := uuid.New().String()
+	envelope := map[string]any{
+		"Type": "OrderCancelled",
+		"Order": map[string]any{
+			"outbox_event_id":    eventID,
+			"order_id":           orderID,
+			"event_id":           eventIDStr,
+			"status":             "CANCELLED",
+			"total_amount_minor": totalAmount,
+		},
+	}
+	payloadBytes, _ := json.Marshal(envelope)
+
+	headers := map[string]string{}
+	if reqID, ok := ctx.Value("request_id").(string); ok && reqID != "" {
+		headers["X-Request-ID"] = reqID
+	}
+	headersBytes, _ := json.Marshal(headers)
+
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO orders.outbox_events (id, aggregate_type, aggregate_id, event_type, payload, headers)
+		VALUES ($1, 'order', $2, 'OrderCancelled', $3, $4)
+	`, eventID, orderID, payloadBytes, headersBytes); err != nil {
+		return "", err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return "", err
+	}
+
+	return "CANCELLED", nil
 }
