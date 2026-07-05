@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -55,32 +57,84 @@ end
 return 0
 `)
 
-func (rl *RateLimiter) Middleware(next http.HandlerFunc) http.HandlerFunc {
+// allow checks a single token bucket identified by key. A nil client (no
+// Redis configured) always allows, so rate limiting degrades open rather than
+// blocking traffic when the soft dependency is unavailable.
+func (rl *RateLimiter) allow(ctx context.Context, key string) (bool, error) {
+	if rl.client == nil {
+		return true, nil
+	}
+	keys := []string{"tb:tokens:" + key, "tb:ts:" + key}
+	now := time.Now().UnixNano() / 1e9 // seconds
+
+	res, err := tbScript.Run(ctx, rl.client, keys, rl.rate, rl.capacity, now).Result()
+	if err != nil {
+		return false, err
+	}
+	return res.(int64) != 0, nil
+}
+
+// Middleware enforces a single IP-keyed bucket ahead of authentication. Used
+// for endpoints that don't require an authenticated user.
+func (rl *RateLimiter) Middleware(endpoint string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if rl.client == nil {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		ip := r.RemoteAddr
-		if ip == "" {
-			ip = "unknown"
-		}
-
-		keys := []string{"tb:tokens:" + ip, "tb:ts:" + ip}
-		now := time.Now().UnixNano() / 1e9 // seconds
-
-		res, err := tbScript.Run(r.Context(), rl.client, keys, rl.rate, rl.capacity, now).Result()
+		allowed, err := rl.allow(r.Context(), endpoint+":ip:"+clientIP(r))
 		if err != nil {
-			http.Error(w, err.Error(), 500)
+			// Rate limiting is a soft dependency (Redis), but per
+			// docs/infrastructure.md's backpressure rules, mutation endpoints
+			// must fail closed (503, not silently allow) when it's degraded,
+			// so clients know to retry rather than seeing a generic error.
+			// The raw Redis error is logged server-side only, never returned.
+			slog.Error("rate limiter unavailable", "error", err)
+			writeError(w, http.StatusServiceUnavailable, "rate_limiter_unavailable")
 			return
 		}
+		if !allowed {
+			writeJSON(w, http.StatusTooManyRequests, map[string]string{"message": "Too Many Requests", "code": "rate_limited"})
+			return
+		}
+		next.ServeHTTP(w, r)
+	}
+}
 
-		if res.(int64) == 0 {
+// AuthedMiddleware enforces both an IP bucket and an account bucket, each
+// namespaced by endpoint so distinct routes never share a bucket. It must run
+// after authentication (per docs/architecture.md's auth -> rate limit
+// ingress pipeline) since it needs the authenticated user's ID.
+func (rl *RateLimiter) AuthedMiddleware(endpoint string, next func(http.ResponseWriter, *http.Request, User)) func(http.ResponseWriter, *http.Request, User) {
+	return func(w http.ResponseWriter, r *http.Request, user User) {
+		ipAllowed, err := rl.allow(r.Context(), endpoint+":ip:"+clientIP(r))
+		if err != nil {
+			// Rate limiting is a soft dependency (Redis), but per
+			// docs/infrastructure.md's backpressure rules, mutation endpoints
+			// must fail closed (503, not silently allow) when it's degraded,
+			// so clients know to retry rather than seeing a generic error.
+			// The raw Redis error is logged server-side only, never returned.
+			slog.Error("rate limiter unavailable", "error", err)
+			writeError(w, http.StatusServiceUnavailable, "rate_limiter_unavailable")
+			return
+		}
+		if !ipAllowed {
 			writeJSON(w, http.StatusTooManyRequests, map[string]string{"message": "Too Many Requests", "code": "rate_limited"})
 			return
 		}
 
-		next.ServeHTTP(w, r)
+		accountAllowed, err := rl.allow(r.Context(), endpoint+":account:"+user.ID)
+		if err != nil {
+			// Rate limiting is a soft dependency (Redis), but per
+			// docs/infrastructure.md's backpressure rules, mutation endpoints
+			// must fail closed (503, not silently allow) when it's degraded,
+			// so clients know to retry rather than seeing a generic error.
+			// The raw Redis error is logged server-side only, never returned.
+			slog.Error("rate limiter unavailable", "error", err)
+			writeError(w, http.StatusServiceUnavailable, "rate_limiter_unavailable")
+			return
+		}
+		if !accountAllowed {
+			writeJSON(w, http.StatusTooManyRequests, map[string]string{"message": "Too Many Requests", "code": "rate_limited"})
+			return
+		}
+
+		next(w, r, user)
 	}
 }

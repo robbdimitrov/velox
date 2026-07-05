@@ -31,13 +31,19 @@ func main() {
 		slog.Info("apigateway using Database reservation store")
 	}
 
+	// REDIS_ADDR is the deployment's actual configured name (velox-service-config);
+	// REDIS_URL is kept as an override for other contexts (local dev, tests).
 	cacheURL := os.Getenv("REDIS_URL")
+	if cacheURL == "" {
+		cacheURL = os.Getenv("REDIS_ADDR")
+	}
 	if cacheURL == "" {
 		cacheURL = "localhost:6379"
 	}
 	cacheClient := redis.NewClient(&redis.Options{Addr: cacheURL})
 
 	server := api.NewServerWithStore(secret, store, cacheClient)
+	server.SetTokenIssuerAudience(os.Getenv("JWT_ISSUER"), os.Getenv("JWT_AUDIENCE"))
 
 	if os.Getenv("ORDER_SERVICE_ADDR") != "" {
 		server.SetOrderServiceURL("http://" + os.Getenv("ORDER_SERVICE_ADDR") + "/orders")

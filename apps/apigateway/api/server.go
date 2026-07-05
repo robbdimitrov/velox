@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -27,6 +28,9 @@ type Server struct {
 	organizerClients map[string]map[chan string]struct{}
 	httpClient       *http.Client
 	orderSvcURL      string
+	workerID         string
+	tokenIssuer      string
+	tokenAudience    string
 }
 
 func NewServerWithStore(secret string, store *DatabaseStore, cacheClient *redis.Client) *Server {
@@ -45,6 +49,9 @@ func NewServerWithStore(secret string, store *DatabaseStore, cacheClient *redis.
 		seatClients:      map[string]map[chan string]struct{}{},
 		organizerClients: map[string]map[chan string]struct{}{},
 		httpClient:       &http.Client{Timeout: 3 * time.Second},
+		workerID:         uuid.NewString(),
+		tokenIssuer:      defaultTokenIssuer,
+		tokenAudience:    defaultTokenAudience,
 	}
 	if store != nil {
 		go s.listenSeatUpdates()
@@ -56,6 +63,19 @@ func NewServerWithStore(secret string, store *DatabaseStore, cacheClient *redis.
 
 func (s *Server) SetOrderServiceURL(url string) {
 	s.orderSvcURL = url
+}
+
+// SetTokenIssuerAudience overrides the session/QR token iss/aud claims,
+// e.g. from JWT_ISSUER/JWT_AUDIENCE deployment config. Empty values are
+// ignored so callers can pass through unset env vars without clobbering the
+// defaults set in NewServerWithStore.
+func (s *Server) SetTokenIssuerAudience(issuer, audience string) {
+	if issuer != "" {
+		s.tokenIssuer = issuer
+	}
+	if audience != "" {
+		s.tokenAudience = audience
+	}
 }
 
 func (s *Server) SetHTTPClient(client *http.Client) {

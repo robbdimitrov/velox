@@ -1,10 +1,6 @@
 package api
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -15,6 +11,25 @@ import (
 )
 
 const sessionTTL = 12 * time.Hour
+
+const (
+	defaultTokenIssuer   = "velox-apigateway"
+	defaultTokenAudience = "velox-api"
+)
+
+// scopesForRole returns the space-separated scope claim embedded in a
+// session token for the given role. Authorization itself still runs off the
+// User record re-fetched from the store on every request (see authenticate);
+// this claim is a zero-trust ingress check, not the source of truth for
+// permissions.
+func scopesForRole(role string) string {
+	switch role {
+	case RoleOrganizer:
+		return "organizer:read organizer:write reservations:write orders:read"
+	default:
+		return "reservations:write orders:read"
+	}
+}
 
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -245,41 +260,35 @@ func (s *Server) authenticate(r *http.Request) (User, error) {
 }
 
 func (s *Server) sign(user User) (string, error) {
-	payload, err := json.Marshal(map[string]any{"sub": user.ID, "role": user.Role, "exp": s.now().Add(sessionTTL).Unix()})
-	if err != nil {
-		return "", err
-	}
-	body := base64.RawURLEncoding.EncodeToString(payload)
-	mac := hmac.New(sha256.New, s.secret)
-	mac.Write([]byte(body))
-	return body + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil)), nil
+	return signHMAC(s.secret, map[string]any{
+		"sub":   user.ID,
+		"role":  user.Role,
+		"exp":   s.now().Add(sessionTTL).Unix(),
+		"iss":   s.tokenIssuer,
+		"aud":   s.tokenAudience,
+		"scope": scopesForRole(user.Role),
+	})
 }
 
 func (s *Server) verify(token string) (string, error) {
-	parts := strings.Split(token, ".")
-	if len(parts) != 2 {
-		return "", errors.New("bad token")
-	}
-	mac := hmac.New(sha256.New, s.secret)
-	mac.Write([]byte(parts[0]))
-	expected := mac.Sum(nil)
-	actual, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil || !hmac.Equal(expected, actual) {
-		return "", errors.New("bad signature")
-	}
-	payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[0])
+	payload, err := verifyHMAC(s.secret, token)
 	if err != nil {
 		return "", err
 	}
-	var payload struct {
-		Sub string `json:"sub"`
-		Exp int64  `json:"exp"`
-	}
-	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		return "", err
-	}
-	if payload.Exp <= s.now().Unix() {
+	sub, _ := payload["sub"].(string)
+	exp, _ := payload["exp"].(float64)
+	iss, _ := payload["iss"].(string)
+	aud, _ := payload["aud"].(string)
+	scope, _ := payload["scope"].(string)
+
+	if int64(exp) <= s.now().Unix() {
 		return "", errors.New("expired token")
 	}
-	return payload.Sub, nil
+	if iss != s.tokenIssuer || aud != s.tokenAudience {
+		return "", errors.New("bad issuer or audience")
+	}
+	if scope == "" {
+		return "", errors.New("missing scope")
+	}
+	return sub, nil
 }

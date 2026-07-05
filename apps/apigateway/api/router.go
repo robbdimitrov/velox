@@ -23,10 +23,11 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /events/{eventId}/stream", s.handleSeatStream)
 
 	rl := NewRateLimiter(s.cacheClient, 10.0, 100) // 10 TPS, 100 max burst
-	mux.HandleFunc("POST /reservations", rl.Middleware(s.requireAuth(s.handleCreateReservation)))
-	mux.HandleFunc("POST /reservations/{reservationId}/confirm", s.requireAuth(s.handleConfirmReservation))
+	mux.HandleFunc("POST /reservations", s.requireAuth(rl.AuthedMiddleware("reservations_create", s.handleCreateReservation)))
+	mux.HandleFunc("POST /reservations/{reservationId}/confirm", s.requireAuth(rl.AuthedMiddleware("reservations_confirm", s.handleConfirmReservation)))
 	mux.HandleFunc("GET /orders", s.requireAuth(s.handleOrders))
 	mux.HandleFunc("GET /orders/{orderId}", s.requireAuth(s.handleOrder))
+	mux.HandleFunc("GET /wallet/tickets", s.requireAuth(s.handleWalletTickets))
 	mux.HandleFunc("GET /organizer/events", s.requireRole(RoleOrganizer, s.handleOrganizerEvents))
 	mux.HandleFunc("GET /organizer/events/{eventId}/orders", s.requireRole(RoleOrganizer, s.handleOrganizerOrders))
 	mux.HandleFunc("GET /organizer/events/{eventId}/inventory", s.requireRole(RoleOrganizer, s.handleOrganizerInventory))

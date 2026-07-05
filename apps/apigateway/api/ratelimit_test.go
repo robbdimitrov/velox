@@ -23,7 +23,7 @@ func TestRateLimiter(t *testing.T) {
 
 	limiter := NewRateLimiter(client, 1, 2) // 1 per sec, capacity 2
 
-	handler := limiter.Middleware(func(w http.ResponseWriter, r *http.Request) {
+	handler := limiter.Middleware("test_endpoint", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
