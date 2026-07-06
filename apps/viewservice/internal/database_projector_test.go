@@ -16,7 +16,7 @@ func TestApplyEvent_SeatReservationCancelled_CancelsIssuedTicket(t *testing.T) {
 	s := &DatabaseStore{db: db}
 
 	event := Event{
-		EventID:          "evt-cancel-1",
+		EventID:          "6f6d0b8e-2b3d-4b7e-9b8b-2b1e9b8b2b11",
 		AggregateID:      "seat:evt_neon_riot:A:A-01",
 		AggregateVersion: 3,
 		Type:             "SeatReservationCancelled",
@@ -66,7 +66,7 @@ func TestApplyEvent_SeatReservationCancelled_NoIssuedTicket_NoError(t *testing.T
 	s := &DatabaseStore{db: db}
 
 	event := Event{
-		EventID:          "evt-cancel-2",
+		EventID:          "6f6d0b8e-2b3d-4b7e-9b8b-2b1e9b8b2b22",
 		AggregateID:      "seat:evt_neon_riot:A:A-02",
 		AggregateVersion: 1,
 		Type:             "SeatReservationCancelled",
@@ -97,6 +97,41 @@ func TestApplyEvent_SeatReservationCancelled_NoIssuedTicket_NoError(t *testing.T
 
 	if err := s.ApplyEvent(context.Background(), event, "inventory.events.v1", 0, 1); err != nil {
 		t.Fatalf("ApplyEvent returned error: %v", err)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
+// TestApplyEvent_SkipsNonUUIDEventID guards against a real production
+// incident: orderservice's EventCancelled once resolved to a plain
+// "event-cancel:<id>" string rather than a UUID, and this consumer's dedup
+// check binds the resolved event_id against processed_events.event_id, a
+// uuid-typed column. That mismatch crash-looped this whole consumer on every
+// EventCancelled message. ApplyEvent must instead skip such an event
+// gracefully (no error, no query attempted) so one malformed message can
+// never block consumption of everything after it.
+func TestApplyEvent_SkipsNonUUIDEventID(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to open sqlmock db: %v", err)
+	}
+	defer db.Close()
+	s := &DatabaseStore{db: db}
+
+	event := Event{
+		EventID: "event-cancel:evt_neon_riot",
+		Type:    "EventCancelled",
+	}
+
+	// The transaction still opens (and is left to roll back via defer) since
+	// the guard runs inside ApplyEvent after BeginTx; no other statement -
+	// notably no SELECT EXISTS dedup check - should ever be attempted.
+	mock.ExpectBegin()
+
+	if err := s.ApplyEvent(context.Background(), event, "order.events.v1", 0, 1); err != nil {
+		t.Fatalf("ApplyEvent returned error for a non-UUID event_id, want graceful skip: %v", err)
 	}
 
 	if err := mock.ExpectationsWereMet(); err != nil {

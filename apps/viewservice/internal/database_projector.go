@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -65,6 +67,19 @@ func (s *DatabaseStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 	// Event.ResolvedEventID/ResolvedAggregateID.
 	eventID := event.ResolvedEventID()
 	aggregateID := event.ResolvedAggregateID()
+
+	// projection.processed_events.event_id is uuid-typed, so a producer that
+	// ever emits a non-UUID resolved event_id (an event type this consumer
+	// has no other use for, e.g. a purely informational one with no
+	// type-switch case below) must not crash this whole consumer forever -
+	// skip it. Returning nil here is safe: no writes have happened yet, so
+	// there is nothing to roll back, and this only ever applies to event
+	// types this function has no side effects for anyway.
+	if _, err := uuid.Parse(eventID); err != nil {
+		slog.Warn("skipping event with non-UUID event_id, cannot dedupe via processed_events",
+			"event_id", eventID, "event_type", event.Type, "source_topic", sourceTopic, "source_offset", sourceOffset)
+		return nil
+	}
 
 	// Check if processed. Dedup is keyed on event_id so a duplicate event
 	// republished at a different Kafka offset (e.g. an outbox relay retry)
