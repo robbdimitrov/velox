@@ -107,7 +107,7 @@ func (s *DatabaseStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 	}
 
 	switch event.Type {
-	case "SeatReservationHeld", "SeatReservationExpired", "SeatReservationConfirmed", "SeatTicketIssued":
+	case "SeatReservationHeld", "SeatReservationExpired", "SeatReservationConfirmed", "SeatReservationCancelled", "SeatTicketIssued":
 		var expiresAt *time.Time
 		if event.Seat.ExpiresAtMS > 0 {
 			t := time.UnixMilli(event.Seat.ExpiresAtMS)
@@ -129,6 +129,11 @@ func (s *DatabaseStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 
 		if event.Type == "SeatReservationConfirmed" {
 			if err := issueWalletTicket(ctx, tx, event); err != nil {
+				return err
+			}
+		}
+		if event.Type == "SeatReservationCancelled" {
+			if err := cancelWalletTicket(ctx, tx, event); err != nil {
 				return err
 			}
 		}
@@ -221,5 +226,19 @@ func issueWalletTicket(ctx context.Context, tx *sql.Tx, event Event) error {
 		VALUES ($1, $2, $3, $4, $5, $6, 'ISSUED', $7)
 		ON CONFLICT (ticket_id) DO NOTHING
 	`, event.EventID, userID, event.CorrelationID, event.Seat.EventID, event.Seat.SectionID, event.Seat.SeatID, event.AggregateVersion)
+	return err
+}
+
+// cancelWalletTicket flips a previously issued wallet ticket to CANCELLED
+// when its seat's event is cancelled by the organizer. It is a no-op when no
+// ticket was ever issued for the seat (e.g. it was only HELD, never
+// CONFIRMED) — that seat simply has no wallet_tickets row to update, which is
+// expected rather than an error.
+func cancelWalletTicket(ctx context.Context, tx *sql.Tx, event Event) error {
+	_, err := tx.ExecContext(ctx, `
+		UPDATE projection.wallet_tickets
+		SET status = 'CANCELLED', updated_at = now()
+		WHERE event_id = $1 AND section_id = $2 AND seat_id = $3 AND status = 'ISSUED'
+	`, event.Seat.EventID, event.Seat.SectionID, event.Seat.SeatID)
 	return err
 }

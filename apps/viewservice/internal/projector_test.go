@@ -32,6 +32,17 @@ func TestRejectsLowerAggregateVersion(t *testing.T) {
 	}
 }
 
+func TestSeatReservationCancelledEvent(t *testing.T) {
+	p := NewProjector()
+	event := Event{EventID: "evt1", AggregateID: "seat1", AggregateVersion: 1, Type: "SeatReservationCancelled", Seat: Seat{EventID: "event", SectionID: "A", SeatID: "A-01", Status: "CANCELLED"}}
+	if err := p.Apply(event); err != nil {
+		t.Fatal(err)
+	}
+	if got := p.Seats["event:A:A-01"].Status; got != "CANCELLED" {
+		t.Fatalf("status = %s", got)
+	}
+}
+
 func TestOrderEvents(t *testing.T) {
 	p := NewProjector()
 	order := Order{OrderID: "order1", UserID: "user1", EventID: "event1", Status: "PENDING"}

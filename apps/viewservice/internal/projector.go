@@ -101,7 +101,7 @@ func (p *Projector) Apply(event Event) error {
 		p.ProjectionLagMS = time.Since(event.OccurredAt).Milliseconds()
 	}
 	switch event.Type {
-	case "SeatReservationHeld", "SeatReservationExpired", "SeatReservationConfirmed", "SeatTicketIssued":
+	case "SeatReservationHeld", "SeatReservationExpired", "SeatReservationConfirmed", "SeatReservationCancelled", "SeatTicketIssued":
 		key := event.Seat.EventID + ":" + event.Seat.SectionID + ":" + event.Seat.SeatID
 		event.Seat.Version = event.AggregateVersion
 		p.Seats[key] = event.Seat
