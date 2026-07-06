@@ -203,7 +203,6 @@ func (s *DatabaseStore) GetWalletTickets(ctx context.Context, userID string) ([]
 	defer rows.Close()
 
 	var tickets []WalletTicket
-	var orderIDs []string
 	for rows.Next() {
 		var t WalletTicket
 		var orderID string
@@ -212,14 +211,13 @@ func (s *DatabaseStore) GetWalletTickets(ctx context.Context, userID string) ([]
 		}
 		t.TransferStatus = "AVAILABLE"
 		tickets = append(tickets, t)
-		orderIDs = append(orderIDs, orderID)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
 	for i := range tickets {
-		ledger, err := s.getTicketLedger(ctx, orderIDs[i])
+		ledger, err := s.getTicketLedger(ctx, tickets[i].EventID, tickets[i].SectionID, tickets[i].Seat)
 		if err != nil {
 			return nil, err
 		}
@@ -228,13 +226,23 @@ func (s *DatabaseStore) GetWalletTickets(ctx context.Context, userID string) ([]
 	return tickets, nil
 }
 
-func (s *DatabaseStore) getTicketLedger(ctx context.Context, orderID string) ([]WalletTicketLedgerEntry, error) {
+// getTicketLedger queries by the seat's own stream_key rather than by
+// correlation_id: an order-scoped correlation_id (e.g. SeatReservationHeld/
+// Confirmed) only ever names the order that caused it, but a whole-event
+// cancellation's SeatReservationCancelled carries the catalog event_id as its
+// correlation_id instead (one fan-out spans many orders, so no single
+// order_id fits) - querying by correlation_id=orderID would silently drop
+// that entry from a cancelled ticket's ledger. stream_key is this seat's
+// permanent identity regardless of which operation produced each event, so
+// it captures the seat's complete history.
+func (s *DatabaseStore) getTicketLedger(ctx context.Context, eventID, sectionID, seatID string) ([]WalletTicketLedgerEntry, error) {
+	streamKey := fmt.Sprintf("seat:%s:%s:%s", eventID, sectionID, seatID)
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT event_type, occurred_at, correlation_id
 		FROM inventory.events
-		WHERE correlation_id = $1
-		ORDER BY occurred_at ASC
-	`, orderID)
+		WHERE stream_key = $1
+		ORDER BY aggregate_version ASC
+	`, streamKey)
 	if err != nil {
 		return nil, err
 	}

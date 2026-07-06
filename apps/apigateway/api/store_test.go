@@ -40,6 +40,46 @@ func TestGetEventAnnouncementsCapsResultSet(t *testing.T) {
 	}
 }
 
+// TestGetTicketLedgerQueriesByStreamKeyNotCorrelationID confirms the ledger
+// query keys on the seat's own stream_key rather than an order's
+// correlation_id. A whole-event cancellation's SeatReservationCancelled
+// carries the catalog event_id as its correlation_id (not any single
+// order_id, since one fan-out spans many orders) - querying by
+// correlation_id=orderID would silently omit that entry from a cancelled
+// ticket's ledger. This test's mocked row set could only ever satisfy a
+// stream_key-based query: it has no correlation_id column in the WHERE
+// clause's bound argument at all.
+func TestGetTicketLedgerQueriesByStreamKeyNotCorrelationID(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer db.Close()
+
+	mock.ExpectQuery(`SELECT event_type, occurred_at, correlation_id\s+FROM inventory\.events\s+WHERE stream_key = \$1\s+ORDER BY aggregate_version ASC`).
+		WithArgs("seat:evt_neon_riot:A:A-01").
+		WillReturnRows(sqlmock.NewRows([]string{"event_type", "occurred_at", "correlation_id"}).
+			AddRow("SeatReservationHeld", time.Now(), "ord_1").
+			AddRow("SeatReservationConfirmed", time.Now(), "ord_1").
+			AddRow("SeatReservationCancelled", time.Now(), "evt_neon_riot"))
+
+	store := &DatabaseStore{db: db}
+	ledger, err := store.getTicketLedger(context.Background(), "evt_neon_riot", "A", "A-01")
+	if err != nil {
+		t.Fatalf("getTicketLedger: %v", err)
+	}
+	if len(ledger) != 3 {
+		t.Fatalf("expected 3 ledger entries (including the event-scoped cancellation), got %d", len(ledger))
+	}
+	if ledger[2].EventType != "SeatReservationCancelled" {
+		t.Fatalf("expected the cancellation entry to be present, got %+v", ledger[2])
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sqlmock expectations (query likely still keyed on correlation_id): %v", err)
+	}
+}
+
 // TestGetEventVenueIDReturnsVenueWithoutInventoryQuery confirms the lean
 // ownership-check path queries only catalog.events for venue_id and never
 // touches GetOrganizerInventory's seat-count aggregation over
