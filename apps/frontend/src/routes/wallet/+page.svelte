@@ -7,7 +7,8 @@
     'Issued',
     'Transferred',
     'Used',
-    'Upgraded'
+    'Upgraded',
+    'Cancelled'
   ] as const;
   let historyFilter = $state<(typeof HISTORY_FILTERS)[number]>('All');
 
@@ -60,7 +61,7 @@
       <div class="space-y-4">
         {#each filteredTickets as ticket}
           <article
-            class="glass-panel rounded overflow-hidden shadow-lg border border-white/10 bg-gradient-to-b from-black/60 to-black/30 hover:border-signal/40 transition-colors group"
+            class={`glass-panel rounded overflow-hidden shadow-lg border border-white/10 bg-gradient-to-b from-black/60 to-black/30 hover:border-signal/40 transition-colors group ${ticket.status === 'CANCELLED' ? 'opacity-50 grayscale' : ''}`}
           >
             <div class="flex gap-5 p-5">
               <div
@@ -100,7 +101,8 @@
               </span>
               <button
                 class="btn btn-sm rounded border-0 bg-white/10 hover:bg-signal text-white font-bold transition-all disabled:opacity-30 disabled:hover:bg-white/10"
-                disabled={ticket.transfer_status !== 'AVAILABLE'}
+                disabled={ticket.transfer_status !== 'AVAILABLE' ||
+                  ticket.status === 'CANCELLED'}
               >
                 <Send size={14} class="mr-1" /> Transfer
               </button>

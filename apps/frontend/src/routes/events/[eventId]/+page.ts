@@ -11,11 +11,17 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
     const event = discovery.events.find((item) => item.id === params.eventId);
     if (!event) throw error(404, 'Event not found');
 
+    const [announcements, snapshot] = await Promise.all([
+      client.getAnnouncements(params.eventId).catch(() => []),
+      client.getSeatSnapshot(params.eventId, sectionID)
+    ]);
+
     return {
       event,
-      snapshot: await client.getSeatSnapshot(params.eventId, sectionID),
+      snapshot,
       seatSseURL: client.seatSseURL(params.eventId, sectionID),
       gatewayBaseURL: client.apiBase,
+      announcements,
       isRateLimited: false
     };
   } catch (err) {
@@ -27,6 +33,9 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
         const event = discovery.events.find(
           (item) => item.id === params.eventId
         );
+        const announcements = await client
+          .getAnnouncements(params.eventId)
+          .catch(() => []);
 
         return {
           event,
@@ -40,6 +49,7 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
           },
           seatSseURL: client.seatSseURL(params.eventId, sectionID),
           gatewayBaseURL: client.apiBase,
+          announcements,
           isRateLimited: true
         };
       } else if (err.status === 404) {

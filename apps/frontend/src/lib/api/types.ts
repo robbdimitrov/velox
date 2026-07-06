@@ -10,6 +10,16 @@ export type EventSummary = {
   demand_score: number;
   min_price_cents: number;
   projection_lag_ms: number;
+  status?: string;
+};
+
+export type EventAnnouncement = {
+  id: string;
+  event_id: string;
+  title: string;
+  body: string;
+  severity: 'INFO' | 'SCHEDULE_CHANGE' | 'CANCELLATION';
+  created_at: string;
 };
 
 export type DiscoveryResponse = {
@@ -90,7 +100,7 @@ export type WalletTicket = {
   event: string;
   venue: string;
   seat: string;
-  status: 'ISSUED' | 'TRANSFERRED' | 'USED' | 'UPGRADED';
+  status: 'ISSUED' | 'TRANSFERRED' | 'USED' | 'UPGRADED' | 'CANCELLED';
   transfer_status: 'LOCKED' | 'AVAILABLE' | 'PENDING';
   qr_token: string;
   qr_token_expires_at: string;

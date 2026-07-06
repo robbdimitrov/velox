@@ -12,7 +12,9 @@
   import { SeatSelectionState } from '$lib/state/seat-state.svelte';
   import {
     Accessibility,
+    Megaphone,
     Minus,
+    OctagonAlert,
     Plus,
     RotateCcw,
     TicketCheck,
@@ -31,6 +33,43 @@
   let sectionID = $state('');
   let zoomLevel = $state(1);
   let accessibleOnly = $state(false);
+  let isCancelled = $derived(data.event?.status === 'CANCELLED');
+
+  const severityStyles: Record<
+    string,
+    { border: string; bg: string; text: string }
+  > = {
+    CANCELLATION: {
+      border: 'border-urgency/50',
+      bg: 'bg-urgency/10',
+      text: 'text-urgency'
+    },
+    SCHEDULE_CHANGE: {
+      border: 'border-warning/30',
+      bg: 'bg-warning/10',
+      text: 'text-warning'
+    },
+    INFO: {
+      border: 'border-white/10',
+      bg: 'bg-black/40',
+      text: 'text-ink'
+    }
+  };
+
+  function severityStyle(severity: string) {
+    return severityStyles[severity] ?? severityStyles.INFO;
+  }
+
+  function formatUpdateTime(isoTimestamp: string) {
+    const parsed = new Date(isoTimestamp);
+    if (Number.isNaN(parsed.getTime())) return isoTimestamp;
+    return parsed.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+  }
 
   $effect(() => {
     if (data.isRateLimited) return;
@@ -68,7 +107,7 @@
   });
 
   async function reserve() {
-    if (!seatState.selectedSeats.length) return;
+    if (!seatState.selectedSeats.length || isCancelled) return;
     reservingStatus = 'Holding Seat...';
     error = '';
 
@@ -105,6 +144,18 @@
   <main
     class="mx-auto grid max-w-7xl gap-6 px-4 py-8 lg:grid-cols-[260px_1fr_320px]"
   >
+    {#if isCancelled}
+      <div
+        class="lg:col-span-3 flex items-center gap-3 rounded border border-urgency/50 bg-urgency/10 p-4 text-urgency"
+      >
+        <OctagonAlert size={20} />
+        <p class="text-sm font-bold uppercase tracking-wide">
+          This event has been cancelled by the organizer. Seat reservation is
+          disabled.
+        </p>
+      </div>
+    {/if}
+
     <aside class="glass-panel h-max p-6 sticky top-28">
       <div class="flex items-center gap-3 border-b border-white/10 pb-4 mb-6">
         <div
@@ -240,6 +291,38 @@
           {/each}
         </div>
       </div>
+
+      <div class="glass-panel p-4">
+        <p
+          class="mb-3 text-xs font-black uppercase tracking-widest text-inkMuted border-b border-white/10 pb-2 flex items-center gap-2"
+        >
+          <Megaphone size={14} /> Event Updates
+        </p>
+        {#if data.announcements.length}
+          <div class="space-y-3">
+            {#each data.announcements as announcement (announcement.id)}
+              {@const style = severityStyle(announcement.severity)}
+              <div class={`rounded border p-3 ${style.border} ${style.bg}`}>
+                <div class="flex items-center justify-between gap-3">
+                  <h3 class={`text-sm font-bold ${style.text}`}>
+                    {announcement.title}
+                  </h3>
+                  <span
+                    class="shrink-0 font-mono text-[10px] uppercase tracking-widest text-inkMuted"
+                  >
+                    {formatUpdateTime(announcement.created_at)}
+                  </span>
+                </div>
+                <p class="mt-1 text-xs text-ink/80 leading-relaxed">
+                  {announcement.body}
+                </p>
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <p class="text-xs text-inkMuted p-2">No updates yet.</p>
+        {/if}
+      </div>
     </section>
 
     <aside
@@ -305,7 +388,7 @@
         {/if}
 
         <PrimaryButton
-          disabled={!seatState.selectedSeats.length || reserving}
+          disabled={!seatState.selectedSeats.length || reserving || isCancelled}
           onclick={reserve}
         >
           <TicketCheck size={18} />

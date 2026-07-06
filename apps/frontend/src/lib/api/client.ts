@@ -2,6 +2,7 @@ import type {
   CheckoutRequest,
   CheckoutResponse,
   DiscoveryResponse,
+  EventAnnouncement,
   EventSummary,
   ReserveOrderRequest,
   ReserveOrderResponse,
@@ -117,6 +118,32 @@ export function createGatewayClient(
     wallet() {
       return request<WalletResponse>('/wallet/tickets');
     },
+    getAnnouncements(eventId: string) {
+      return request<{ announcements: EventAnnouncement[] }>(
+        `/events/${encodeURIComponent(eventId)}/announcements`
+      ).then((body) => body.announcements);
+    },
+    postAnnouncement(
+      eventId: string,
+      body: { title: string; body: string; severity?: string }
+    ) {
+      return request<EventAnnouncement>(
+        `/organizer/events/${encodeURIComponent(eventId)}/announcements`,
+        {
+          method: 'POST',
+          body: JSON.stringify(body)
+        }
+      );
+    },
+    cancelEvent(eventId: string) {
+      return request<{
+        event_id: string;
+        status: string;
+        cancelled_orders: number;
+      }>(`/organizer/events/${encodeURIComponent(eventId)}/cancel`, {
+        method: 'POST'
+      });
+    },
     tickerURL(params = new URLSearchParams()) {
       return `${apiBase}/events/evt_neon_riot/stream?${params.toString()}`;
     },
@@ -145,6 +172,7 @@ type GatewayEvent = {
   starts_at: string;
   seats_open: number;
   demand_score: number;
+  status?: string;
 };
 
 type GatewaySeat = {
@@ -194,7 +222,8 @@ function mapDiscovery(body: {
       remaining_bucket: bucket,
       demand_score: event.demand_score,
       min_price_cents: 8650,
-      projection_lag_ms: body.projection_lag_ms ?? 0
+      projection_lag_ms: body.projection_lag_ms ?? 0,
+      status: event.status
     };
   });
   return {
