@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/google/uuid"
 )
 
 // capturedString captures the driver.Value seen at its bind position so a
@@ -559,6 +560,15 @@ func TestWriteEventCancelledOutboxTx_DeterministicDedupID(t *testing.T) {
 	}
 	if dedupIDs[0] != eventCancelledDedupID(eventID) {
 		t.Fatalf("payload outbox_event_id = %q, want %q", dedupIDs[0], eventCancelledDedupID(eventID))
+	}
+	// Must be a syntactically valid UUID: viewservice also consumes
+	// order.events.v1 and keys its own dedup check on
+	// projection.processed_events.event_id, a uuid-typed column (unlike
+	// seatservice's TEXT-typed equivalent) - a non-UUID value here breaks
+	// every EventCancelled message for viewservice with a Postgres
+	// "invalid input syntax for type uuid" error.
+	if _, err := uuid.Parse(dedupIDs[0]); err != nil {
+		t.Fatalf("payload outbox_event_id %q is not a valid UUID: %v", dedupIDs[0], err)
 	}
 	if rowIDs[0] == rowIDs[1] {
 		t.Fatalf("orders.outbox_events.id should be a fresh UUID per row, got same value %q twice", rowIDs[0])

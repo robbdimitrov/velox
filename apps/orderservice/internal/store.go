@@ -471,16 +471,25 @@ func (s *Store) CancelOrdersForEvent(ctx context.Context, eventID string) (int, 
 	return len(cancelledOrders), nil
 }
 
-// eventCancelledDedupID derives the payload-level outbox_event_id that
-// seatservice's claim_event dedups EventCancelled processing on, via
-// inventory.processed_events (a TEXT-keyed table, per
-// apps/database/migrations/003_seatservice_processed_events.sql). It is
-// deterministic per catalog eventID rather than a fresh uuid.New() per call,
-// so a retried POST /events/{id}/cancel produces the identical value and is
-// recognized as a duplicate instead of always reprocessing the full
-// per-seat-stream fan-out.
+// eventCancelledDedupNamespace is an arbitrary, fixed namespace UUID used
+// only to derive eventCancelledDedupID's deterministic UUIDv5 values. It has
+// no meaning beyond seeding that derivation consistently across calls.
+var eventCancelledDedupNamespace = uuid.MustParse("6f6d0b8e-2b3d-4b7e-9b8b-2b1e9b8b2b1e")
+
+// eventCancelledDedupID derives the payload-level outbox_event_id that both
+// seatservice's claim_event (inventory.processed_events, a TEXT-keyed table
+// per apps/database/migrations/003_seatservice_processed_events.sql) and
+// viewservice's dedup check (projection.processed_events, a uuid-typed
+// column per apps/database/migrations/001_init_logical_schemas.sql) key on.
+// It must be a syntactically valid UUID - a plain non-UUID string here would
+// satisfy seatservice's TEXT column but fail viewservice's uuid column with
+// "invalid input syntax for type uuid" on every EventCancelled message,
+// since viewservice also consumes order.events.v1. It is deterministic per
+// catalog eventID (via UUIDv5, not uuid.New()) so a retried
+// POST /events/{id}/cancel produces the identical value and is recognized as
+// a duplicate instead of always reprocessing the full per-seat-stream fan-out.
 func eventCancelledDedupID(eventID string) string {
-	return "event-cancel:" + eventID
+	return uuid.NewSHA1(eventCancelledDedupNamespace, []byte(eventID)).String()
 }
 
 // writeEventCancelledOutboxTx writes a single EventCancelled outbox row for
