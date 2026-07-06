@@ -35,6 +35,17 @@
   let accessibleOnly = $state(false);
   let isCancelled = $derived(data.event?.status === 'CANCELLED');
 
+  const ANNOUNCEMENT_PREVIEW_COUNT = 5;
+  let showAllAnnouncements = $state(false);
+  let visibleAnnouncements = $derived(
+    showAllAnnouncements
+      ? data.announcements
+      : data.announcements.slice(0, ANNOUNCEMENT_PREVIEW_COUNT)
+  );
+  let hiddenAnnouncementCount = $derived(
+    data.announcements.length - ANNOUNCEMENT_PREVIEW_COUNT
+  );
+
   const severityStyles: Record<
     string,
     { border: string; bg: string; text: string }
@@ -300,7 +311,7 @@
         </p>
         {#if data.announcements.length}
           <div class="space-y-3">
-            {#each data.announcements as announcement (announcement.id)}
+            {#each visibleAnnouncements as announcement (announcement.id)}
               {@const style = severityStyle(announcement.severity)}
               <div class={`rounded border p-3 ${style.border} ${style.bg}`}>
                 <div class="flex items-center justify-between gap-3">
@@ -319,6 +330,17 @@
               </div>
             {/each}
           </div>
+          {#if !showAllAnnouncements && hiddenAnnouncementCount > 0}
+            <button
+              class="btn btn-sm btn-block border-white/10 bg-black/40 text-ink hover:bg-black/60 rounded shadow-inner mt-3"
+              onclick={() => (showAllAnnouncements = true)}
+            >
+              Show {hiddenAnnouncementCount} more update{hiddenAnnouncementCount ===
+              1
+                ? ''
+                : 's'}
+            </button>
+          {/if}
         {:else}
           <p class="text-xs text-inkMuted p-2">No updates yet.</p>
         {/if}
