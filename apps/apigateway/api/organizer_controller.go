@@ -302,7 +302,7 @@ func (s *Server) handleCreateEvent(w http.ResponseWriter, r *http.Request, user 
 		return
 	}
 
-	req.Status = "PUBLISHED"
+	req.Status = EventStatusPublished
 	if req.ID == "" {
 		req.ID = "evt_" + time.Now().Format("20060102150405")
 	}

@@ -93,7 +93,7 @@ func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request,
 			writeStoreError(w, err)
 			return
 		}
-		if status != "PUBLISHED" {
+		if status != EventStatusPublished {
 			writeError(w, http.StatusConflict, "event_not_bookable")
 			return
 		}

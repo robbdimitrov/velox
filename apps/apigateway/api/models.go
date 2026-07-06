@@ -12,6 +12,8 @@ const (
 	StatusHeld      = "HELD"
 	StatusSold      = "SOLD"
 
+	EventStatusPublished = "PUBLISHED"
+
 	OrderPending   = "PENDING"
 	OrderHeld      = "HELD"
 	OrderConfirmed = "CONFIRMED"

@@ -20,6 +20,8 @@ var ErrOrderNotConfirmable = errors.New("order not confirmable")
 var ErrOrderNotCancellable = errors.New("order not cancellable")
 var ErrEventNotBookable = errors.New("event not bookable")
 
+const EventStatusPublished = "PUBLISHED"
+
 type Store struct {
 	db *sql.DB
 }
@@ -114,7 +116,7 @@ func (s *Store) CreateOrder(ctx context.Context, req OrderRequest) (string, erro
 	} else if err != nil {
 		return "", err
 	}
-	if eventStatus != "PUBLISHED" {
+	if eventStatus != EventStatusPublished {
 		return "", ErrEventNotBookable
 	}
 

@@ -651,6 +651,10 @@ func (s *DatabaseStore) GetEvents(ctx context.Context) ([]Event, error) {
 	return events, rows.Err()
 }
 
+// GetEvent's WHERE clause (`e.id = $1`) is intentionally kept in sync with
+// GetEventVenueID's below: both filter catalog.events by id alone, so any
+// future addition to that filter (e.g. a soft-delete `deleted_at IS NULL`
+// clause) must be applied to both queries or they will silently diverge.
 func (s *DatabaseStore) GetEvent(ctx context.Context, id string) (Event, error) {
 	var e Event
 	err := s.db.QueryRowContext(ctx, `
@@ -676,6 +680,11 @@ func (s *DatabaseStore) GetEvent(ctx context.Context, id string) (Event, error) 
 // pay for GetEvent's GetOrganizerInventory seat-count aggregation for no
 // reason. Do not use this as a substitute for GetEvent where SeatsOpen/
 // SeatsTotal are actually read (e.g. the public event-detail endpoint).
+//
+// Its WHERE clause (`id = $1`) must be kept in sync with GetEvent's above:
+// both filter catalog.events by id alone, so any future addition to that
+// filter (e.g. a soft-delete `deleted_at IS NULL` clause) must be applied to
+// both queries or they will silently diverge.
 func (s *DatabaseStore) GetEventVenueID(ctx context.Context, eventID string) (string, error) {
 	var venueID string
 	err := s.db.QueryRowContext(ctx, `
