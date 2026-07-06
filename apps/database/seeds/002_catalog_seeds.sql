@@ -10,10 +10,10 @@ INSERT INTO catalog.venues (id, name, city, address, capacity) VALUES
 -- Add Events
 -- 'evt_neon_riot', 'evt_north_pier', 'evt_civic_bowl', 'evt_summer_fests'
 INSERT INTO catalog.events (id, venue_id, name, starts_at, status) VALUES
-('evt_neon_riot', 'ven_velox_arena', 'Neon Riot Live', '2026-08-15 20:00:00+00', 'AVAILABLE'),
-('evt_north_pier', 'ven_north_pier', 'North Pier Symphony', '2026-09-10 19:30:00+00', 'AVAILABLE'),
-('evt_civic_bowl', 'ven_civic_bowl', 'Civic Bowl Championship', '2026-10-05 18:00:00+00', 'AVAILABLE'),
-('evt_summer_fests', 'ven_moonlight', 'Summer Solstice Festival', '2026-07-20 12:00:00+00', 'AVAILABLE');
+('evt_neon_riot', 'ven_velox_arena', 'Neon Riot Live', '2026-08-15 20:00:00+00', 'PUBLISHED'),
+('evt_north_pier', 'ven_north_pier', 'North Pier Symphony', '2026-09-10 19:30:00+00', 'PUBLISHED'),
+('evt_civic_bowl', 'ven_civic_bowl', 'Civic Bowl Championship', '2026-10-05 18:00:00+00', 'PUBLISHED'),
+('evt_summer_fests', 'ven_moonlight', 'Summer Solstice Festival', '2026-07-20 12:00:00+00', 'PUBLISHED');
 
 -- Also add Midnight Array and other events just to match the old mock data, even though they might not have reservations?
 -- Actually, the frontend image SVGs are "event-midnight-array.svg", etc.
