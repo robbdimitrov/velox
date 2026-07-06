@@ -8,6 +8,9 @@ pub enum SeatStatus {
     Sold {
         order_id: String,
     },
+    Cancelled {
+        order_id: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,6 +65,11 @@ impl SeatState {
         self.version += 1;
     }
 
+    pub fn apply_cancelled(&mut self, order_id: String) {
+        self.status = SeatStatus::Cancelled { order_id };
+        self.version += 1;
+    }
+
     // Additional domain logic to check if reservation is possible
     pub fn can_reserve(&self, expected_version: u64) -> Result<(), InventoryError> {
         if self.version != expected_version {
@@ -75,6 +83,19 @@ impl SeatState {
         }
         Ok(())
     }
+}
+
+/// Compare-and-append guard for an event-wide cancellation fan-out
+/// (db_client::cancel_stream). A stream already Cancelled is terminal and
+/// must be left untouched - reprocessing it would re-emit a duplicate
+/// SeatReservationCancelled event. Everything else - a virgin seat that was
+/// pre-seeded at event creation and never held or sold, a seat that raced
+/// back to Available via an independent expiry after having been held, or a
+/// seat currently Held or Sold - must still be cancelled so a cancelled
+/// event's seats never look rebookable. Virgin seats are the most common case
+/// (nobody ever reserved most of a venue) and must not be skipped.
+pub fn should_skip_cancellation(status: &SeatStatus) -> bool {
+    matches!(status, SeatStatus::Cancelled { .. })
 }
 
 #[cfg(test)]
@@ -132,5 +153,83 @@ mod tests {
                 actual: 1
             }
         );
+    }
+
+    #[test]
+    fn cancels_held_seat_and_blocks_further_reservation() {
+        let mut seat = SeatState::default();
+        seat.apply_reserved("ord1".into(), 1000);
+
+        seat.apply_cancelled("ord1".into());
+        assert_eq!(
+            seat.status,
+            SeatStatus::Cancelled {
+                order_id: "ord1".into()
+            }
+        );
+        assert!(seat.can_reserve(seat.version).is_err());
+    }
+
+    #[test]
+    fn cancels_sold_seat_and_blocks_further_reservation() {
+        let mut seat = SeatState::default();
+        seat.apply_sold("ord1".into());
+
+        seat.apply_cancelled("ord1".into());
+        assert_eq!(
+            seat.status,
+            SeatStatus::Cancelled {
+                order_id: "ord1".into()
+            }
+        );
+        assert!(seat.can_reserve(seat.version).is_err());
+    }
+
+    #[test]
+    fn cancellation_is_terminal() {
+        let mut seat = SeatState::default();
+        seat.apply_reserved("ord1".into(), 1000);
+        assert_eq!(seat.version, 1);
+
+        seat.apply_cancelled("ord1".into());
+        assert_eq!(seat.version, 2);
+
+        let err = seat.can_reserve(2).unwrap_err();
+        assert_eq!(err, InventoryError::SeatNotAvailable);
+    }
+
+    #[test]
+    fn does_not_skip_cancellation_for_virgin_never_touched_seat() {
+        // Pre-created at event creation, never held/sold. This is the most
+        // common case (nobody ever reserved most of a venue) and must still
+        // be cancelled so the seat doesn't look rebookable after the event
+        // is cancelled.
+        assert!(!should_skip_cancellation(&SeatStatus::Available));
+    }
+
+    #[test]
+    fn does_not_skip_cancellation_for_touched_seat_that_raced_to_available() {
+        // A seat that was Held and then independently expired (e.g. its
+        // order's OrderCancelled arrived before this event-wide cancellation)
+        // is Available again and must still be cancelled.
+        assert!(!should_skip_cancellation(&SeatStatus::Available));
+    }
+
+    #[test]
+    fn does_not_skip_cancellation_for_held_or_sold_seat() {
+        assert!(!should_skip_cancellation(&SeatStatus::Held {
+            order_id: "ord1".into(),
+            expires_at_ms: 1000,
+        }));
+        assert!(!should_skip_cancellation(&SeatStatus::Sold {
+            order_id: "ord1".into()
+        }));
+    }
+
+    #[test]
+    fn skips_cancellation_for_already_cancelled_seat() {
+        assert!(should_skip_cancellation(&SeatStatus::Cancelled {
+            order_id: "ord1".into()
+        }));
     }
 }

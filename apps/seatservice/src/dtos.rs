@@ -60,7 +60,7 @@ pub struct SeatDto {
     pub event_id: String,
     pub section_id: String,
     pub seat_id: String,
-    pub status: String, // "HELD" | "AVAILABLE" | "SOLD"
+    pub status: String, // "HELD" | "AVAILABLE" | "SOLD" | "CANCELLED"
     pub version: u64,
     pub expires_at_ms: i64,
 }

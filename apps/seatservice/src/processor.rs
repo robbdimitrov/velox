@@ -187,6 +187,30 @@ pub async fn process_message(
                     false
                 }
             }
+        } else if envelope.event_type == "EventCancelled" {
+            let Some(payload_val) = envelope.payload else { return true };
+            let event_id = payload_val.get("event_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let outbox_event_id = payload_val.get("outbox_event_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            if event_id.is_empty() || outbox_event_id.is_empty() {
+                warn!("EventCancelled missing event_id or outbox_event_id");
+                send_to_dlq(producer, &meta, payload_bytes, "missing_required_fields", "EventCancelled missing required fields").await;
+                return true;
+            }
+
+            info!(event_id = %event_id, "Processing EventCancelled");
+            match db.process_event_cancelled(&event_id, &outbox_event_id, Utc::now()).await {
+                Ok(cancelled_events) => {
+                    let mut published = true;
+                    for event in cancelled_events {
+                        published &= publish(producer, &event.event_type.clone(), &event.aggregate_id.clone(), &event, request_id.as_deref()).await;
+                    }
+                    published
+                }
+                Err(e) => {
+                    warn!("Failed to process event cancellation: {}", e);
+                    false
+                }
+            }
         } else {
             true
         }

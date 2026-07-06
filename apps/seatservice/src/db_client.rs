@@ -11,6 +11,12 @@ use uuid::Uuid;
 
 const EXPIRY_SCHEDULER_CAUSATION_ID: &str = "seatservice:expiry-scheduler";
 const MAX_EXPIRING_RESERVATIONS_PER_SWEEP: i64 = 100;
+/// Bounds how many seat streams process_event_cancelled locks and processes
+/// per transaction, mirroring MAX_EXPIRING_RESERVATIONS_PER_SWEEP. Without
+/// this, cancelling one large venue's event would `FOR UPDATE` every one of
+/// its seat streams up front and hold those locks for the whole sequential
+/// fan-out.
+const MAX_CANCELLING_STREAMS_PER_BATCH: i64 = 500;
 
 #[derive(Clone)]
 pub struct DbClient {
@@ -24,10 +30,26 @@ struct FoldedStream {
     state: SeatState,
 }
 
-/// The event_id/section_id/seat_id fields carried on every SeatReservationHeld
-/// payload, re-extracted whenever a later event (expiry, confirmation) needs
-/// to know which seat a stream refers to.
+/// The event_id/section_id/seat_id fields carried on every
+/// SeatReservationHeld payload, re-extracted whenever a later event (expiry,
+/// confirmation) needs to know which seat a stream refers to. Both callers
+/// (expire_stream, process_reservation_confirmed) derive the owning order_id
+/// from their own order_id parameter instead of from this payload.
 struct HeldSeatFields {
+    event_id: String,
+    section_id: String,
+    seat_id: String,
+}
+
+/// The event_id/section_id/seat_id captured on inventory.event_streams at
+/// event-creation time (apigateway's CreateEvent - see migration
+/// 008_event_cancellation.sql for why a cancelled seat must never look
+/// rebookable). Unlike HeldSeatFields, which is read from a stream's
+/// historical SeatReservationHeld event, these columns are always present for
+/// every stream, whether or not it was ever held - which is what lets
+/// cancel_stream cancel a virgin (never-touched) stream.
+struct StreamSeatIdentity {
+    stream_key: String,
     event_id: String,
     section_id: String,
     seat_id: String,
@@ -196,6 +218,14 @@ impl DbClient {
                 "SeatReservationExpired" => {
                     state.apply_expired();
                 }
+                "SeatReservationCancelled" => {
+                    let order_id = payload
+                        .get("order_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    state.apply_cancelled(order_id);
+                }
                 _ => {}
             }
         }
@@ -211,7 +241,9 @@ impl DbClient {
 
     /// Loads the event_id/section_id/seat_id carried on a stream's latest
     /// SeatReservationHeld payload. Used wherever a later event needs to know
-    /// which seat a stream refers to (expiry, confirmation).
+    /// which seat a stream refers to (expiry, confirmation) - both callers
+    /// only ever invoke this for a stream already confirmed to be Held, so a
+    /// SeatReservationHeld event is guaranteed to exist.
     async fn load_held_seat_fields(
         tx: &mut Transaction<'_, Postgres>,
         stream_key: &str,
@@ -240,6 +272,54 @@ impl DbClient {
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string(),
+        })
+    }
+
+    /// Best-effort recovery of a stream's real owning order_id from its
+    /// historical SeatReservationHeld event, tolerant of there being none.
+    /// Unlike load_held_seat_fields - used by expire_stream and
+    /// process_reservation_confirmed, which only ever look at a stream
+    /// already confirmed to be Held, so a SeatReservationHeld event is
+    /// guaranteed to exist - this is called from cancel_stream, which also
+    /// fires for a virgin stream that was pre-seeded at event creation but
+    /// never held. A seat that was never held legitimately has no owning
+    /// order, so this returns "" rather than erroring in that case.
+    async fn load_owning_order_id(
+        tx: &mut Transaction<'_, Postgres>,
+        stream_key: &str,
+    ) -> Result<String, String> {
+        let held_row = sqlx::query(
+            "SELECT payload FROM inventory.events WHERE stream_key = $1 AND event_type = 'SeatReservationHeld' ORDER BY aggregate_version DESC LIMIT 1"
+        )
+        .bind(stream_key)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(|e| format!("Failed to load held event: {}", e))?;
+
+        Ok(held_row
+            .and_then(|row| {
+                let payload: serde_json::Value = row.get("payload");
+                payload
+                    .get("order_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+            })
+            .unwrap_or_default())
+    }
+
+    /// Builds a SeatReservationCancelled payload for cancel_stream. The
+    /// "order_id" field must be the seat's real owning order (recovered from
+    /// its SeatReservationHeld history via load_owning_order_id, or "" for a
+    /// virgin seat that was never held) - never the correlation_id/causation_id
+    /// used for event-wide cancellation bookkeeping, which for
+    /// process_event_cancelled is the catalog event_id rather than any single
+    /// order.
+    fn cancelled_payload(order_id: &str, seat: &StreamSeatIdentity) -> serde_json::Value {
+        json!({
+            "order_id": order_id,
+            "event_id": seat.event_id,
+            "section_id": seat.section_id,
+            "seat_id": seat.seat_id,
         })
     }
 
@@ -463,6 +543,77 @@ impl DbClient {
         }))
     }
 
+    /// Cancels a stream - virgin, Held, Sold, or Available-after-having-been-
+    /// touched - because the organizer cancelled the whole event. Unlike
+    /// expire_stream, this fires from any non-terminal prior state, including
+    /// a virgin stream that was never held, and lands on a terminal Cancelled
+    /// status rather than Available, so a cancelled event's seats never look
+    /// rebookable. `seat` supplies the event_id/section_id/seat_id from
+    /// inventory.event_streams directly (always present) rather than from a
+    /// SeatReservationHeld event (which a virgin stream doesn't have).
+    async fn cancel_stream(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        seat: &StreamSeatIdentity,
+        correlation_id: &str,
+        causation_id: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Option<SeatInventoryEvent>, String> {
+        let stream_key = seat.stream_key.as_str();
+        let stream = match Self::load_stream(tx, stream_key, now.timestamp_millis()).await? {
+            Some(s) => s,
+            None => return Ok(None),
+        };
+
+        // Compare-and-append guard: see should_skip_cancellation - only an
+        // already-Cancelled stream (terminal) is skipped. This fires even for
+        // a virgin stream never held, or one that raced back to Available via
+        // expire_stream after being Held, so the event's seats never look
+        // rebookable.
+        if crate::domain::should_skip_cancellation(&stream.state.status) {
+            return Ok(None);
+        }
+
+        let order_id = Self::load_owning_order_id(tx, stream_key).await?;
+        let version = stream.current_version + 1;
+        let payload = Self::cancelled_payload(&order_id, seat);
+
+        let (event_uuid, signature) = self
+            .append_event(
+                tx,
+                EventAppend {
+                    stream_key,
+                    version,
+                    event_type: "SeatReservationCancelled",
+                    payload: &payload,
+                    correlation_id,
+                    causation_id,
+                },
+                now,
+            )
+            .await?;
+
+        Ok(Some(SeatInventoryEvent {
+            event_id: event_uuid.to_string(),
+            aggregate_id: stream_key.to_string(),
+            aggregate_version: version as u64,
+            event_type: "SeatReservationCancelled".into(),
+            correlation_id: correlation_id.to_string(),
+            causation_id: causation_id.to_string(),
+            schema_version: INVENTORY_EVENT_SCHEMA_VERSION,
+            seat: SeatDto {
+                event_id: seat.event_id.clone(),
+                section_id: seat.section_id.clone(),
+                seat_id: seat.seat_id.clone(),
+                status: "CANCELLED".into(),
+                version: version as u64,
+                expires_at_ms: 0,
+            },
+            occurred_at: now,
+            signature,
+        }))
+    }
+
     /// Expires all held seats for an order because the user or an external
     /// process explicitly cancelled a held reservation.
     pub async fn process_reservation_cancelled(
@@ -659,6 +810,168 @@ impl DbClient {
         Ok(confirmed_events)
     }
 
+    /// Processes one bounded batch (at most MAX_CANCELLING_STREAMS_PER_BATCH)
+    /// of not-yet-cancelled seat streams for an event, in its own
+    /// transaction. The `NOT EXISTS` clause - rather than a folded-status
+    /// filter - is what makes this safe to call repeatedly: it only ever
+    /// selects streams that truly have no SeatReservationCancelled event yet,
+    /// so a stream finished by an earlier batch is never re-selected (aside
+    /// from the deliberate `skip_locked = false` mop-up below), and the
+    /// caller can tell "more remain" from "done" by comparing the returned
+    /// row count against the batch limit.
+    async fn process_event_cancelled_batch(
+        &self,
+        event_id: &str,
+        causation_event_id: &str,
+        now: DateTime<Utc>,
+        skip_locked: bool,
+    ) -> Result<(Vec<SeatInventoryEvent>, usize), String> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| format!("Failed to begin tx: {}", e))?;
+
+        // Two literal query strings (rather than interpolating the lock
+        // clause into one dynamic string) so sqlx's compile-time check for
+        // ad hoc SQL string building still applies - skip_locked is an
+        // internal bool, never user input, but there's no need to opt out of
+        // that check when the query text can just as easily stay static.
+        let rows = if skip_locked {
+            sqlx::query(
+                "SELECT stream_key, section_id, seat_id FROM inventory.event_streams \
+                 WHERE event_id = $1 AND NOT EXISTS ( \
+                     SELECT 1 FROM inventory.events e \
+                     WHERE e.stream_key = inventory.event_streams.stream_key \
+                       AND e.event_type = 'SeatReservationCancelled' \
+                 ) FOR UPDATE SKIP LOCKED LIMIT $2",
+            )
+            .bind(event_id)
+            .bind(MAX_CANCELLING_STREAMS_PER_BATCH)
+            .fetch_all(&mut *tx)
+            .await
+        } else {
+            sqlx::query(
+                "SELECT stream_key, section_id, seat_id FROM inventory.event_streams \
+                 WHERE event_id = $1 AND NOT EXISTS ( \
+                     SELECT 1 FROM inventory.events e \
+                     WHERE e.stream_key = inventory.event_streams.stream_key \
+                       AND e.event_type = 'SeatReservationCancelled' \
+                 ) FOR UPDATE LIMIT $2",
+            )
+            .bind(event_id)
+            .bind(MAX_CANCELLING_STREAMS_PER_BATCH)
+            .fetch_all(&mut *tx)
+            .await
+        }
+        .map_err(|e| format!("Failed to load event streams: {}", e))?;
+
+        let rows_seen = rows.len();
+        let mut cancelled_events = Vec::new();
+        for row in rows {
+            let seat = StreamSeatIdentity {
+                stream_key: row.get("stream_key"),
+                event_id: event_id.to_string(),
+                section_id: row.get("section_id"),
+                seat_id: row.get("seat_id"),
+            };
+            if let Some(event) = self
+                .cancel_stream(&mut tx, &seat, event_id, causation_event_id, now)
+                .await?
+            {
+                cancelled_events.push(event);
+            }
+        }
+
+        tx.commit()
+            .await
+            .map_err(|e| format!("Commit failed: {}", e))?;
+        Ok((cancelled_events, rows_seen))
+    }
+
+    /// Cancels every seat stream belonging to an event because the organizer
+    /// cancelled the whole event. Fans out across all streams tagged with
+    /// this catalog event_id, regardless of which order (if any) currently
+    /// holds or has bought each seat.
+    ///
+    /// Bounded batching: rather than one giant transaction that locks and
+    /// walks every seat stream for the event (unbounded lock duration for a
+    /// large venue), this processes MAX_CANCELLING_STREAMS_PER_BATCH streams
+    /// per transaction, looping until a batch comes back short of the limit -
+    /// which, thanks to the batch query's `NOT EXISTS (SeatReservationCancelled)`
+    /// filter, only happens once every stream has genuinely been cancelled.
+    ///
+    /// Dedup/crash-safety design: the EventCancelled message is still claimed
+    /// via claim_event (for parity with every other handler and for
+    /// observability of "have we ever seen this event_id"), but that claim
+    /// does NOT gate whether the batch loop below runs. If it did, a consumer
+    /// crash after the claim succeeded but before every batch had run would
+    /// mean a Kafka redelivery of the same message sees "already claimed" and
+    /// returns immediately - silently abandoning whatever streams hadn't been
+    /// cancelled yet, with nothing left to ever retry them. Instead,
+    /// correctness/idempotency comes from each batch's own `NOT EXISTS` filter
+    /// and from cancel_stream's per-stream Cancelled guard: re-running this
+    /// whole function for an event that's already fully cancelled is a cheap,
+    /// harmless no-op (every batch immediately returns 0 rows), so it's safe
+    /// to always run the loop to completion on every delivery or redelivery.
+    pub async fn process_event_cancelled(
+        &self,
+        event_id: &str,
+        causation_event_id: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Vec<SeatInventoryEvent>, String> {
+        {
+            let mut claim_tx = self
+                .pool
+                .begin()
+                .await
+                .map_err(|e| format!("Failed to begin tx: {}", e))?;
+            Self::claim_event(&mut claim_tx, causation_event_id, "EventCancelled").await?;
+            claim_tx
+                .commit()
+                .await
+                .map_err(|e| format!("Commit failed: {}", e))?;
+        }
+
+        let mut cancelled_events = Vec::new();
+
+        // Fast path: SKIP LOCKED batches avoid blocking on - or being blocked
+        // by - an unrelated concurrent transaction (e.g. a customer's
+        // in-flight reservation attempt) that happens to hold a lock on one
+        // of these streams. Loop until a batch returns fewer rows than the
+        // limit, which (thanks to the NOT EXISTS filter re-evaluating on
+        // every iteration) means no not-yet-cancelled, currently-unlocked
+        // stream remains.
+        loop {
+            let (events, rows_seen) = self
+                .process_event_cancelled_batch(event_id, causation_event_id, now, true)
+                .await?;
+            cancelled_events.extend(events);
+            if (rows_seen as i64) < MAX_CANCELLING_STREAMS_PER_BATCH {
+                break;
+            }
+        }
+
+        // Mop-up pass: a stream that was transiently locked out of every
+        // SKIP LOCKED batch above (e.g. its one unlucky moment of contention
+        // landed on the final, under-the-limit batch) would otherwise be
+        // permanently missed, since nothing else revisits this event once
+        // process_event_cancelled returns. This blocks briefly on any such
+        // straggler instead of skipping it; it should almost always observe
+        // zero rows and return immediately.
+        loop {
+            let (events, rows_seen) = self
+                .process_event_cancelled_batch(event_id, causation_event_id, now, false)
+                .await?;
+            cancelled_events.extend(events);
+            if (rows_seen as i64) < MAX_CANCELLING_STREAMS_PER_BATCH {
+                break;
+            }
+        }
+
+        Ok(cancelled_events)
+    }
+
     /// Background sweep: expires held reservations whose deadline has passed
     /// with no follow-up confirmation or cancellation. Bounded to a fixed batch
     /// per call.
@@ -749,4 +1062,71 @@ impl DbClient {
             })
             .collect()
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cancelled_payload_uses_real_order_id_not_catalog_event_id() {
+        // process_event_cancelled passes the catalog event_id in as
+        // correlation_id (there's no single order for an event-wide
+        // cancellation), so the payload's "order_id" must come from the
+        // seat's own held history (load_owning_order_id's result), not from
+        // correlation_id/event_id.
+        let seat = StreamSeatIdentity {
+            stream_key: "seat:catalog-event-999:sec-A:seat-12".into(),
+            event_id: "catalog-event-999".into(),
+            section_id: "sec-A".into(),
+            seat_id: "seat-12".into(),
+        };
+
+        let payload = DbClient::cancelled_payload("order-real-123", &seat);
+
+        assert_eq!(payload["order_id"], "order-real-123");
+        assert_ne!(payload["order_id"], "catalog-event-999");
+        assert_eq!(payload["event_id"], "catalog-event-999");
+        assert_eq!(payload["section_id"], "sec-A");
+        assert_eq!(payload["seat_id"], "seat-12");
+    }
+
+    #[test]
+    fn cancelled_payload_uses_empty_order_id_for_virgin_seat() {
+        // A virgin seat (never held) has no owning order. load_owning_order_id
+        // returns "" for that case (see its fetch_optional/unwrap_or_default),
+        // and cancelled_payload must carry that through as-is rather than
+        // substituting the catalog event_id or any other stand-in.
+        let seat = StreamSeatIdentity {
+            stream_key: "seat:catalog-event-999:sec-A:seat-99".into(),
+            event_id: "catalog-event-999".into(),
+            section_id: "sec-A".into(),
+            seat_id: "seat-99".into(),
+        };
+
+        let payload = DbClient::cancelled_payload("", &seat);
+
+        assert_eq!(payload["order_id"], "");
+        assert_eq!(payload["event_id"], "catalog-event-999");
+        assert_eq!(payload["section_id"], "sec-A");
+        assert_eq!(payload["seat_id"], "seat-99");
+    }
+
+    // The following behaviors are exercised by process_event_cancelled and
+    // cancel_stream but require a live PostgreSQL connection to test
+    // end-to-end (load_stream, load_owning_order_id, and the batch queries in
+    // process_event_cancelled_batch all issue real sqlx queries against
+    // inventory.event_streams/inventory.events) - this crate has no live-DB
+    // integration test harness today, so they are not covered by an automated
+    // test here:
+    //   - a virgin seat stream (current_version == 0, no SeatReservationHeld
+    //     event) is cancelled with an empty "" order_id in its
+    //     SeatReservationCancelled payload;
+    //   - a touched-then-available (raced) seat stream is cancelled with its
+    //     real order_id recovered from its SeatReservationHeld history;
+    //   - a Held or Sold seat stream is cancelled normally;
+    //   - an already-Cancelled seat stream is skipped (no duplicate event);
+    //   - process_event_cancelled's batching/pagination processes more
+    //     streams than a single batch's MAX_CANCELLING_STREAMS_PER_BATCH
+    //     limit across multiple transactions.
 }
