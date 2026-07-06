@@ -359,13 +359,13 @@ spec:
                 name: velox-service-config
           env:
             - name: NODE_OPTIONS
-              value: "--max-old-space-size=576"
+              value: "--max-old-space-size=1536"
           resources:
             requests:
               cpu: 100m
-              memory: 256Mi
+              memory: 512Mi
             limits:
-              memory: 768Mi
+              memory: 2Gi
           readinessProbe:
             httpGet:
               path: /
