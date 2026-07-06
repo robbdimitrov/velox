@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -141,6 +142,46 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		return
 	}
 	writeError(w, http.StatusInternalServerError, "internal_error")
+}
+
+// doOrderServiceRequest issues a POST to s.orderSvcBaseURL+path, propagating
+// the inbound request's X-Request-ID so orderservice logs can be correlated
+// with the originating gateway request. body may be nil for the body-less
+// action endpoints (confirm, cancel, cancel-event); when non-nil it is sent
+// as a JSON request body (e.g. order creation). Shared by every gateway
+// endpoint that forwards a request to orderservice's internal API; callers
+// own status-code branching and response-body decoding since those differ
+// per call site.
+func (s *Server) doOrderServiceRequest(ctx context.Context, path string, body []byte) (*http.Response, error) {
+	var reader io.Reader
+	if body != nil {
+		reader = bytes.NewReader(body)
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, s.orderSvcBaseURL+path, reader)
+	if err != nil {
+		return nil, err
+	}
+	if body != nil {
+		httpReq.Header.Set("Content-Type", "application/json")
+	}
+	if reqID, ok := ctx.Value(RequestIDKey).(string); ok {
+		httpReq.Header.Set("X-Request-ID", reqID)
+	}
+	return s.httpClient.Do(httpReq)
+}
+
+// writeUpstreamError maps a >=400 orderservice response to a client error,
+// decoding its {"error": "..."} body when present and falling back to a
+// generic upstream_error code otherwise.
+func writeUpstreamError(w http.ResponseWriter, resp *http.Response) {
+	var errResp struct {
+		Error string `json:"error"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&errResp)
+	if errResp.Error == "" {
+		errResp.Error = "upstream_error"
+	}
+	writeError(w, resp.StatusCode, errResp.Error)
 }
 
 func limitBody(next http.Handler, limit int64) http.HandlerFunc {

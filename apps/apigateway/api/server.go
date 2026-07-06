@@ -21,6 +21,7 @@ type Server struct {
 	events           map[string]Event
 	seats            map[string]map[string]map[string]*Seat
 	orders           map[string]*Order
+	announcements    map[string][]EventAnnouncement
 	idempotency      map[string]idempotencyRecord
 	loginFails       map[string]loginFailure
 	store            *DatabaseStore
@@ -28,7 +29,6 @@ type Server struct {
 	seatClients      map[string]map[chan string]struct{}
 	organizerClients map[string]map[chan string]struct{}
 	httpClient       *http.Client
-	orderSvcURL      string
 	orderSvcBaseURL  string
 	workerID         string
 	tokenIssuer      string
@@ -44,6 +44,7 @@ func NewServerWithStore(secret string, store *DatabaseStore, cacheClient *redis.
 		events:           map[string]Event{},
 		seats:            map[string]map[string]map[string]*Seat{},
 		orders:           map[string]*Order{},
+		announcements:    map[string][]EventAnnouncement{},
 		idempotency:      map[string]idempotencyRecord{},
 		loginFails:       map[string]loginFailure{},
 		store:            store,
@@ -63,12 +64,12 @@ func NewServerWithStore(secret string, store *DatabaseStore, cacheClient *redis.
 	return s
 }
 
-// SetOrderServiceURL sets the create-order endpoint URL (e.g.
-// "http://orderservice/orders") and derives the base URL used for
-// order-scoped actions like confirm/cancel ("http://orderservice") from it,
-// so callers only configure orderservice's location once.
+// SetOrderServiceURL accepts the create-order endpoint URL (e.g.
+// "http://orderservice/orders") and derives the base URL used for every
+// orderservice call, including order creation itself, order-scoped actions
+// like confirm/cancel, and event cancellation ("http://orderservice") from
+// it, so callers only configure orderservice's location once.
 func (s *Server) SetOrderServiceURL(url string) {
-	s.orderSvcURL = url
 	s.orderSvcBaseURL = strings.TrimSuffix(url, "/orders")
 }
 

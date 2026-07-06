@@ -22,7 +22,7 @@ func (s *Server) handleOrganizerEvents(w http.ResponseWriter, r *http.Request, u
 }
 
 func (s *Server) handleOrganizerOrders(w http.ResponseWriter, r *http.Request, user User) {
-	if !s.organizerOwnsEvent(r.PathValue("eventId"), user) {
+	if !s.organizerOwnsEvent(r.Context(), r.PathValue("eventId"), user) {
 		writeError(w, http.StatusNotFound, "event_not_found")
 		return
 	}
@@ -39,7 +39,7 @@ func (s *Server) handleOrganizerOrders(w http.ResponseWriter, r *http.Request, u
 
 func (s *Server) handleOrganizerInventory(w http.ResponseWriter, r *http.Request, user User) {
 	eventID := r.PathValue("eventId")
-	if !s.organizerOwnsEvent(eventID, user) {
+	if !s.organizerOwnsEvent(r.Context(), eventID, user) {
 		writeError(w, http.StatusNotFound, "event_not_found")
 		return
 	}
@@ -64,7 +64,20 @@ func (s *Server) handleOrganizerInventory(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, map[string]any{"inventory": counts, "active_holds": counts[StatusHeld]})
 }
 
-func (s *Server) organizerOwnsEvent(eventID string, user User) bool {
+// organizerOwnsEvent reports whether user organizes eventID. In store-backed
+// mode catalog.events has no organizer column directly - ownership is
+// transitive through the event's venue - so it defers to organizerOwnsVenue
+// the same way handleCreateEvent already establishes venue ownership. The
+// in-memory s.events map (populated only in demo/no-store mode) is checked
+// otherwise.
+func (s *Server) organizerOwnsEvent(ctx context.Context, eventID string, user User) bool {
+	if s.store != nil {
+		venueID, err := s.store.GetEventVenueID(ctx, eventID)
+		if err != nil {
+			return false
+		}
+		return s.organizerOwnsVenue(ctx, user.ID, venueID)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	event, ok := s.events[eventID]
@@ -215,6 +228,72 @@ func (s *Server) organizerOwnsVenue(ctx context.Context, organizerID, venueID st
 		}
 	}
 	return false
+}
+
+// handleCancelEvent cancels an entire event: it marks the event cancelled in
+// the catalog, tells orderservice to bulk-cancel every order tied to it, and
+// relies on handleCreateReservation's PUBLISHED-status gate to reject any new
+// reservation racing in after the catalog update — so cancellation can't be
+// bypassed by a booking that lands between these two steps. The catalog
+// update and the orderservice call are each independently idempotent, so a
+// client retry after a partial failure (e.g. the orderservice call failing)
+// is always safe to repeat in full.
+func (s *Server) handleCancelEvent(w http.ResponseWriter, r *http.Request, user User) {
+	eventID := r.PathValue("eventId")
+	if !s.organizerOwnsEvent(r.Context(), eventID, user) {
+		writeError(w, http.StatusNotFound, "event_not_found")
+		return
+	}
+
+	// Checked before the catalog write below: if orderservice is unconfigured,
+	// there is no point committing catalog.events.status = 'CANCELLED' only to
+	// fail afterward, since that would permanently mark the event cancelled
+	// while every outstanding order stays untouched, with a client retry
+	// hitting the same 503 forever (the catalog write is a no-op on retry).
+	if s.orderSvcBaseURL == "" {
+		writeError(w, http.StatusServiceUnavailable, "order_service_unavailable")
+		return
+	}
+
+	if s.store != nil {
+		if err := s.store.CancelEvent(r.Context(), eventID); err != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error")
+			return
+		}
+	} else {
+		s.mu.Lock()
+		if event, ok := s.events[eventID]; ok {
+			event.Status = "CANCELLED"
+			s.events[eventID] = event
+		}
+		s.mu.Unlock()
+	}
+
+	resp, err := s.doOrderServiceRequest(r.Context(), "/events/"+eventID+"/cancel", nil)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "upstream_error")
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		writeUpstreamError(w, resp)
+		return
+	}
+
+	var upstream struct {
+		EventID         string `json:"event_id"`
+		CancelledOrders int    `json:"cancelled_orders"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&upstream); err != nil {
+		writeError(w, http.StatusBadGateway, "upstream_error")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"event_id":         eventID,
+		"status":           "CANCELLED",
+		"cancelled_orders": upstream.CancelledOrders,
+	})
 }
 
 func (s *Server) handleCreateEvent(w http.ResponseWriter, r *http.Request, user User) {

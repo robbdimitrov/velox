@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -660,4 +661,88 @@ func (s *DatabaseStore) GetEvent(ctx context.Context, id string) (Event, error) 
 	e.SeatsOpen = counts[StatusAvailable]
 	e.SeatsTotal = counts[StatusAvailable] + counts[StatusHeld] + counts[StatusSold]
 	return e, nil
+}
+
+// GetEventVenueID returns just an event's venue ID, for callers like
+// organizerOwnsEvent that only need to check ownership and would otherwise
+// pay for GetEvent's GetOrganizerInventory seat-count aggregation for no
+// reason. Do not use this as a substitute for GetEvent where SeatsOpen/
+// SeatsTotal are actually read (e.g. the public event-detail endpoint).
+func (s *DatabaseStore) GetEventVenueID(ctx context.Context, eventID string) (string, error) {
+	var venueID string
+	err := s.db.QueryRowContext(ctx, `
+		SELECT venue_id FROM catalog.events WHERE id = $1
+	`, eventID).Scan(&venueID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrStoreNotFound
+	}
+	return venueID, err
+}
+
+// GetEventStatus returns just an event's catalog status, for callers like
+// handleCreateReservation's booking gate that only need to check
+// PUBLISHED-vs-not and would otherwise pay for GetEvent's
+// GetOrganizerInventory seat-count aggregation for no reason on apigateway's
+// hottest write path. Do not use this as a substitute for GetEvent where
+// SeatsOpen/SeatsTotal are actually read.
+func (s *DatabaseStore) GetEventStatus(ctx context.Context, eventID string) (string, error) {
+	var status string
+	err := s.db.QueryRowContext(ctx, `
+		SELECT status FROM catalog.events WHERE id = $1
+	`, eventID).Scan(&status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrStoreNotFound
+	}
+	return status, err
+}
+
+// CancelEvent marks an event cancelled. It is intentionally idempotent (the
+// WHERE clause excludes already-cancelled rows and a 0-row match, whether
+// because the event doesn't exist or was already cancelled, is not an error)
+// so a caller retrying handleCancelEvent after a partial failure (e.g. the
+// orderservice bulk-cancel call failing) can safely call this again.
+func (s *DatabaseStore) CancelEvent(ctx context.Context, eventID string) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE catalog.events SET status = 'CANCELLED' WHERE id = $1 AND status <> 'CANCELLED'
+	`, eventID)
+	return err
+}
+
+func (s *DatabaseStore) CreateAnnouncement(ctx context.Context, eventID, organizerID, title, body, severity string) (EventAnnouncement, error) {
+	var a EventAnnouncement
+	err := s.db.QueryRowContext(ctx, `
+		INSERT INTO catalog.event_announcements (id, event_id, organizer_id, title, body, severity)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id, event_id, title, body, severity, created_at
+	`, uuid.New().String(), eventID, organizerID, title, body, severity).
+		Scan(&a.ID, &a.EventID, &a.Title, &a.Body, &a.Severity, &a.CreatedAt)
+	return a, err
+}
+
+// GetEventAnnouncements returns the most recent 100 announcements for an
+// event, newest first. handleEventAnnouncements is public, unauthenticated,
+// and cacheable, so this fixed cap bounds the response regardless of how many
+// announcements accumulate; a real event's announcement feed realistically
+// has at most dozens of entries, so cursor-based pagination isn't warranted.
+func (s *DatabaseStore) GetEventAnnouncements(ctx context.Context, eventID string) ([]EventAnnouncement, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, event_id, title, body, severity, created_at
+		FROM catalog.event_announcements
+		WHERE event_id = $1
+		ORDER BY created_at DESC
+		LIMIT 100
+	`, eventID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var announcements []EventAnnouncement
+	for rows.Next() {
+		var a EventAnnouncement
+		if err := rows.Scan(&a.ID, &a.EventID, &a.Title, &a.Body, &a.Severity, &a.CreatedAt); err != nil {
+			return nil, err
+		}
+		announcements = append(announcements, a)
+	}
+	return announcements, rows.Err()
 }

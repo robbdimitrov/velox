@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -64,7 +63,7 @@ func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request,
 	}
 	hash := requestHash(body)
 	idemKey := "reserve:" + user.ID + ":" + key
-	if s.orderSvcURL == "" {
+	if s.orderSvcBaseURL == "" {
 		writeError(w, http.StatusServiceUnavailable, "order_service_unavailable")
 		return
 	}
@@ -82,6 +81,22 @@ func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request,
 
 	if s.store != nil {
 		s.mu.Unlock()
+		// Closes the cancellation race: without this, a reservation could be
+		// created after handleCancelEvent's catalog update but its orderservice
+		// bulk-cancel hasn't reached this order yet (or never will, since the
+		// order didn't exist when it ran), leaving a live booking on a
+		// cancelled event. Uses the lean GetEventStatus rather than GetEvent so
+		// this hottest write path skips GetEvent's GetOrganizerInventory
+		// seat-count aggregation, which this check never reads.
+		status, err := s.store.GetEventStatus(r.Context(), req.EventID)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		if status != "PUBLISHED" {
+			writeError(w, http.StatusConflict, "event_not_bookable")
+			return
+		}
 		if !s.validateSeatsAvailable(w, r.Context(), req.EventID, req.SectionID, req.SeatIDs) {
 			return
 		}
@@ -123,17 +138,7 @@ func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request,
 	}
 	bodyBytes, _ := json.Marshal(orderReq)
 
-	httpReq, err := http.NewRequestWithContext(r.Context(), "POST", s.orderSvcURL, bytes.NewReader(bodyBytes))
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error")
-		return
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	if reqID, ok := r.Context().Value(RequestIDKey).(string); ok {
-		httpReq.Header.Set("X-Request-ID", reqID)
-	}
-
-	resp, err := s.httpClient.Do(httpReq)
+	resp, err := s.doOrderServiceRequest(r.Context(), "/orders", bodyBytes)
 	if err != nil {
 		s.releasePendingReservation(req.EventID, req.SectionID, req.SeatIDs, idemKey)
 		writeError(w, http.StatusBadGateway, "upstream_error")
@@ -142,15 +147,8 @@ func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request,
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		var errResp struct {
-			Error string `json:"error"`
-		}
-		_ = json.NewDecoder(resp.Body).Decode(&errResp)
-		if errResp.Error == "" {
-			errResp.Error = "upstream_error"
-		}
 		s.releasePendingReservation(req.EventID, req.SectionID, req.SeatIDs, idemKey)
-		writeError(w, resp.StatusCode, errResp.Error)
+		writeUpstreamError(w, resp)
 		return
 	}
 
@@ -211,16 +209,7 @@ func (s *Server) forwardOrderAction(w http.ResponseWriter, r *http.Request, user
 		return
 	}
 
-	httpReq, err := http.NewRequestWithContext(r.Context(), "POST", s.orderSvcBaseURL+"/orders/"+orderID+"/"+action, nil)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error")
-		return
-	}
-	if reqID, ok := r.Context().Value(RequestIDKey).(string); ok {
-		httpReq.Header.Set("X-Request-ID", reqID)
-	}
-
-	resp, err := s.httpClient.Do(httpReq)
+	resp, err := s.doOrderServiceRequest(r.Context(), "/orders/"+orderID+"/"+action, nil)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "upstream_error")
 		return
@@ -228,14 +217,7 @@ func (s *Server) forwardOrderAction(w http.ResponseWriter, r *http.Request, user
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		var errResp struct {
-			Error string `json:"error"`
-		}
-		_ = json.NewDecoder(resp.Body).Decode(&errResp)
-		if errResp.Error == "" {
-			errResp.Error = "upstream_error"
-		}
-		writeError(w, resp.StatusCode, errResp.Error)
+		writeUpstreamError(w, resp)
 		return
 	}
 

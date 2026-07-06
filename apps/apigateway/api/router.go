@@ -33,6 +33,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /events/{eventId}", s.handleEvent)
 	mux.HandleFunc("GET /events/{eventId}/sections/{sectionId}/seats", s.handleSeats)
 	mux.HandleFunc("GET /events/{eventId}/stream", s.handleSeatStream)
+	mux.HandleFunc("GET /events/{eventId}/announcements", s.handleEventAnnouncements)
 
 	rl := NewRateLimiter(s.cacheClient, 10.0, 100) // 10 TPS, 100 max burst
 	mux.HandleFunc("POST /reservations", s.requireAuth(rl.AuthedMiddleware("reservations_create", s.handleCreateReservation)))
@@ -49,6 +50,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/organizer/venues", s.requireRole(RoleOrganizer, s.handleCreateVenue))
 	mux.HandleFunc("GET /api/organizer/venues/{id}/staff", s.requireRole(RoleOrganizer, s.handleListVenueStaff))
 	mux.HandleFunc("POST /api/organizer/events", s.requireRole(RoleOrganizer, s.handleCreateEvent))
+	mux.HandleFunc("POST /organizer/events/{eventId}/announcements", s.requireRole(RoleOrganizer, s.handleCreateAnnouncement))
+	mux.HandleFunc("POST /organizer/events/{eventId}/cancel", s.requireRole(RoleOrganizer, s.handleCancelEvent))
 	handler := limitBody(mux, 1<<20)
 	return tracingMiddleware(handler)
 }

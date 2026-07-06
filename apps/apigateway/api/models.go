@@ -66,6 +66,15 @@ type Event struct {
 	DemandScore int       `json:"demand_score,omitempty"`
 }
 
+type EventAnnouncement struct {
+	ID        string    `json:"id"`
+	EventID   string    `json:"event_id"`
+	Title     string    `json:"title"`
+	Body      string    `json:"body"`
+	Severity  string    `json:"severity"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type Seat struct {
 	EventID           string `json:"event_id"`
 	SectionID         string `json:"section_id"`

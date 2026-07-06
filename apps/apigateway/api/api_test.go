@@ -7,6 +7,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	sqlmock "github.com/DATA-DOG/go-sqlmock"
 )
 
 func TestReserverCanReserveAndConfirmSeat(t *testing.T) {
@@ -205,10 +208,111 @@ func TestReserveReleasesTentativeHoldOnMalformedUpstreamResponse(t *testing.T) {
 	}
 }
 
+// TestCreateReservationRejectsCancelledEvent exercises the store-backed
+// booking gate that closes the cancellation race described in
+// handleCancelEvent's doc comment: once an event is no longer PUBLISHED, new
+// reservations must be rejected before any seat is validated or held.
+// DatabaseStore has no interface seam and always talks to a real *sql.DB, so
+// this uses sqlmock (rather than a live Postgres, per this codebase's
+// hermetic-unit-test convention) to drive GetEventStatus's query path. Only
+// the lean "SELECT status" query is mocked (not GetEvent's full join or
+// GetOrganizerInventory's aggregation) since the gate now uses GetEventStatus
+// specifically to avoid paying for that unused seat-count aggregation.
+func TestCreateReservationRejectsCancelledEvent(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer db.Close()
+
+	// authenticate() calls GetUserByID on every subsequent request once a
+	// store is attached, so the reserver seeded by seed() must be resolvable
+	// through the mock too.
+	mock.ExpectQuery("SELECT id, email, password_hash, role, created_at").
+		WithArgs("usr_reserver_1").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "password_hash", "role", "created_at"}).
+			AddRow("usr_reserver_1", "reserver@velox.local", "unused-hash", RoleReserver, time.Now()))
+	mock.ExpectQuery(`SELECT status FROM catalog\.events WHERE id = \$1`).
+		WithArgs("evt_neon_riot").
+		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow("CANCELLED"))
+
+	mockOrderSvc := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("orderservice must not be called for a cancelled event")
+	}))
+	defer mockOrderSvc.Close()
+
+	server := NewServerWithStore("test", nil, nil)
+	server.SetOrderServiceURL(mockOrderSvc.URL)
+	server.SetHTTPClient(mockOrderSvc.Client())
+
+	client := newTestClient(server)
+	// Log in while the server is still store-less: login itself resolves the
+	// seeded in-memory user, so it needs no mock expectations, and only the
+	// gate under test needs to exercise the real store.
+	cookie := client.login(t, "reserver@velox.local", "reserver")
+	server.store = &DatabaseStore{db: db}
+	client.reserve(t, cookie, "idem-cancelled-event", []string{"A-01"}, http.StatusConflict)
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sqlmock expectations: %v", err)
+	}
+}
+
+// TestCreateReservationReturnsNotFoundForNonexistentEvent confirms the
+// booking gate distinguishes ErrStoreNotFound (404) from other GetEventStatus
+// failures, rather than collapsing every error into the same 409
+// event_not_bookable response used for a genuinely cancelled/unpublished
+// event. A nonexistent event_id is a client input error, not a business-logic
+// conflict, and (separately) a real backend error must never be hidden behind
+// either status.
+func TestCreateReservationReturnsNotFoundForNonexistentEvent(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer db.Close()
+
+	mock.ExpectQuery("SELECT id, email, password_hash, role, created_at").
+		WithArgs("usr_reserver_1").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "password_hash", "role", "created_at"}).
+			AddRow("usr_reserver_1", "reserver@velox.local", "unused-hash", RoleReserver, time.Now()))
+	mock.ExpectQuery(`SELECT status FROM catalog\.events WHERE id = \$1`).
+		WithArgs("evt_does_not_exist").
+		WillReturnRows(sqlmock.NewRows([]string{"status"}))
+
+	mockOrderSvc := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("orderservice must not be called for a nonexistent event")
+	}))
+	defer mockOrderSvc.Close()
+
+	server := NewServerWithStore("test", nil, nil)
+	server.SetOrderServiceURL(mockOrderSvc.URL)
+	server.SetHTTPClient(mockOrderSvc.Client())
+
+	client := newTestClient(server)
+	cookie := client.login(t, "reserver@velox.local", "reserver")
+	server.store = &DatabaseStore{db: db}
+
+	payload := map[string]any{"event_id": "evt_does_not_exist", "section_id": "A", "seat_ids": []string{"A-01"}}
+	body, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/reservations", bytes.NewReader(body))
+	req.Header.Set("Idempotency-Key", "idem-missing-event")
+	req.AddCookie(cookie)
+	rr := httptest.NewRecorder()
+	server.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d body=%s", rr.Code, http.StatusNotFound, rr.Body.String())
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sqlmock expectations: %v", err)
+	}
+}
+
 func TestLoginAttemptsAreRateLimited(t *testing.T) {
 	server := NewServerWithStore("test", nil, nil)
 	client := newTestClient(server)
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		client.loginStatus(t, "reserver@velox.local", "wrong", http.StatusUnauthorized)
 	}
 	client.loginStatus(t, "reserver@velox.local", "reserver", http.StatusTooManyRequests)
