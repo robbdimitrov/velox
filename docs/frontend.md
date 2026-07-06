@@ -85,6 +85,33 @@ State sync:
   component teardown. Malformed live payloads are ignored or logged in bounded
   UI state rather than breaking the seat selector.
 
+## Event Announcement Feed
+
+Purpose: let an organizer post public updates (schedule changes, cancellation
+notices) that anyone viewing the event page can read, without the concurrency
+concerns of the seat/reservation pipeline.
+
+Layout:
+
+- An "Event Updates" panel on the event page, newest-first, severity-tinted
+  (`INFO` neutral, `SCHEDULE_CHANGE` warning tone, `CANCELLATION` in Control
+  Panel Red).
+- On the organizer dashboard, a small post form (title, body, severity).
+
+Rules:
+
+- Public read (`GET /events/{id}/announcements`); no auth, no per-user state,
+  cacheable like discovery reads.
+- No live push - the announcement feed changes far less often than seat
+  availability, so the event page simply re-fetches on load rather than
+  holding an SSE/WebSocket connection open for it.
+- If the event's own status is `CANCELLED`, the event page shows a persistent
+  banner and disables the reserve action, regardless of what the announcement
+  feed contains. Seat tiles remain visually togglable in this state (the
+  banner and disabled Reserve button are the actual gate); the authoritative
+  block against booking is enforced server-side by the reservation and order
+  pipelines regardless of any client-side state.
+
 ## High-Velocity Reservation Pipeline
 
 Purpose: convert a held reservation into a confirmed ticket before the reservation
@@ -122,7 +149,7 @@ Layout:
    state.
 2. Ticket pass list: QR code, event, seat, gate, transfer controls.
 3. Provenance ledger: expandable immutable timeline per ticket.
-4. History filters: Issued, Transferred, Used, Upgraded.
+4. History filters: Issued, Transferred, Used, Upgraded, Cancelled.
 
 Ledger examples:
 
@@ -137,3 +164,5 @@ Rules:
 - Wallet reads from projections, not the event store directly.
 - QR payloads must be short-lived signed tokens, never raw ticket IDs alone.
 - Ledger rows must include event type, timestamp, actor, and correlation ID.
+- A ticket whose event was cancelled shows status Cancelled and disables
+  transfer, regardless of its prior transfer status.

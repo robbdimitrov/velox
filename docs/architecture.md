@@ -52,12 +52,46 @@ audit, and replay.
   authenticated `organizer` role before ownership checks run.
 - Map public HTTP errors safely and orchestrate bounded gRPC calls to backend
   services.
+- Serve a public, cacheable organizer announcement feed per event
+  (`GET /events/{id}/announcements`, `POST
+  /organizer/events/{id}/announcements`) for schedule changes and other
+  updates. No live push; clients re-fetch the list.
+- Handle organizer-initiated whole-event cancellation via `POST
+  /organizer/events/{id}/cancel`: mark the event `CANCELLED` in
+  `catalog.events`, then call orderservice's `POST /events/{id}/cancel` to
+  bulk-cancel every order tied to it. Both steps are idempotent and safe to
+  retry independently; the order-service-configured check runs before either
+  write, so a misconfigured deployment fails closed without leaving the
+  catalog cancelled and orphaned. Reject `POST /reservations` for any event
+  whose status is not `PUBLISHED` (a fast-path, non-authoritative check via
+  the lean `GetEventStatus` query, distinguishing a genuinely missing event
+  with a `404` from a non-bookable one with `409`); the durable, race-free
+  guarantee against a reservation landing after cancellation is enforced
+  inside orderservice's `CreateOrder` transaction (see below), not by this
+  pre-check alone.
 
 `orderservice` responsibilities:
 
 - Validate idempotency headers, reservation tokens, and order command payloads.
 - Handle explicit user actions via `POST /reservations/{id}/confirm` and
   `POST /reservations/{id}/cancel`.
+- Handle organizer-initiated bulk cancellation via `POST /events/{id}/cancel`,
+  which cancels every outstanding order (`PENDING`, `HELD`, or `CONFIRMED`) for
+  the event. Unlike the single-order cancel, `CONFIRMED` orders are eligible
+  here since the event itself is being called off. All matching orders
+  transition together in one batched `UPDATE ... RETURNING` inside a single
+  transaction (not one transaction per order — this trades per-order failure
+  isolation for avoiding an O(orders) sequence of round trips on a large
+  event), followed by one outbox row per cancelled order and a single
+  `EventCancelled` outbox row, all in that same transaction. The endpoint is
+  idempotent and safe to retry.
+- `CreateOrder` closes the booking-race window against a concurrent
+  `CancelEvent`: it re-checks `catalog.events.status` with `SELECT ... FOR
+  SHARE` inside its own transaction. Row-level locking applies regardless of
+  isolation level, so this blocks against (and always observes the outcome
+  of) `apigateway`'s non-transactional `CancelEvent` update, rather than
+  relying on serializable-snapshot conflict detection — which would not fire
+  here, since only one side of that race is a serializable transaction.
 - Store orders in PostgreSQL with states `PENDING`, `HELD`, `CONFIRMED`,
   `CANCELLED`, `FAILED`, `EXPIRED`.
 - Write outbox rows in the same transaction as order state transitions.
@@ -82,8 +116,9 @@ publication must flow through the outbox relay.
 
 Responsibilities:
 
-- Consume `OrderCreated`, `OrderConfirmed`, and `OrderCancelled` events, and
-  run a periodic sweep for its own hold-expiry timeouts.
+- Consume `OrderCreated`, `OrderConfirmed`, `OrderCancelled`, and
+  `EventCancelled` events, and run a periodic sweep for its own hold-expiry
+  timeouts.
 - Validate seat availability through event stream replay or cached stream
   snapshots.
 - Append immutable inventory events with expected stream version.
@@ -106,10 +141,17 @@ SeatReservationHeld
 SeatReservationFailed
 SeatReservationExpired
 SeatReservationConfirmed
+SeatReservationCancelled
 SeatTicketTransferred
 SeatTicketUsed
 SeatTicketUpgraded
 ```
+
+`SeatReservationCancelled` is a terminal transition, distinct from
+`SeatReservationExpired`: the seat does not become available again, it
+becomes permanently unbookable because its event was cancelled. It fires from
+either `Held` or `Sold` (unlike expiry, which only fires from `Held`), guarded
+by the same compare-and-append discipline as every other stream mutation.
 
 ## Storage Profiles
 
@@ -129,6 +171,8 @@ SeatTicketUpgraded
 OrderCreated     -> SeatReservationHeld
 OrderConfirmed   -> SeatReservationConfirmed
 OrderCancelled   -> SeatReservationExpired
+EventCancelled   -> SeatReservationCancelled (fanned out to every stream for
+                    the event still Held or Sold)
 hold expires (seatservice sweep, no order trigger) -> SeatReservationExpired
 ```
 
@@ -136,10 +180,14 @@ hold expires (seatservice sweep, no order trigger) -> SeatReservationExpired
 documents:
 
 ```text
-inventory.events.v1 -> seat_snapshot[event_id, seat_id]
-inventory.events.v1 -> wallet_ticket[ticket_id]
+inventory.events.v1 -> seat_snapshot[event_id, seat_id]              (status incl. CANCELLED)
+inventory.events.v1 -> wallet_ticket[ticket_id]                      (status incl. CANCELLED)
 order.events.v1     -> order_summary[user_id, order_id]
 ```
+
+A `SeatReservationCancelled` event upserts `seat_snapshot.status = CANCELLED`
+and, if a wallet ticket had already been issued for that seat, flips
+`wallet_ticket.status` from `ISSUED` to `CANCELLED` as well.
 
 `viewservice` writes must be idempotent by `event_id`. Store the last applied
 event version per aggregate.
@@ -177,6 +225,45 @@ Cancellation path (explicit user action):
 5. `viewservice` marks the seat(s) AVAILABLE again
 ```
 
+Event cancellation path (organizer action, whole event called off):
+
+```text
+1. Organizer POST /organizer/events/{event_id}/cancel
+2. `apigateway` verifies venue/event ownership and that orderservice is
+   configured (fails closed with no writes if not), marks the event CANCELLED
+   in catalog.events, and calls orderservice's POST /events/{event_id}/cancel
+3. `orderservice` finds every order touching event_id and, in one batched
+   transaction, marks each still PENDING/HELD/CONFIRMED order CANCELLED and
+   writes an outbox OrderCancelled (reason=EVENT_CANCELLED) per order -
+   unlike a user-initiated cancel, CONFIRMED orders are eligible here
+4. `orderservice` writes one additional outbox EventCancelled(event_id) in
+   that same transaction
+5. Outbox relay publishes all of the above to Kafka
+6. `viewservice` applies each OrderCancelled into order_summary as usual
+7. `seatservice` consumes EventCancelled and appends SeatReservationCancelled
+   to every seat stream for event_id not already Cancelled - including seats
+   that were never held or sold, so no seat is left looking bookable after
+   its event is cancelled. Streams are processed in bounded batches (guarded
+   by compare-and-append, same as every other stream mutation) rather than
+   locking every stream for the event at once, so a large venue's
+   cancellation doesn't hold row locks across the whole seat map for the
+   duration of the sweep.
+8. `viewservice` marks each such seat CANCELLED and flips any already-issued
+   wallet ticket for that seat from ISSUED to CANCELLED
+9. `apigateway` rejects any new POST /reservations against a non-PUBLISHED
+   event as a fast-path check, but the durable guarantee against a booking
+   landing after cancellation is `orderservice`'s own `SELECT ... FOR SHARE`
+   row lock on catalog.events inside CreateOrder's transaction (see the Go
+   Services section above) - this blocks against and always observes
+   apigateway's catalog update regardless of which side commits first, so an
+   order can never be created after cancellation and then missed by step 3's
+   sweep.
+```
+
+Both apigateway's catalog update and orderservice's bulk cancel are
+idempotent, so a client retry after a partial failure (e.g. the network call
+between them failing) is always safe to repeat in full.
+
 Reservation-failed path (seat unavailable at hold time):
 
 ```text
@@ -198,15 +285,19 @@ Timeout path (no confirm or cancel before the hold deadline):
    status
 ```
 
-Self-correction path (confirm loses the race against an in-flight expiry):
-if the expiry sweep times out a hold in seatservice's authoritative event
-store just before orderservice consumes the resulting SeatReservationExpired,
-a confirm can still succeed against orderservice's stale local mirror.
-`seatservice`'s compare-and-append guard then finds the stream already
-Expired and, instead of appending SeatReservationConfirmed, publishes
-SeatReservationConfirmationFailed; `orderservice` consumes it and corrects
-the order from CONFIRMED to EXPIRED (guarded to only ever apply to that exact
-state), writing the same outbox OrderExpired the timeout path above uses.
+Self-correction path (confirm loses the race against an in-flight expiry, or
+against an event cancellation): if the expiry sweep times out a hold in
+seatservice's authoritative event store just before orderservice consumes the
+resulting SeatReservationExpired, a confirm can still succeed against
+orderservice's stale local mirror. The same race can happen against an
+organizer's event cancellation instead of an expiry. `seatservice`'s
+compare-and-append guard then finds the stream already Expired or Cancelled
+and, instead of appending SeatReservationConfirmed, publishes
+SeatReservationConfirmationFailed carrying which of the two happened;
+`orderservice` consumes it and corrects the order from CONFIRMED to either
+EXPIRED (writing the same outbox OrderExpired the timeout path above uses) or
+CANCELLED (writing outbox OrderCancelled, reason=EVENT_CANCELLED) to match
+the actual cause, guarded to only ever apply to that exact CONFIRMED state.
 
 Every event must carry `event_id`, `correlation_id`, `causation_id`,
 `aggregate_id`, `schema_version`, `occurred_at`, and `signature`.
