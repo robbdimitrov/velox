@@ -94,7 +94,8 @@ func StartConsumer(ctx context.Context, db *sql.DB, cl *kgo.Client, health *Pipe
 				case "SeatReservationExpired":
 					err = handleSeatReservationExpired(recordCtx, db, orderID)
 				case "SeatReservationConfirmationFailed":
-					err = handleSeatReservationConfirmationFailed(recordCtx, db, orderID)
+					reason, _ := payload["reason"].(string)
+					err = handleSeatReservationConfirmationFailed(recordCtx, db, orderID, reason)
 				}
 				if err != nil {
 					health.MarkError("consumer", err)
@@ -213,13 +214,21 @@ func handleSeatReservationExpired(ctx context.Context, db *sql.DB, orderID strin
 
 // handleSeatReservationConfirmationFailed self-corrects an order that
 // confirmed locally before orderservice consumed an earlier, independent
-// SeatReservationExpired: seatservice's compare-and-append guard already
-// refused to append SeatReservationConfirmed onto the expired stream, so this
-// order's seat was never actually confirmed. The status guard restricts this
-// to exactly that impossible state (CONFIRMED with no ticket) - it must never
-// fire against a PENDING/HELD order, since this event is only ever emitted
-// synchronously while seatservice handles that same order's OrderConfirmed.
-func handleSeatReservationConfirmationFailed(ctx context.Context, db *sql.DB, orderID string) error {
+// message reporting the seat's hold was no longer active when seatservice
+// tried to confirm it: seatservice's compare-and-append guard already
+// refused to append SeatReservationConfirmed, so this order's seat was never
+// actually confirmed. Two distinct causes produce this event, distinguished
+// by the reason field on the incoming payload: an ordinary hold expiry
+// (reason == "" or "EXPIRED", including any in-flight message produced
+// before seatservice started sending the field), or the seat's event having
+// been cancelled out from under it (reason == "EVENT_CANCELLED"). The status
+// guard restricts this to exactly the impossible state (CONFIRMED with no
+// ticket) - it must never fire against a PENDING/HELD order, since this event
+// is only ever emitted synchronously while seatservice handles that same
+// order's OrderConfirmed.
+func handleSeatReservationConfirmationFailed(ctx context.Context, db *sql.DB, orderID, reason string) error {
+	eventCancelled := reason == "EVENT_CANCELLED"
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		slog.Error("failed to begin tx", "error", err)
@@ -227,9 +236,13 @@ func handleSeatReservationConfirmationFailed(ctx context.Context, db *sql.DB, or
 	}
 	defer tx.Rollback()
 
-	res, err := tx.ExecContext(ctx, `UPDATE orders.orders SET status = 'EXPIRED', updated_at = now() WHERE id = $1 AND status = 'CONFIRMED'`, orderID)
+	newStatus := "EXPIRED"
+	if eventCancelled {
+		newStatus = "CANCELLED"
+	}
+	res, err := tx.ExecContext(ctx, `UPDATE orders.orders SET status = $2, updated_at = now() WHERE id = $1 AND status = 'CONFIRMED'`, orderID, newStatus)
 	if err != nil {
-		slog.Error("failed to update EXPIRED", "error", err)
+		slog.Error("failed to update order status", "error", err, "status", newStatus)
 		return err
 	}
 	rows, err := res.RowsAffected()
@@ -253,6 +266,27 @@ func handleSeatReservationConfirmationFailed(ctx context.Context, db *sql.DB, or
 		return err
 	}
 
+	headers := map[string]string{}
+	if reqID, ok := ctx.Value("request_id").(string); ok && reqID != "" {
+		headers["X-Request-ID"] = reqID
+	}
+	headersBytes, _ := json.Marshal(headers)
+
+	if eventCancelled {
+		outboxEventID, payloadBytes, err := buildOrderCancelledEnvelope(orderID, eventIDStr, totalAmount, reason)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO orders.outbox_events (id, aggregate_type, aggregate_id, event_type, payload, headers)
+			VALUES ($1, 'order', $2, 'OrderCancelled', $3, $4)
+		`, outboxEventID, orderID, payloadBytes, headersBytes); err != nil {
+			slog.Error("failed to insert outbox event", "error", err)
+			return err
+		}
+		return tx.Commit()
+	}
+
 	eventID := uuid.New().String()
 	envelope := map[string]any{
 		"Type": "OrderExpired",
@@ -265,12 +299,6 @@ func handleSeatReservationConfirmationFailed(ctx context.Context, db *sql.DB, or
 		},
 	}
 	payloadBytes, _ := json.Marshal(envelope)
-
-	headers := map[string]string{}
-	if reqID, ok := ctx.Value("request_id").(string); ok && reqID != "" {
-		headers["X-Request-ID"] = reqID
-	}
-	headersBytes, _ := json.Marshal(headers)
 
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO orders.outbox_events (id, aggregate_type, aggregate_id, event_type, payload, headers)

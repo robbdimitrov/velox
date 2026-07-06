@@ -94,6 +94,7 @@ func main() {
 	mux.HandleFunc("POST /orders", api.HandleCreateOrder)
 	mux.HandleFunc("POST /orders/{id}/confirm", api.HandleConfirmOrder)
 	mux.HandleFunc("POST /orders/{id}/cancel", api.HandleCancelOrder)
+	mux.HandleFunc("POST /events/{id}/cancel", api.HandleCancelEvent)
 
 	slog.Info("orderservice listening", "addr", addr)
 	if err := http.ListenAndServe(addr, tracingMiddleware(mux)); err != nil {

@@ -55,6 +55,7 @@ enum SeatStatus {
   SEAT_STATUS_SOLD = 3;
   SEAT_STATUS_TRANSFERRED = 4;
   SEAT_STATUS_USED = 5;
+  SEAT_STATUS_CANCELLED = 6;
 }
 
 message CreateReservationRequest {
@@ -174,6 +175,25 @@ message SeatTicketUpgraded {
   Money price_delta = 5;
 }
 
+// EventCancelled is published once per organizer-initiated event
+// cancellation (aggregate_id is the catalog event_id, not an order_id).
+// seatservice fans it out into one SeatReservationCancelled per seat stream
+// still HELD or SOLD for that event.
+message EventCancelled {
+  EventMetadata metadata = 1;
+  string event_id = 2;
+}
+
+// SeatReservationCancelled is a terminal transition distinct from
+// SeatReservationExpired: the seat is not available again, it is
+// permanently unbookable because its event was cancelled.
+message SeatReservationCancelled {
+  EventMetadata metadata = 1;
+  string ticket_id = 2;
+  SeatRef seat = 3;
+  string reason_code = 4;
+}
+
 message BrokerEvent {
   reserved 2, 3; // were payment_confirmed/payment_failed; no payment step exists anymore
   oneof event {
@@ -186,6 +206,8 @@ message BrokerEvent {
     SeatTicketTransferred seat_ticket_transferred = 9;
     SeatTicketUsed seat_ticket_used = 10;
     SeatTicketUpgraded seat_ticket_upgraded = 11;
+    EventCancelled event_cancelled = 12;
+    SeatReservationCancelled seat_reservation_cancelled = 13;
   }
 }
 

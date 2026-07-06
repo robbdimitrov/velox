@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -22,6 +23,19 @@ func (c capturedString) Match(v driver.Value) bool {
 		return false
 	}
 	*c.dest = s
+	return true
+}
+
+// capturedBytes captures the driver.Value seen at its bind position, for
+// asserting on a JSON payload's contents without predicting it up front.
+type capturedBytes struct{ dest *[]byte }
+
+func (c capturedBytes) Match(v driver.Value) bool {
+	b, ok := v.([]byte)
+	if !ok {
+		return false
+	}
+	*c.dest = append([]byte(nil), b...)
 	return true
 }
 
@@ -61,6 +75,9 @@ func TestCreateOrder_SetsReservationID(t *testing.T) {
 		WillReturnError(sql.ErrNoRows)
 	mock.ExpectExec("INSERT INTO orders.idempotency_keys").
 		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("SELECT status FROM catalog.events").
+		WithArgs(req.EventID).
+		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow("PUBLISHED"))
 	mock.ExpectQuery("SELECT price_amount_minor FROM projection.seat_snapshots").
 		WithArgs(req.EventID, req.SectionID, "A-1").
 		WillReturnRows(sqlmock.NewRows([]string{"price_amount_minor"}).AddRow(int64(5000)))
@@ -84,6 +101,100 @@ func TestCreateOrder_SetsReservationID(t *testing.T) {
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+// TestCreateOrder_LocksEventRowForShare verifies the catalog.events status
+// check takes a FOR SHARE row lock rather than a plain SELECT: a bare SELECT
+// never conflicts with apigateway's CancelEvent, which updates that same row
+// via a non-transactional, READ COMMITTED ExecContext outside any serializable
+// transaction, so it would never participate in SSI's conflict graph. FOR
+// SHARE instead relies on Postgres's row-level locking, which applies
+// regardless of isolation level, to block until any concurrent UPDATE on the
+// row commits.
+func TestCreateOrder_LocksEventRowForShare(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to open sqlmock db: %v", err)
+	}
+	defer db.Close()
+	s := &Store{db: db}
+
+	req := OrderRequest{
+		EventID:        "evt-1",
+		SectionID:      "sec-1",
+		SeatIDs:        []string{"A-1"},
+		IdempotencyKey: "idem-1",
+		UserID:         "user-1",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT request_hash, response_ref").
+		WithArgs(req.UserID, req.IdempotencyKey).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectExec("INSERT INTO orders.idempotency_keys").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("SELECT status FROM catalog.events WHERE id = \\$1 FOR SHARE").
+		WithArgs(req.EventID).
+		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow("PUBLISHED"))
+	mock.ExpectQuery("SELECT price_amount_minor FROM projection.seat_snapshots").
+		WithArgs(req.EventID, req.SectionID, "A-1").
+		WillReturnRows(sqlmock.NewRows([]string{"price_amount_minor"}).AddRow(int64(5000)))
+	mock.ExpectExec("INSERT INTO orders.orders").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO orders.order_seats").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO orders.outbox_events").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("UPDATE orders.idempotency_keys").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	if _, err := s.CreateOrder(context.Background(), req); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+func TestCreateOrder_RejectsWhenEventNotPublished(t *testing.T) {
+	for _, eventStatus := range []string{"CANCELLED", "DRAFT"} {
+		t.Run(eventStatus, func(t *testing.T) {
+			db, mock, err := sqlmock.New()
+			if err != nil {
+				t.Fatalf("failed to open sqlmock db: %v", err)
+			}
+			defer db.Close()
+			s := &Store{db: db}
+
+			req := OrderRequest{
+				EventID:        "evt-1",
+				SectionID:      "sec-1",
+				SeatIDs:        []string{"A-1"},
+				IdempotencyKey: "idem-1",
+				UserID:         "user-1",
+			}
+
+			mock.ExpectBegin()
+			mock.ExpectQuery("SELECT request_hash, response_ref").
+				WithArgs(req.UserID, req.IdempotencyKey).
+				WillReturnError(sql.ErrNoRows)
+			mock.ExpectExec("INSERT INTO orders.idempotency_keys").
+				WillReturnResult(sqlmock.NewResult(0, 1))
+			mock.ExpectQuery("SELECT status FROM catalog.events").
+				WithArgs(req.EventID).
+				WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow(eventStatus))
+			mock.ExpectRollback()
+
+			_, err = s.CreateOrder(context.Background(), req)
+			if !errors.Is(err, ErrEventNotBookable) {
+				t.Fatalf("err = %v, want ErrEventNotBookable", err)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Errorf("unfulfilled expectations: %s", err)
+			}
+		})
 	}
 }
 
@@ -262,6 +373,195 @@ func TestCancelOrder_IdempotentWhenAlreadyCancelled(t *testing.T) {
 	}
 	if status != "CANCELLED" {
 		t.Fatalf("status = %s, want CANCELLED", status)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+// TestCancelOrdersForEvent_TransitionsPendingHeldAndConfirmed verifies the
+// single-transaction, batched implementation: one UPDATE ... RETURNING
+// matches every order left cancellable by its WHERE status IN (...) clause
+// (PENDING, HELD, or CONFIRMED alike, since that clause is itself the atomic
+// check-and-set), one outbox row is inserted per row returned, and the whole
+// event's cancellation commits once instead of once per order.
+func TestCancelOrdersForEvent_TransitionsPendingHeldAndConfirmed(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to open sqlmock db: %v", err)
+	}
+	defer db.Close()
+	s := &Store{db: db}
+
+	eventID := "evt-1"
+	orders := []struct {
+		id          string
+		totalAmount int64
+	}{
+		{"ord-1", int64(1000)},
+		{"ord-2", int64(2000)},
+		{"ord-3", int64(3000)},
+	}
+
+	mock.ExpectBegin()
+	rows := sqlmock.NewRows([]string{"id", "total_amount_minor"})
+	for _, o := range orders {
+		rows.AddRow(o.id, o.totalAmount)
+	}
+	mock.ExpectQuery("UPDATE orders.orders").
+		WithArgs(eventID).
+		WillReturnRows(rows)
+	for _, o := range orders {
+		mock.ExpectExec("INSERT INTO orders.outbox_events").
+			WithArgs(sqlmock.AnyArg(), o.id, sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+	}
+	mock.ExpectExec("INSERT INTO orders.outbox_events").
+		WithArgs(sqlmock.AnyArg(), eventID, sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	count, err := s.CancelOrdersForEvent(context.Background(), eventID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if count != 3 {
+		t.Fatalf("count = %d, want 3", count)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+// TestCancelOrdersForEvent_SkipsAlreadyCancelled verifies that an
+// already-CANCELLED order is excluded by the UPDATE's WHERE status IN (...)
+// clause: the batched statement simply never returns it, so it is not
+// re-cancelled and not double-counted.
+func TestCancelOrdersForEvent_SkipsAlreadyCancelled(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to open sqlmock db: %v", err)
+	}
+	defer db.Close()
+	s := &Store{db: db}
+
+	eventID := "evt-1"
+
+	mock.ExpectBegin()
+	// ord-1 is already CANCELLED, so it doesn't match the WHERE clause and is
+	// never returned; only ord-2 transitions and is counted.
+	mock.ExpectQuery("UPDATE orders.orders").
+		WithArgs(eventID).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "total_amount_minor"}).AddRow("ord-2", int64(1000)))
+	mock.ExpectExec("INSERT INTO orders.outbox_events").
+		WithArgs(sqlmock.AnyArg(), "ord-2", sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO orders.outbox_events").
+		WithArgs(sqlmock.AnyArg(), eventID, sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	count, err := s.CancelOrdersForEvent(context.Background(), eventID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("count = %d, want 1", count)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+func TestCancelOrdersForEvent_NoOrdersForEvent(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to open sqlmock db: %v", err)
+	}
+	defer db.Close()
+	s := &Store{db: db}
+
+	eventID := "evt-empty"
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("UPDATE orders.orders").
+		WithArgs(eventID).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "total_amount_minor"}))
+	mock.ExpectExec("INSERT INTO orders.outbox_events").
+		WithArgs(sqlmock.AnyArg(), eventID, sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	count, err := s.CancelOrdersForEvent(context.Background(), eventID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("count = %d, want 0", count)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+// TestWriteEventCancelledOutboxTx_DeterministicDedupID confirms that two
+// separate calls for the same eventID produce the identical payload-level
+// outbox_event_id, which is what lets seatservice's inventory.processed_events
+// dedup recognize a retried cancel instead of reprocessing it. The
+// orders.outbox_events.id row primary key itself is allowed, and expected, to
+// differ between the two calls.
+func TestWriteEventCancelledOutboxTx_DeterministicDedupID(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to open sqlmock db: %v", err)
+	}
+	defer db.Close()
+
+	eventID := "evt-77"
+	headersBytes, _ := json.Marshal(map[string]string{})
+
+	var dedupIDs []string
+	var rowIDs []string
+	for range 2 {
+		mock.ExpectBegin()
+		var rowID string
+		var payload []byte
+		mock.ExpectExec("INSERT INTO orders.outbox_events").
+			WithArgs(capturedString{&rowID}, eventID, capturedBytes{&payload}, sqlmock.AnyArg()).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectCommit()
+
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatalf("failed to begin tx: %v", err)
+		}
+		if err := writeEventCancelledOutboxTx(context.Background(), tx, eventID, headersBytes); err != nil {
+			t.Fatalf("writeEventCancelledOutboxTx failed: %v", err)
+		}
+		if err := tx.Commit(); err != nil {
+			t.Fatalf("commit failed: %v", err)
+		}
+
+		var envelope struct {
+			Order struct {
+				OutboxEventID string `json:"outbox_event_id"`
+			} `json:"Order"`
+		}
+		if err := json.Unmarshal(payload, &envelope); err != nil {
+			t.Fatalf("failed to unmarshal payload: %v", err)
+		}
+		dedupIDs = append(dedupIDs, envelope.Order.OutboxEventID)
+		rowIDs = append(rowIDs, rowID)
+	}
+
+	if dedupIDs[0] != dedupIDs[1] {
+		t.Fatalf("payload outbox_event_id differed across retries: %q vs %q", dedupIDs[0], dedupIDs[1])
+	}
+	if dedupIDs[0] != eventCancelledDedupID(eventID) {
+		t.Fatalf("payload outbox_event_id = %q, want %q", dedupIDs[0], eventCancelledDedupID(eventID))
+	}
+	if rowIDs[0] == rowIDs[1] {
+		t.Fatalf("orders.outbox_events.id should be a fresh UUID per row, got same value %q twice", rowIDs[0])
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("unfulfilled expectations: %s", err)

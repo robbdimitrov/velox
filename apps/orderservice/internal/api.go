@@ -23,6 +23,7 @@ type OrderLifecycleStore interface {
 	OrderCreator
 	ConfirmOrder(ctx context.Context, orderID string) (string, error)
 	CancelOrder(ctx context.Context, orderID string) (string, error)
+	CancelOrdersForEvent(ctx context.Context, eventID string) (int, error)
 }
 
 type API struct {
@@ -54,9 +55,12 @@ func (api *API) HandleCreateOrder(w http.ResponseWriter, r *http.Request) {
 
 	orderID, err := api.Store.CreateOrder(r.Context(), req)
 	if err != nil {
-		if errors.Is(err, ErrIdempotencyConflict) || err.Error() == "conflict: request in progress or hash mismatch" {
+		switch {
+		case errors.Is(err, ErrIdempotencyConflict) || err.Error() == "conflict: request in progress or hash mismatch":
 			writeError(w, http.StatusConflict, "idempotency_key_conflict")
-		} else {
+		case errors.Is(err, ErrEventNotBookable):
+			writeError(w, http.StatusConflict, "event_not_bookable")
+		default:
 			writeError(w, http.StatusInternalServerError, "internal_error")
 		}
 		return
@@ -110,6 +114,25 @@ func (api *API) HandleCancelOrder(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(OrderResponse{
 		OrderID: orderID,
 		Status:  status,
+	})
+}
+
+// HandleCancelEvent cancels every outstanding order (PENDING, HELD, or
+// CONFIRMED) for an event, used when an organizer cancels the entire event.
+// An event with zero orders is a valid request and returns cancelled_orders:
+// 0, so there is no not-found case to map here.
+func (api *API) HandleCancelEvent(w http.ResponseWriter, r *http.Request) {
+	eventID := r.PathValue("id")
+	cancelled, err := api.Store.CancelOrdersForEvent(r.Context(), eventID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"event_id":         eventID,
+		"cancelled_orders": cancelled,
 	})
 }
 

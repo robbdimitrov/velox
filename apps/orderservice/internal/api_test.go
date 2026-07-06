@@ -11,9 +11,10 @@ import (
 )
 
 type FakeStore struct {
-	CreateOrderFunc  func(ctx context.Context, req OrderRequest) (string, error)
-	ConfirmOrderFunc func(ctx context.Context, orderID string) (string, error)
-	CancelOrderFunc  func(ctx context.Context, orderID string) (string, error)
+	CreateOrderFunc          func(ctx context.Context, req OrderRequest) (string, error)
+	ConfirmOrderFunc         func(ctx context.Context, orderID string) (string, error)
+	CancelOrderFunc          func(ctx context.Context, orderID string) (string, error)
+	CancelOrdersForEventFunc func(ctx context.Context, eventID string) (int, error)
 }
 
 func (f *FakeStore) CreateOrder(ctx context.Context, req OrderRequest) (string, error) {
@@ -26,6 +27,10 @@ func (f *FakeStore) ConfirmOrder(ctx context.Context, orderID string) (string, e
 
 func (f *FakeStore) CancelOrder(ctx context.Context, orderID string) (string, error) {
 	return f.CancelOrderFunc(ctx, orderID)
+}
+
+func (f *FakeStore) CancelOrdersForEvent(ctx context.Context, eventID string) (int, error) {
+	return f.CancelOrdersForEventFunc(ctx, eventID)
 }
 
 func TestHandleCreateOrder_Idempotency(t *testing.T) {
@@ -192,6 +197,82 @@ func TestHandleCancelOrder(t *testing.T) {
 			t.Fatalf("status = %d, want %d", rr.Code, http.StatusConflict)
 		}
 		assertErrorCode(t, rr, "order_not_cancellable")
+	})
+}
+
+func TestHandleCancelEvent(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		api := &API{Store: &FakeStore{
+			CancelOrdersForEventFunc: func(ctx context.Context, eventID string) (int, error) {
+				if eventID != "evt-123" {
+					t.Fatalf("eventID = %s, want evt-123", eventID)
+				}
+				return 3, nil
+			},
+		}}
+		req := httptest.NewRequest(http.MethodPost, "/events/evt-123/cancel", nil)
+		req.SetPathValue("id", "evt-123")
+		rr := httptest.NewRecorder()
+
+		api.HandleCancelEvent(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+		}
+		var out struct {
+			EventID         string `json:"event_id"`
+			CancelledOrders int    `json:"cancelled_orders"`
+		}
+		if err := json.Unmarshal(rr.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode response: %v body=%s", err, rr.Body.String())
+		}
+		if out.EventID != "evt-123" || out.CancelledOrders != 3 {
+			t.Fatalf("response = %+v, want event_id=evt-123 cancelled_orders=3", out)
+		}
+	})
+
+	t.Run("no orders for event", func(t *testing.T) {
+		api := &API{Store: &FakeStore{
+			CancelOrdersForEventFunc: func(ctx context.Context, eventID string) (int, error) {
+				return 0, nil
+			},
+		}}
+		req := httptest.NewRequest(http.MethodPost, "/events/evt-empty/cancel", nil)
+		req.SetPathValue("id", "evt-empty")
+		rr := httptest.NewRecorder()
+
+		api.HandleCancelEvent(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+		}
+		var out struct {
+			CancelledOrders int `json:"cancelled_orders"`
+		}
+		if err := json.Unmarshal(rr.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode response: %v body=%s", err, rr.Body.String())
+		}
+		if out.CancelledOrders != 0 {
+			t.Fatalf("cancelled_orders = %d, want 0", out.CancelledOrders)
+		}
+	})
+
+	t.Run("internal error", func(t *testing.T) {
+		api := &API{Store: &FakeStore{
+			CancelOrdersForEventFunc: func(ctx context.Context, eventID string) (int, error) {
+				return 0, errors.New("db unavailable")
+			},
+		}}
+		req := httptest.NewRequest(http.MethodPost, "/events/evt-123/cancel", nil)
+		req.SetPathValue("id", "evt-123")
+		rr := httptest.NewRecorder()
+
+		api.HandleCancelEvent(rr, req)
+
+		if rr.Code != http.StatusInternalServerError {
+			t.Fatalf("status = %d, want %d", rr.Code, http.StatusInternalServerError)
+		}
+		assertErrorCode(t, rr, "internal_error")
 	})
 }
 
