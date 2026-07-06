@@ -89,6 +89,12 @@ spec:
               port: http
             failureThreshold: 30
             periodSeconds: 2
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
 ---
 apiVersion: v1
 kind: Service
@@ -162,6 +168,12 @@ spec:
               port: http
             failureThreshold: 30
             periodSeconds: 2
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
 ---
 apiVersion: v1
 kind: Service
@@ -240,6 +252,12 @@ spec:
               port: http
             failureThreshold: 30
             periodSeconds: 2
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
 ---
 apiVersion: v1
 kind: Service
@@ -313,6 +331,12 @@ spec:
               port: http
             failureThreshold: 30
             periodSeconds: 2
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
 ---
 apiVersion: v1
 kind: Service
