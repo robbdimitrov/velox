@@ -42,10 +42,7 @@
     offsetY = $state(0);
   const SEAT_SIZE = 28;
 
-  // docs/frontend.md: "Use Canvas for individual seat nodes once a section
-  // exceeds 1,000 seats; use SVG for low-density sections and semantic
-  // outlines." Canvas below this threshold has no rendering benefit and
-  // loses native per-node accessibility/hit-testing that SVG gives for free.
+  // Use canvas only for dense sections; SVG keeps low-density seats accessible.
   const CANVAS_SEAT_THRESHOLD = 1000;
   let useCanvas = $derived(seats.length > CANVAS_SEAT_THRESHOLD);
 

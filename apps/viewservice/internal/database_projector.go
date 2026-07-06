@@ -62,29 +62,19 @@ func (s *DatabaseStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 	}
 	defer tx.Rollback()
 
-	// Resolved because orderservice's envelope has no top-level event_id/
-	// aggregate_id (everything is nested under "Order"); see
-	// Event.ResolvedEventID/ResolvedAggregateID.
+	// Resolve IDs across seatservice's flat events and orderservice's envelope.
 	eventID := event.ResolvedEventID()
 	aggregateID := event.ResolvedAggregateID()
 
-	// projection.processed_events.event_id is uuid-typed, so a producer that
-	// ever emits a non-UUID resolved event_id (an event type this consumer
-	// has no other use for, e.g. a purely informational one with no
-	// type-switch case below) must not crash this whole consumer forever -
-	// skip it. Returning nil here is safe: no writes have happened yet, so
-	// there is nothing to roll back, and this only ever applies to event
-	// types this function has no side effects for anyway.
+	// processed_events.event_id is uuid-typed; skip non-UUID events before any
+	// writes so malformed informational records cannot block the consumer.
 	if _, err := uuid.Parse(eventID); err != nil {
 		slog.Warn("skipping event with non-UUID event_id, cannot dedupe via processed_events",
 			"event_id", eventID, "event_type", event.Type, "source_topic", sourceTopic, "source_offset", sourceOffset)
 		return nil
 	}
 
-	// Check if processed. Dedup is keyed on event_id so a duplicate event
-	// republished at a different Kafka offset (e.g. an outbox relay retry)
-	// is still dropped instead of hitting the processed_events primary-key
-	// violation on insert.
+	// Dedup by event_id across Kafka offsets before inserting processed_events.
 	var processed bool
 	err = tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM projection.processed_events WHERE event_id = $1)", eventID).Scan(&processed)
 	if err != nil {
@@ -103,11 +93,8 @@ func (s *DatabaseStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 		return ErrStaleAggregateVersion
 	}
 
-	// orderservice-originated events carry no aggregate_version (order
-	// aggregates aren't version-tracked the way seat streams are), but the
-	// column is NOT NULL CHECK > 0; record a sentinel of 1 for them. This
-	// value is never compared against real versions since the staleness
-	// check above only runs when AggregateVersion > 0.
+	// Order events are unversioned, but processed_events requires > 0.
+	// Use a sentinel that is ignored by the staleness check above.
 	storedVersion := event.AggregateVersion
 	if storedVersion <= 0 {
 		storedVersion = 1
@@ -153,9 +140,7 @@ func (s *DatabaseStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 			}
 		}
 
-		// Notify apigateway with a bounded delta (docs/infrastructure.md: "broadcast
-		// deltas, not full maps") instead of a bare event_id refetch signal.
-		// pg_notify is parameterized, avoiding string-built NOTIFY/SQL injection.
+		// Notify apigateway with a bounded seat delta; pg_notify stays parameterized.
 		notificationPayload, err := json.Marshal(map[string]any{
 			"event_id":   event.Seat.EventID,
 			"section_id": event.Seat.SectionID,
@@ -187,7 +172,7 @@ func (s *DatabaseStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 		}
 
 	case "OrderCreated", "OrderConfirmed", "OrderCancelled", "OrderExpired":
-		// Handle Order projection
+		// Project order state.
 		_, err = tx.ExecContext(ctx, `
 			INSERT INTO projection.order_summaries (order_id, user_id, status, total_amount_minor, currency, event_id)
 			VALUES ($1, $2, $3, $4, 'USD', $5)
@@ -216,13 +201,8 @@ func (s *DatabaseStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 	return tx.Commit()
 }
 
-// issueWalletTicket projects a sold seat into a wallet ticket. The owning
-// user isn't carried on the seat-confirmation event itself, so it's resolved
-// from the order projection; if that projection hasn't landed yet (an
-// ordering race between order.events.v1 and inventory.events.v1), ticket
-// issuance is skipped rather than failing the whole seat projection — it can
-// be reconciled on a later confirmed event for the same order, since
-// projection lag is expected per docs/infrastructure.md.
+// issueWalletTicket resolves the owner from the order projection, then creates
+// a wallet ticket. If the order projection lags, ticket issuance is skipped.
 func issueWalletTicket(ctx context.Context, tx *sql.Tx, event Event) error {
 	if event.CorrelationID == "" {
 		return nil
@@ -244,11 +224,8 @@ func issueWalletTicket(ctx context.Context, tx *sql.Tx, event Event) error {
 	return err
 }
 
-// cancelWalletTicket flips a previously issued wallet ticket to CANCELLED
-// when its seat's event is cancelled by the organizer. It is a no-op when no
-// ticket was ever issued for the seat (e.g. it was only HELD, never
-// CONFIRMED) — that seat simply has no wallet_tickets row to update, which is
-// expected rather than an error.
+// cancelWalletTicket marks issued tickets CANCELLED for event cancellation.
+// Seats that were never confirmed simply have no wallet row to update.
 func cancelWalletTicket(ctx context.Context, tx *sql.Tx, event Event) error {
 	_, err := tx.ExecContext(ctx, `
 		UPDATE projection.wallet_tickets

@@ -1070,11 +1070,8 @@ mod tests {
 
     #[test]
     fn cancelled_payload_uses_real_order_id_not_catalog_event_id() {
-        // process_event_cancelled passes the catalog event_id in as
-        // correlation_id (there's no single order for an event-wide
-        // cancellation), so the payload's "order_id" must come from the
-        // seat's own held history (load_owning_order_id's result), not from
-        // correlation_id/event_id.
+        // Event-wide cancellation uses catalog event_id as correlation_id, so
+        // order_id must come from the seat's own held history.
         let seat = StreamSeatIdentity {
             stream_key: "seat:catalog-event-999:sec-A:seat-12".into(),
             event_id: "catalog-event-999".into(),
@@ -1093,10 +1090,7 @@ mod tests {
 
     #[test]
     fn cancelled_payload_uses_empty_order_id_for_virgin_seat() {
-        // A virgin seat (never held) has no owning order. load_owning_order_id
-        // returns "" for that case (see its fetch_optional/unwrap_or_default),
-        // and cancelled_payload must carry that through as-is rather than
-        // substituting the catalog event_id or any other stand-in.
+        // Virgin seats have no owning order; preserve "" instead of inventing one.
         let seat = StreamSeatIdentity {
             stream_key: "seat:catalog-event-999:sec-A:seat-99".into(),
             event_id: "catalog-event-999".into(),
@@ -1112,13 +1106,8 @@ mod tests {
         assert_eq!(payload["seat_id"], "seat-99");
     }
 
-    // The following behaviors are exercised by process_event_cancelled and
-    // cancel_stream but require a live PostgreSQL connection to test
-    // end-to-end (load_stream, load_owning_order_id, and the batch queries in
-    // process_event_cancelled_batch all issue real sqlx queries against
-    // inventory.event_streams/inventory.events) - this crate has no live-DB
-    // integration test harness today, so they are not covered by an automated
-    // test here:
+    // These process_event_cancelled/cancel_stream behaviors need live sqlx
+    // queries, and this crate has no live-DB integration harness yet:
     //   - a virgin seat stream (current_version == 0, no SeatReservationHeld
     //     event) is cancelled with an empty "" order_id in its
     //     SeatReservationCancelled payload;

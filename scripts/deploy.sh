@@ -186,12 +186,8 @@ wait_for_rollouts() {
   done
 }
 
-# Ensures the required Kafka topics exist before app services start consuming/
-# producing. Client-side auto-create-on-produce (franz-go/librdkafka) isn't
-# reliable enough on a cold broker within the app's own produce timeouts, so
-# topics are explicitly provisioned here instead of left to implicit
-# auto-creation. Job specs are immutable once created, so any prior run's Job
-# is deleted first to keep this idempotent across redeploys.
+# Ensures Kafka topics exist before app services start. Auto-create-on-produce
+# is unreliable on cold brokers, and Jobs are recreated for idempotent redeploys.
 apply_topics_job() {
   if [[ -n "$DRY_RUN" ]]; then
     apply_file "$DEPLOY_DIR/topics.yaml"

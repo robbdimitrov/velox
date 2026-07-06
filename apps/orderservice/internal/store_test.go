@@ -12,10 +12,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// capturedString captures the driver.Value seen at its bind position so a
-// later argument matcher in the same call can be checked against it, e.g.
-// asserting reservation_id == "res_" + the generated order id without the
-// test needing to predict the generated uuid up front.
+// capturedString records a bind value so later matchers can assert against
+// generated IDs without predicting them.
 type capturedString struct{ dest *string }
 
 func (c capturedString) Match(v driver.Value) bool {
@@ -27,8 +25,7 @@ func (c capturedString) Match(v driver.Value) bool {
 	return true
 }
 
-// capturedBytes captures the driver.Value seen at its bind position, for
-// asserting on a JSON payload's contents without predicting it up front.
+// capturedBytes records a JSON bind value for later payload assertions.
 type capturedBytes struct{ dest *[]byte }
 
 func (c capturedBytes) Match(v driver.Value) bool {
@@ -105,14 +102,8 @@ func TestCreateOrder_SetsReservationID(t *testing.T) {
 	}
 }
 
-// TestCreateOrder_LocksEventRowForShare verifies the catalog.events status
-// check takes a FOR SHARE row lock rather than a plain SELECT: a bare SELECT
-// never conflicts with apigateway's CancelEvent, which updates that same row
-// via a non-transactional, READ COMMITTED ExecContext outside any serializable
-// transaction, so it would never participate in SSI's conflict graph. FOR
-// SHARE instead relies on Postgres's row-level locking, which applies
-// regardless of isolation level, to block until any concurrent UPDATE on the
-// row commits.
+// TestCreateOrder_LocksEventRowForShare verifies the status check uses a row
+// lock, since plain SELECT would not conflict with apigateway's CancelEvent.
 func TestCreateOrder_LocksEventRowForShare(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

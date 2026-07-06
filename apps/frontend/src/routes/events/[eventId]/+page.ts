@@ -57,9 +57,7 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
       }
     }
 
-    // Check if it's already a SvelteKit error (e.g. from the `throw error(404)` above)
-    // SvelteKit errors have a `status` and `body` property internally, but instanceof doesn't work easily.
-    // Re-throw it directly.
+    // Preserve SvelteKit errors thrown above; instanceof is unreliable here.
     throw err;
   }
 };

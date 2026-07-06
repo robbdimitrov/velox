@@ -212,20 +212,9 @@ func handleSeatReservationExpired(ctx context.Context, db *sql.DB, orderID strin
 	return tx.Commit()
 }
 
-// handleSeatReservationConfirmationFailed self-corrects an order that
-// confirmed locally before orderservice consumed an earlier, independent
-// message reporting the seat's hold was no longer active when seatservice
-// tried to confirm it: seatservice's compare-and-append guard already
-// refused to append SeatReservationConfirmed, so this order's seat was never
-// actually confirmed. Two distinct causes produce this event, distinguished
-// by the reason field on the incoming payload: an ordinary hold expiry
-// (reason == "" or "EXPIRED", including any in-flight message produced
-// before seatservice started sending the field), or the seat's event having
-// been cancelled out from under it (reason == "EVENT_CANCELLED"). The status
-// guard restricts this to exactly the impossible state (CONFIRMED with no
-// ticket) - it must never fire against a PENDING/HELD order, since this event
-// is only ever emitted synchronously while seatservice handles that same
-// order's OrderConfirmed.
+// handleSeatReservationConfirmationFailed self-corrects a locally CONFIRMED
+// order when seatservice refused the confirm append after expiry/cancellation.
+// The status guard keeps this out of normal PENDING/HELD flows.
 func handleSeatReservationConfirmationFailed(ctx context.Context, db *sql.DB, orderID, reason string) error {
 	eventCancelled := reason == "EVENT_CANCELLED"
 

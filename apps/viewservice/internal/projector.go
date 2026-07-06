@@ -8,12 +8,8 @@ import (
 
 var ErrStaleAggregateVersion = errors.New("stale aggregate version")
 
-// Event unifies two producer shapes onto one struct: seatservice's
-// SeatInventoryEvent is flat (top-level event_id/aggregate_id/aggregate_version),
-// while orderservice's envelope nests everything under "Order" and has no
-// top-level event_id/aggregate_id/aggregate_version at all. ResolvedEventID
-// and ResolvedAggregateID paper over that difference so callers don't need to
-// know which producer sent a given message.
+// Event unifies seatservice's flat event shape with orderservice's nested
+// envelope; Resolved* helpers hide the producer-specific IDs.
 type Event struct {
 	EventID          string `json:"event_id"`
 	AggregateID      string `json:"aggregate_id"`
@@ -25,9 +21,7 @@ type Event struct {
 	OccurredAt       time.Time `json:"occurred_at"`
 }
 
-// ResolvedEventID is the top-level event_id for seatservice-originated
-// events, or orderservice's nested outbox_event_id when the top-level field
-// is absent (orderservice's envelope has no top-level event_id).
+// ResolvedEventID returns seatservice's event_id or orderservice's outbox_event_id.
 func (e Event) ResolvedEventID() string {
 	if e.EventID != "" {
 		return e.EventID
@@ -35,9 +29,7 @@ func (e Event) ResolvedEventID() string {
 	return e.Order.OutboxEventID
 }
 
-// ResolvedAggregateID is the top-level aggregate_id for seatservice-originated
-// events, or the order_id for orderservice-originated events (which have no
-// concept of a seat-stream aggregate).
+// ResolvedAggregateID returns seatservice's aggregate_id or orderservice's order_id.
 func (e Event) ResolvedAggregateID() string {
 	if e.AggregateID != "" {
 		return e.AggregateID

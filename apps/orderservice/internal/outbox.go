@@ -53,10 +53,7 @@ func processOutbox(ctx context.Context, db *sql.DB, cl *kgo.Client, health *Pipe
 	}
 	defer tx.Rollback()
 
-	// created_at ordering approximates commit order for the relay. The
-	// primary key is a random (v4) UUID, so publishing "by primary key
-	// order" as docs/architecture.md literally states would not preserve
-	// event order; created_at is kept intentionally here.
+	// created_at approximates commit order; random UUID primary keys would not.
 	rows, err := tx.QueryContext(ctx, `
 		SELECT id, event_type, payload, headers, publish_attempts, last_attempt_at
 		FROM orders.outbox_events

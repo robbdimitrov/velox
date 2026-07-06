@@ -41,13 +41,8 @@ func (s *Server) handleWalletTickets(w http.ResponseWriter, r *http.Request, use
 	})
 }
 
-// signQRToken mints a short-lived signed token identifying a ticket, per
-// docs/frontend.md: "QR payloads must be short-lived signed tokens, never raw
-// ticket IDs alone." The "purpose" claim domain-separates this from session
-// tokens signed with the same secret, so one can't be replayed as the other.
-// It also returns the expiry it embedded in the token, so callers display
-// the same expiry the token itself actually carries rather than computing a
-// second, potentially-drifting value.
+// signQRToken mints a short-lived, purpose-scoped ticket token and returns the
+// exact expiry embedded in it.
 func (s *Server) signQRToken(ticketID string) (string, time.Time, error) {
 	expiresAt := s.now().Add(qrTokenTTL)
 	token, err := signHMAC(s.secret, map[string]any{

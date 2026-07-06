@@ -95,20 +95,8 @@ func (s *Store) CreateOrder(ctx context.Context, req OrderRequest) (string, erro
 		return "", err
 	}
 
-	// Re-check the event's catalog status inside this transaction rather than
-	// relying solely on apigateway's earlier, unsynchronized pre-check. Note
-	// this is NOT made atomic by sql.LevelSerializable: apigateway's
-	// CancelEvent updates catalog.events with a bare, non-transactional
-	// ExecContext at the default READ COMMITTED level, so it never
-	// participates in Serializable Snapshot Isolation's conflict graph and a
-	// plain SELECT here could still read a stale pre-cancellation status.
-	// Instead, FOR SHARE takes a row-level lock, which Postgres enforces
-	// independently of isolation level: apigateway's UPDATE always takes an
-	// exclusive lock on this row while it runs, so this SELECT either blocks
-	// until that UPDATE's transaction commits and then reads the
-	// freshly-committed status, or (if this SELECT locks first) forces
-	// apigateway's UPDATE to wait until this transaction commits or rolls
-	// back. Either ordering closes the race window.
+	// Re-check catalog status under a FOR SHARE row lock. Serializable alone
+	// would not conflict with apigateway's non-transactional CancelEvent update.
 	var eventStatus string
 	err = tx.QueryRowContext(ctx, `SELECT status FROM catalog.events WHERE id = $1 FOR SHARE`, req.EventID).Scan(&eventStatus)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -324,13 +312,8 @@ func (s *Store) CancelOrder(ctx context.Context, orderID string) (string, error)
 	return "CANCELLED", nil
 }
 
-// buildOrderCancelledEnvelope builds the JSON payload for an OrderCancelled
-// outbox row. It is the single source of truth for that envelope's shape,
-// shared by cancelOrderTx's per-order transaction path and
-// CancelOrdersForEvent's batched per-row loop, so the two call sites can't
-// silently drift apart. reason is recorded for observability, e.g.
-// "EVENT_CANCELLED" for bulk/event-triggered cancels, "" for an explicit
-// single-order cancel.
+// buildOrderCancelledEnvelope is the shared payload builder for single-order
+// and event-wide cancellation paths; reason is recorded for observability.
 func buildOrderCancelledEnvelope(orderID, eventID string, totalAmount int64, reason string) (outboxEventID string, payloadBytes []byte, err error) {
 	outboxEventID = uuid.New().String()
 	envelope := map[string]any{
@@ -348,18 +331,8 @@ func buildOrderCancelledEnvelope(orderID, eventID string, totalAmount int64, rea
 	return outboxEventID, payloadBytes, err
 }
 
-// cancelOrderTx transitions orderID's row to CANCELLED and writes the
-// OrderCancelled outbox row within tx, using buildOrderCancelledEnvelope for
-// the payload shape. The caller must already have verified, via its own
-// `SELECT ... FOR UPDATE`, that orderID is in a status that call site allows
-// to cancel; this helper performs no status check of its own so it can be
-// shared by every explicit single-order cancel path (PENDING/HELD only,
-// currently just CancelOrder). reason is recorded on the outbox payload for
-// observability; CancelOrdersForEvent's bulk path builds the same envelope
-// shape via buildOrderCancelledEnvelope directly rather than calling this
-// function, since its per-order transaction flow (a single batched UPDATE
-// across all matched orders, one transaction for the whole event) differs
-// from this function's per-order SELECT-then-UPDATE flow.
+// cancelOrderTx writes the CANCELLED state and outbox row inside tx. The caller
+// must already hold the row lock and have verified the status is cancellable.
 func cancelOrderTx(ctx context.Context, tx *sql.Tx, orderID, reason string) error {
 	var totalAmount int64
 	var eventIDStr string
@@ -394,18 +367,9 @@ func cancelOrderTx(ctx context.Context, tx *sql.Tx, orderID, reason string) erro
 	return err
 }
 
-// CancelOrdersForEvent cancels every outstanding order (PENDING, HELD, or
-// CONFIRMED) holding a seat for eventID, used when an organizer cancels an
-// entire event. Unlike CancelOrder, CONFIRMED orders are eligible here since
-// the event itself is being called off. A single batched UPDATE ... WHERE
-// status IN (...) RETURNING statement is the atomic check-and-set for every
-// eligible order (equivalent to the per-order SELECT ... FOR UPDATE the
-// single-order path uses), so the whole event's orders transition inside one
-// transaction instead of one transaction per order. It is safe to call
-// repeatedly: only orders still in a cancellable state are matched and
-// counted, and the EventCancelled outbox row's payload-level
-// outbox_event_id is deterministically derived from eventID so seatservice's
-// inventory.processed_events dedup recognizes a retry and skips reprocessing.
+// CancelOrdersForEvent cancels all PENDING, HELD, or CONFIRMED orders for an
+// organizer-cancelled event in one transaction. It is retry-safe: only still
+// cancellable orders match, and EventCancelled gets a deterministic dedup ID.
 func (s *Store) CancelOrdersForEvent(ctx context.Context, eventID string) (int, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -473,35 +437,17 @@ func (s *Store) CancelOrdersForEvent(ctx context.Context, eventID string) (int, 
 	return len(cancelledOrders), nil
 }
 
-// eventCancelledDedupNamespace is an arbitrary, fixed namespace UUID used
-// only to derive eventCancelledDedupID's deterministic UUIDv5 values. It has
-// no meaning beyond seeding that derivation consistently across calls.
+// eventCancelledDedupNamespace seeds deterministic EventCancelled UUIDv5 IDs.
 var eventCancelledDedupNamespace = uuid.MustParse("6f6d0b8e-2b3d-4b7e-9b8b-2b1e9b8b2b1e")
 
-// eventCancelledDedupID derives the payload-level outbox_event_id that both
-// seatservice's claim_event (inventory.processed_events, a TEXT-keyed table
-// per apps/database/migrations/003_seatservice_processed_events.sql) and
-// viewservice's dedup check (projection.processed_events, a uuid-typed
-// column per apps/database/migrations/001_init_logical_schemas.sql) key on.
-// It must be a syntactically valid UUID - a plain non-UUID string here would
-// satisfy seatservice's TEXT column but fail viewservice's uuid column with
-// "invalid input syntax for type uuid" on every EventCancelled message,
-// since viewservice also consumes order.events.v1. It is deterministic per
-// catalog eventID (via UUIDv5, not uuid.New()) so a retried
-// POST /events/{id}/cancel produces the identical value and is recognized as
-// a duplicate instead of always reprocessing the full per-seat-stream fan-out.
+// eventCancelledDedupID returns a valid, deterministic UUID for both
+// seatservice TEXT dedup and viewservice uuid-typed processed_events dedup.
 func eventCancelledDedupID(eventID string) string {
 	return uuid.NewSHA1(eventCancelledDedupNamespace, []byte(eventID)).String()
 }
 
-// writeEventCancelledOutboxTx writes a single EventCancelled outbox row for
-// eventID within tx. It reuses the "Order" envelope wrapper key deliberately:
-// it matches this codebase's existing envelope convention exactly and
-// requires zero parser changes downstream. The orders.outbox_events.id
-// primary key stays a fresh UUID per row (a retry is a new row; only the
-// payload's outbox_event_id needs to be stable), while the payload's
-// outbox_event_id is eventCancelledDedupID(eventID) so retries are
-// recognized as duplicates by seatservice.
+// writeEventCancelledOutboxTx writes one EventCancelled row. The row ID is
+// fresh, but the payload outbox_event_id is stable so retries dedupe.
 func writeEventCancelledOutboxTx(ctx context.Context, tx *sql.Tx, eventID string, headersBytes []byte) error {
 	outboxRowID := uuid.New().String()
 	envelope := map[string]any{

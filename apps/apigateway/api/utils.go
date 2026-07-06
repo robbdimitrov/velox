@@ -34,10 +34,8 @@ func constantTimeStringEqual(expected, actual string) bool {
 	return hmac.Equal(expectedHash[:], actualHash[:])
 }
 
-// signHMAC and verifyHMAC implement the gateway's opaque signed-token format
-// (base64(payload).base64(hmac)), shared by session tokens and any other
-// short-lived signed token the gateway issues (e.g. wallet QR tokens), so
-// domain-specific callers don't reimplement the HMAC framing.
+// signHMAC and verifyHMAC implement the gateway's shared opaque token format:
+// base64(payload).base64(hmac).
 func signHMAC(secret []byte, payload map[string]any) (string, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -102,11 +100,8 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
 	return ok
 }
 
-// decodeJSONStrict enforces the order-command ingress contract from
-// docs/architecture.md: reject unknown JSON fields and trailing payload data.
-// It is intentionally not used by every handler (e.g. auth endpoints), since
-// the frontend proxy forwards some request bodies with extra fields the
-// backend already ignores; only order-command handlers require this rigor.
+// decodeJSONStrict enforces order-command JSON: no unknown fields or trailing
+// payload data. Looser handlers intentionally keep using decodeJSON.
 func decodeJSONStrict(w http.ResponseWriter, r *http.Request, dst any) ([]byte, bool) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -144,14 +139,8 @@ func writeStoreError(w http.ResponseWriter, err error) {
 	writeError(w, http.StatusInternalServerError, "internal_error")
 }
 
-// doOrderServiceRequest issues a POST to s.orderSvcBaseURL+path, propagating
-// the inbound request's X-Request-ID so orderservice logs can be correlated
-// with the originating gateway request. body may be nil for the body-less
-// action endpoints (confirm, cancel, cancel-event); when non-nil it is sent
-// as a JSON request body (e.g. order creation). Shared by every gateway
-// endpoint that forwards a request to orderservice's internal API; callers
-// own status-code branching and response-body decoding since those differ
-// per call site.
+// doOrderServiceRequest POSTs to orderservice, forwarding X-Request-ID and an
+// optional JSON body. Callers own status and response-body handling.
 func (s *Server) doOrderServiceRequest(ctx context.Context, path string, body []byte) (*http.Response, error) {
 	var reader io.Reader
 	if body != nil {

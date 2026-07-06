@@ -16,13 +16,8 @@ type seatCacheEntry struct {
 	CachedAt time.Time `json:"cached_at"`
 }
 
-// getSeatsCached fronts ListSeats with a short-TTL cache plus a Redis
-// single-flight lock, per docs/infrastructure.md's cache-stampede control:
-// only the lock holder refreshes the snapshot from Postgres; other
-// concurrent requests for the same hot section fall back to the existing
-// cached snapshot (marked with its real age) instead of all hammering the
-// database at once. A nil cache client (soft dependency degraded/unavailable)
-// falls back to reading straight through to the store.
+// getSeatsCached uses a short-TTL snapshot cache plus a Redis single-flight
+// lock; without Redis it reads through to the store.
 func (s *Server) getSeatsCached(ctx context.Context, eventID, sectionID string) ([]Seat, int64, error) {
 	if s.cacheClient == nil {
 		return s.store.ListSeats(ctx, eventID, sectionID)
@@ -39,9 +34,7 @@ func (s *Server) getSeatsCached(ctx context.Context, eventID, sectionID string) 
 	lockKey := "hotload:" + eventID + ":" + sectionID
 	acquired, err := s.cacheClient.SetNX(ctx, lockKey, s.workerID, hotloadLockTTL).Result()
 	if err != nil || !acquired {
-		// Another worker already owns the refresh, or Redis errored on the
-		// lock attempt; there's no cached snapshot to fall back to yet (a
-		// cold miss), so read through directly rather than serving nothing.
+		// Cold miss with no refresh lock; read through rather than serve nothing.
 		return s.store.ListSeats(ctx, eventID, sectionID)
 	}
 

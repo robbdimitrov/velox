@@ -69,6 +69,10 @@ scripts/deploy.sh  # build images, apply manifests, and port-forward
 - Comments explain constraints, invariants, security decisions, or non-obvious
   intent. Do not narrate straightforward code or preserve implementation
   history.
+- Comments should be concise but valuable. Reduce verbose 3-5 line explanations
+  to 1-2 lines when they preserve the essential constraint or intent, while
+  respecting documentation comments and language rules such as Go exported
+  identifier comments.
 - Do not suppress compiler, linter, type-checker, or test warnings to make
   checks pass. Fix the underlying issue. Use a narrowly scoped suppression only
   when required by an external API, generated code, or a documented false

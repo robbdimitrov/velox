@@ -8,16 +8,9 @@ import (
 	"strings"
 )
 
-// validateSeatsAvailable checks each requested seat against the real
-// event-sourced projection (projection.seat_snapshots) rather than the
-// in-memory demo seed. Every seat in this codebase gets its snapshot row
-// pre-created with status AVAILABLE (see GetSeatStatusMap's doc comment), so
-// an empty result for the section means the section is unknown, and a
-// missing seat_id within a known section means that seat doesn't exist. This
-// is a cheap early rejection only — the authoritative check-and-reserve
-// happens in seatservice via expected-version locking once the order reaches
-// Kafka, so a race here just means the request proceeds to orderservice and
-// fails downstream instead of failing fast.
+// validateSeatsAvailable does an early projection check before orderservice;
+// seatservice's expected-version append remains authoritative.
+// Empty sections are unknown; missing IDs within known sections are bad seats.
 func (s *Server) validateSeatsAvailable(w http.ResponseWriter, ctx context.Context, eventID, sectionID string, seatIDs []string) bool {
 	statuses, err := s.store.GetSeatStatusMap(ctx, eventID, sectionID)
 	if err != nil {
@@ -81,13 +74,8 @@ func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request,
 
 	if s.store != nil {
 		s.mu.Unlock()
-		// Closes the cancellation race: without this, a reservation could be
-		// created after handleCancelEvent's catalog update but its orderservice
-		// bulk-cancel hasn't reached this order yet (or never will, since the
-		// order didn't exist when it ran), leaving a live booking on a
-		// cancelled event. Uses the lean GetEventStatus rather than GetEvent so
-		// this hottest write path skips GetEvent's GetOrganizerInventory
-		// seat-count aggregation, which this check never reads.
+		// Rejects reservations after catalog cancellation, before any hold.
+		// GetEventStatus avoids GetEvent's unused inventory aggregation here.
 		status, err := s.store.GetEventStatus(r.Context(), req.EventID)
 		if err != nil {
 			writeStoreError(w, err)
@@ -179,12 +167,8 @@ func (s *Server) handleCancelReservation(w http.ResponseWriter, r *http.Request,
 	s.forwardOrderAction(w, r, user, "cancel")
 }
 
-// forwardOrderAction proxies a terminal state-transition action (confirm or
-// cancel) to orderservice's internal /orders/{id}/{action} endpoint.
-// orderservice's internal endpoints take no user context and trust apigateway
-// as the auth boundary, so ownership of the order behind the reservation ID
-// must be verified here before forwarding, the same way handleOrder verifies
-// ownership before returning order data.
+// forwardOrderAction verifies reservation ownership, then proxies confirm or
+// cancel to orderservice's internal /orders/{id}/{action} endpoint.
 func (s *Server) forwardOrderAction(w http.ResponseWriter, r *http.Request, user User, action string) {
 	reservationID := r.PathValue("reservationId")
 	orderID := strings.TrimPrefix(reservationID, "res_")

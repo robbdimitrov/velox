@@ -208,16 +208,9 @@ func TestReserveReleasesTentativeHoldOnMalformedUpstreamResponse(t *testing.T) {
 	}
 }
 
-// TestCreateReservationRejectsCancelledEvent exercises the store-backed
-// booking gate that closes the cancellation race described in
-// handleCancelEvent's doc comment: once an event is no longer PUBLISHED, new
-// reservations must be rejected before any seat is validated or held.
-// DatabaseStore has no interface seam and always talks to a real *sql.DB, so
-// this uses sqlmock (rather than a live Postgres, per this codebase's
-// hermetic-unit-test convention) to drive GetEventStatus's query path. Only
-// the lean "SELECT status" query is mocked (not GetEvent's full join or
-// GetOrganizerInventory's aggregation) since the gate now uses GetEventStatus
-// specifically to avoid paying for that unused seat-count aggregation.
+// TestCreateReservationRejectsCancelledEvent verifies the store-backed
+// cancellation gate rejects before any seat validation or hold.
+// sqlmock drives GetEventStatus because DatabaseStore always uses *sql.DB.
 func TestCreateReservationRejectsCancelledEvent(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -225,9 +218,8 @@ func TestCreateReservationRejectsCancelledEvent(t *testing.T) {
 	}
 	defer db.Close()
 
-	// authenticate() calls GetUserByID on every subsequent request once a
-	// store is attached, so the reserver seeded by seed() must be resolvable
-	// through the mock too.
+	// Once a store is attached, authenticate() must resolve the seeded user
+	// through the mock.
 	mock.ExpectQuery("SELECT id, email, password_hash, role, created_at").
 		WithArgs("usr_reserver_1").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "password_hash", "role", "created_at"}).
@@ -246,9 +238,7 @@ func TestCreateReservationRejectsCancelledEvent(t *testing.T) {
 	server.SetHTTPClient(mockOrderSvc.Client())
 
 	client := newTestClient(server)
-	// Log in while the server is still store-less: login itself resolves the
-	// seeded in-memory user, so it needs no mock expectations, and only the
-	// gate under test needs to exercise the real store.
+	// Log in before attaching the store so only the gate under test hits sqlmock.
 	cookie := client.login(t, "reserver@velox.local", "reserver")
 	server.store = &DatabaseStore{db: db}
 	client.reserve(t, cookie, "idem-cancelled-event", []string{"A-01"}, http.StatusConflict)
@@ -258,13 +248,8 @@ func TestCreateReservationRejectsCancelledEvent(t *testing.T) {
 	}
 }
 
-// TestCreateReservationReturnsNotFoundForNonexistentEvent confirms the
-// booking gate distinguishes ErrStoreNotFound (404) from other GetEventStatus
-// failures, rather than collapsing every error into the same 409
-// event_not_bookable response used for a genuinely cancelled/unpublished
-// event. A nonexistent event_id is a client input error, not a business-logic
-// conflict, and (separately) a real backend error must never be hidden behind
-// either status.
+// TestCreateReservationReturnsNotFoundForNonexistentEvent verifies missing
+// events stay 404s, not the 409 used for cancelled/unpublished events.
 func TestCreateReservationReturnsNotFoundForNonexistentEvent(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

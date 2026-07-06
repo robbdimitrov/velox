@@ -40,9 +40,7 @@ impl SeatState {
         if let SeatStatus::Held { expires_at_ms, .. } = self.status {
             if now_ms >= expires_at_ms {
                 self.status = SeatStatus::Available;
-                // Note: we don't increment version here because expiry is a passive state change
-                // based on time. If we wanted an explicit "SeatExpired" event, we would do that
-                // at the application layer.
+                // Passive time-based expiry does not append a domain event or bump version.
             }
         }
     }
@@ -70,7 +68,6 @@ impl SeatState {
         self.version += 1;
     }
 
-    // Additional domain logic to check if reservation is possible
     pub fn can_reserve(&self, expected_version: u64) -> Result<(), InventoryError> {
         if self.version != expected_version {
             return Err(InventoryError::VersionMismatch {
@@ -85,15 +82,9 @@ impl SeatState {
     }
 }
 
-/// Compare-and-append guard for an event-wide cancellation fan-out
-/// (db_client::cancel_stream). A stream already Cancelled is terminal and
-/// must be left untouched - reprocessing it would re-emit a duplicate
-/// SeatReservationCancelled event. Everything else - a virgin seat that was
-/// pre-seeded at event creation and never held or sold, a seat that raced
-/// back to Available via an independent expiry after having been held, or a
-/// seat currently Held or Sold - must still be cancelled so a cancelled
-/// event's seats never look rebookable. Virgin seats are the most common case
-/// (nobody ever reserved most of a venue) and must not be skipped.
+/// Compare-and-append guard for event cancellation fan-out.
+/// Only already-cancelled streams are terminal; every other seat must be
+/// cancelled so a cancelled event never looks rebookable.
 pub fn should_skip_cancellation(status: &SeatStatus) -> bool {
     matches!(status, SeatStatus::Cancelled { .. })
 }
@@ -144,7 +135,7 @@ mod tests {
         seat.apply_reserved("ord1".into(), 1000);
         seat.expire_if_due(1001);
 
-        // At this point it's available, but version is 1. If we try to reserve with version 0:
+        // Available again, but stale expected versions still fail.
         let err = seat.can_reserve(0).unwrap_err();
         assert_eq!(
             err,
@@ -200,18 +191,13 @@ mod tests {
 
     #[test]
     fn does_not_skip_cancellation_for_virgin_never_touched_seat() {
-        // Pre-created at event creation, never held/sold. This is the most
-        // common case (nobody ever reserved most of a venue) and must still
-        // be cancelled so the seat doesn't look rebookable after the event
-        // is cancelled.
+        // Never-held seats must still become unbookable when the event is cancelled.
         assert!(!should_skip_cancellation(&SeatStatus::Available));
     }
 
     #[test]
     fn does_not_skip_cancellation_for_touched_seat_that_raced_to_available() {
-        // A seat that was Held and then independently expired (e.g. its
-        // order's OrderCancelled arrived before this event-wide cancellation)
-        // is Available again and must still be cancelled.
+        // Seats that raced back to Available must still be event-cancelled.
         assert!(!should_skip_cancellation(&SeatStatus::Available));
     }
 
