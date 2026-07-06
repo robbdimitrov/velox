@@ -8,6 +8,8 @@
 
   let { data } = $props();
 
+  const client = createGatewayClient(fetch, '/api');
+
   let eventId = $derived($page.params.eventId);
   let metrics = $state({
     cpu: 45,
@@ -59,7 +61,6 @@
     postingAnnouncement = true;
     announcementError = '';
 
-    const client = createGatewayClient(fetch, '/api');
     try {
       const created = await client.postAnnouncement(eventId, {
         title: announcementTitle,
@@ -97,7 +98,6 @@
     cancelling = true;
     cancelError = '';
 
-    const client = createGatewayClient(fetch, '/api');
     try {
       const result = await client.cancelEvent(eventId);
       cancelResult = {
