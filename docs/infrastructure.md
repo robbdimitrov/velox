@@ -213,3 +213,20 @@ Run `scripts/failure-drill.sh` after changing dependency clients, probes, or
 consumer loops. The script restarts PostgreSQL, cache, and broker workloads,
 then waits for the application deployments to remain rolled out. Override the
 namespace and wait budget with `NAMESPACE=...` and `TIMEOUT=...`.
+
+## Network Policy
+
+The `velox` namespace uses default-deny ingress and egress policies. Every pod
+may resolve DNS through `kube-system` CoreDNS, and explicit egress rules mirror
+the current service graph:
+
+- `frontend` may call `apigateway`.
+- `apigateway` may call `orderservice`, PostgreSQL, and Redis.
+- `orderservice`, `seatservice`, and `viewservice` may call PostgreSQL and
+  Kafka.
+- `broker-topics-init` may call Kafka during topic provisioning.
+- `broker` may call its own broker/admin ports for single-node Redpanda
+  operation.
+
+When adding a new synchronous dependency or background client, update
+`deploy/networkpolicy.yaml` in the same change as the workload manifest.

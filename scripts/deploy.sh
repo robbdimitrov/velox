@@ -6,7 +6,13 @@ DEPLOY_DIR="${ROOT_DIR}/deploy"
 NS="${NS:-velox}"
 KUBECTL="${KUBECTL:-kubectl}"
 IMAGE_PREFIX="${IMAGE_PREFIX:-localhost:5000/velox}"
-GIT_SHA="${GIT_SHA:-$(git -C "${ROOT_DIR}" rev-parse --short HEAD)}"
+GIT_SHA="${GIT_SHA:-}"
+APIGATEWAY_IMAGE_TAG="${APIGATEWAY_IMAGE_TAG:-}"
+ORDERSERVICE_IMAGE_TAG="${ORDERSERVICE_IMAGE_TAG:-}"
+SEATSERVICE_IMAGE_TAG="${SEATSERVICE_IMAGE_TAG:-}"
+VIEWSERVICE_IMAGE_TAG="${VIEWSERVICE_IMAGE_TAG:-}"
+FRONTEND_IMAGE_TAG="${FRONTEND_IMAGE_TAG:-}"
+DATABASE_IMAGE_TAG="${DATABASE_IMAGE_TAG:-}"
 LOCAL_FRONTEND_PORT="${LOCAL_FRONTEND_PORT:-8085}"
 FRONTEND_PORT_FORWARD_LOG="${FRONTEND_PORT_FORWARD_LOG:-/tmp/velox-frontend-port-forward-${LOCAL_FRONTEND_PORT}.log}"
 FRONTEND_PORT_FORWARD_PID_FILE="${FRONTEND_PORT_FORWARD_PID_FILE:-/tmp/velox-frontend-port-forward-${LOCAL_FRONTEND_PORT}.pid}"
@@ -33,7 +39,13 @@ Usage: $0 [--dry-run] [--skip-build]
 Environment:
   NS=${NS}
   IMAGE_PREFIX=${IMAGE_PREFIX}
-  GIT_SHA=${GIT_SHA}
+  GIT_SHA=${GIT_SHA:-<optional all-image tag override>}
+  APIGATEWAY_IMAGE_TAG=${APIGATEWAY_IMAGE_TAG:-<content checksum>}
+  ORDERSERVICE_IMAGE_TAG=${ORDERSERVICE_IMAGE_TAG:-<content checksum>}
+  SEATSERVICE_IMAGE_TAG=${SEATSERVICE_IMAGE_TAG:-<content checksum>}
+  VIEWSERVICE_IMAGE_TAG=${VIEWSERVICE_IMAGE_TAG:-<content checksum>}
+  FRONTEND_IMAGE_TAG=${FRONTEND_IMAGE_TAG:-<content checksum>}
+  DATABASE_IMAGE_TAG=${DATABASE_IMAGE_TAG:-<content checksum>}
   LOCAL_FRONTEND_PORT=${LOCAL_FRONTEND_PORT}
 EOF
 }
@@ -79,6 +91,7 @@ random_secret() {
 
 require_tools() {
   $KUBECTL version --client >/dev/null 2>&1 || die "kubectl is not available through: ${KUBECTL}"
+  command -v openssl >/dev/null || die "missing required tool: openssl"
   if [[ -n "$SKIP_BUILD" || -n "$DRY_RUN" ]]; then
     return
   fi
@@ -90,12 +103,62 @@ require_tools() {
 
 load_images_into_kind() {
   local node="velox-control-plane"
-  local service
+  local image
   docker container inspect --format '{{.State.Running}}' "$node" 2>/dev/null | grep -qx true || return
   log "loading images into kind node"
-  for service in apigateway orderservice seatservice viewservice frontend database; do
-    docker save "${IMAGE_PREFIX}-${service}:${GIT_SHA}" | docker exec -i "$node" ctr --namespace k8s.io images import -
+  for image in \
+    "${IMAGE_PREFIX}-apigateway:${APIGATEWAY_IMAGE_TAG}" \
+    "${IMAGE_PREFIX}-orderservice:${ORDERSERVICE_IMAGE_TAG}" \
+    "${IMAGE_PREFIX}-seatservice:${SEATSERVICE_IMAGE_TAG}" \
+    "${IMAGE_PREFIX}-viewservice:${VIEWSERVICE_IMAGE_TAG}" \
+    "${IMAGE_PREFIX}-frontend:${FRONTEND_IMAGE_TAG}" \
+    "${IMAGE_PREFIX}-database:${DATABASE_IMAGE_TAG}"; do
+    docker save "$image" | docker exec -i "$node" ctr --namespace k8s.io images import -
   done
+}
+
+context_checksum() {
+  local dir="$1"
+  (
+    cd "${ROOT_DIR}/${dir}"
+    if [[ -f "${ROOT_DIR}/Makefile" ]]; then
+      printf '%s\0' "../../Makefile"
+      openssl dgst -sha256 -binary "${ROOT_DIR}/Makefile"
+    fi
+    find . -type f \
+      ! -path './.git/*' \
+      ! -path './bin/*' \
+      ! -path './tmp/*' \
+      ! -path './coverage/*' \
+      ! -path './node_modules/*' \
+      ! -path './target/*' \
+      ! -path './.svelte-kit/*' \
+      ! -path './build/*' \
+      ! -path './dist/*' \
+      -print |
+      LC_ALL=C sort |
+      while IFS= read -r file; do
+        case "${dir}:${file}" in
+          apps/apigateway:./apigateway | apps/orderservice:./orderservice | apps/viewservice:./viewservice)
+            continue
+            ;;
+          apps/frontend:*.md | apps/frontend:./.env | apps/frontend:./.env.*)
+            [[ "$file" == "./.env.example" ]] || continue
+            ;;
+        esac
+        printf '%s\0' "$file"
+        openssl dgst -sha256 -binary "$file"
+      done
+  ) | openssl dgst -sha256 -r | awk '{print substr($1, 1, 12)}'
+}
+
+init_image_tags() {
+  APIGATEWAY_IMAGE_TAG="${APIGATEWAY_IMAGE_TAG:-${GIT_SHA:-$(context_checksum apps/apigateway)}}"
+  ORDERSERVICE_IMAGE_TAG="${ORDERSERVICE_IMAGE_TAG:-${GIT_SHA:-$(context_checksum apps/orderservice)}}"
+  SEATSERVICE_IMAGE_TAG="${SEATSERVICE_IMAGE_TAG:-${GIT_SHA:-$(context_checksum apps/seatservice)}}"
+  VIEWSERVICE_IMAGE_TAG="${VIEWSERVICE_IMAGE_TAG:-${GIT_SHA:-$(context_checksum apps/viewservice)}}"
+  FRONTEND_IMAGE_TAG="${FRONTEND_IMAGE_TAG:-${GIT_SHA:-$(context_checksum apps/frontend)}}"
+  DATABASE_IMAGE_TAG="${DATABASE_IMAGE_TAG:-${GIT_SHA:-$(context_checksum apps/database)}}"
 }
 
 build_images() {
@@ -103,7 +166,13 @@ build_images() {
     return
   fi
   log "building Velox images"
-  DOCKER_BUILDKIT=1 IMAGE_PREFIX="$IMAGE_PREFIX" GIT_SHA="$GIT_SHA" make -C "$ROOT_DIR"
+  log "image tags: apigateway=${APIGATEWAY_IMAGE_TAG} orderservice=${ORDERSERVICE_IMAGE_TAG} seatservice=${SEATSERVICE_IMAGE_TAG} viewservice=${VIEWSERVICE_IMAGE_TAG} frontend=${FRONTEND_IMAGE_TAG} database=${DATABASE_IMAGE_TAG}"
+  DOCKER_BUILDKIT=1 IMAGE_PREFIX="$IMAGE_PREFIX" GIT_SHA="$APIGATEWAY_IMAGE_TAG" make -C "$ROOT_DIR" apigateway
+  DOCKER_BUILDKIT=1 IMAGE_PREFIX="$IMAGE_PREFIX" GIT_SHA="$ORDERSERVICE_IMAGE_TAG" make -C "$ROOT_DIR" orderservice
+  DOCKER_BUILDKIT=1 IMAGE_PREFIX="$IMAGE_PREFIX" GIT_SHA="$SEATSERVICE_IMAGE_TAG" make -C "$ROOT_DIR" seatservice
+  DOCKER_BUILDKIT=1 IMAGE_PREFIX="$IMAGE_PREFIX" GIT_SHA="$VIEWSERVICE_IMAGE_TAG" make -C "$ROOT_DIR" viewservice
+  DOCKER_BUILDKIT=1 IMAGE_PREFIX="$IMAGE_PREFIX" GIT_SHA="$FRONTEND_IMAGE_TAG" make -C "$ROOT_DIR" frontend
+  DOCKER_BUILDKIT=1 IMAGE_PREFIX="$IMAGE_PREFIX" GIT_SHA="$DATABASE_IMAGE_TAG" make -C "$ROOT_DIR" database
   load_images_into_kind
 }
 
@@ -121,12 +190,12 @@ render_manifest() {
   local rendered
   rendered="$(mktemp)"
   sed \
-    -e "s#ghcr.io/example/velox-apigateway:dev#${IMAGE_PREFIX}-apigateway:${GIT_SHA}#g" \
-    -e "s#ghcr.io/example/velox-orderservice:dev#${IMAGE_PREFIX}-orderservice:${GIT_SHA}#g" \
-    -e "s#ghcr.io/example/velox-seatservice:dev#${IMAGE_PREFIX}-seatservice:${GIT_SHA}#g" \
-    -e "s#ghcr.io/example/velox-viewservice:dev#${IMAGE_PREFIX}-viewservice:${GIT_SHA}#g" \
-    -e "s#ghcr.io/example/velox-frontend:dev#${IMAGE_PREFIX}-frontend:${GIT_SHA}#g" \
-    -e "s#ghcr.io/example/velox-database:dev#${IMAGE_PREFIX}-database:${GIT_SHA}#g" \
+    -e "s#ghcr.io/example/velox-apigateway:dev#${IMAGE_PREFIX}-apigateway:${APIGATEWAY_IMAGE_TAG}#g" \
+    -e "s#ghcr.io/example/velox-orderservice:dev#${IMAGE_PREFIX}-orderservice:${ORDERSERVICE_IMAGE_TAG}#g" \
+    -e "s#ghcr.io/example/velox-seatservice:dev#${IMAGE_PREFIX}-seatservice:${SEATSERVICE_IMAGE_TAG}#g" \
+    -e "s#ghcr.io/example/velox-viewservice:dev#${IMAGE_PREFIX}-viewservice:${VIEWSERVICE_IMAGE_TAG}#g" \
+    -e "s#ghcr.io/example/velox-frontend:dev#${IMAGE_PREFIX}-frontend:${FRONTEND_IMAGE_TAG}#g" \
+    -e "s#ghcr.io/example/velox-database:dev#${IMAGE_PREFIX}-database:${DATABASE_IMAGE_TAG}#g" \
     "$file" >"$rendered"
   printf '%s\n' "$rendered"
 }
@@ -159,21 +228,83 @@ ensure_dev_secrets() {
 }
 
 apply_manifests() {
-  log "applying manifests"
+  log "applying base manifests"
   apply_file "$DEPLOY_DIR/namespace.yaml"
   apply_file "$DEPLOY_DIR/networkpolicy.yaml"
   if [[ -z "$DRY_RUN" ]]; then
     ensure_namespace
   fi
   ensure_dev_secrets
-  local database_manifest services_manifest
+}
+
+data_resource_checksum() {
+  local kind="$1"
+  local name="$2"
+  $KUBECTL -n "$NS" get "$kind" "$name" -o go-template='{{ range $k, $v := .data }}{{ printf "%s=%s\n" $k $v }}{{ end }}' \
+    | LC_ALL=C sort \
+    | openssl dgst -sha256 -r | awk '{print $1}'
+}
+
+annotate_data_resource_checksums() {
+  if [[ -n "$DRY_RUN" ]]; then
+    return
+  fi
+  local kind="$1"
+  local resource="$2"
+  shift 2
+  local name pairs=()
+  for name in "$@"; do
+    pairs+=("\"checksum/${name}\":\"$(data_resource_checksum "$kind" "$name")\"")
+  done
+  local joined
+  joined="$(IFS=,; echo "${pairs[*]}")"
+  $KUBECTL -n "$NS" patch "$resource" --type merge \
+    -p "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{${joined}}}}}}" >/dev/null
+}
+
+annotate_secret_checksums() {
+  local resource="$1"
+  shift
+  annotate_data_resource_checksums secret "$resource" "$@"
+}
+
+annotate_configmap_checksums() {
+  local resource="$1"
+  shift
+  annotate_data_resource_checksums configmap "$resource" "$@"
+}
+
+apply_infra_manifests() {
+  log "applying infrastructure manifests"
+  local database_manifest
   database_manifest="$(render_manifest "$DEPLOY_DIR/database.yaml")"
-  services_manifest="$(render_manifest "$DEPLOY_DIR/services.yaml")"
-  trap 'rm -f "$database_manifest" "$services_manifest"' RETURN
+  trap 'rm -f "$database_manifest"' RETURN
   apply_file "$database_manifest"
   apply_file "$DEPLOY_DIR/broker.yaml"
   apply_file "$DEPLOY_DIR/cache.yaml"
+  annotate_secret_checksums statefulset/database velox-database-secret
+  annotate_configmap_checksums statefulset/database velox-database-config
+  trap - RETURN
+  rm -f "$database_manifest"
+}
+
+apply_app_manifests() {
+  log "applying application manifests"
+  local services_manifest
+  services_manifest="$(render_manifest "$DEPLOY_DIR/services.yaml")"
+  trap 'rm -f "$services_manifest"' RETURN
   apply_file "$services_manifest"
+  annotate_configmap_checksums deployment/apigateway velox-service-config
+  annotate_secret_checksums deployment/apigateway velox-database-secret velox-auth-secret
+  annotate_configmap_checksums deployment/orderservice velox-service-config
+  annotate_secret_checksums deployment/orderservice velox-database-secret velox-kafka-signing-secret
+  annotate_configmap_checksums deployment/seatservice velox-service-config
+  annotate_secret_checksums deployment/seatservice velox-database-secret velox-kafka-signing-secret
+  annotate_configmap_checksums deployment/viewservice velox-service-config
+  annotate_secret_checksums deployment/viewservice velox-database-secret velox-kafka-signing-secret
+  annotate_configmap_checksums deployment/frontend velox-service-config
+  trap - RETURN
+  rm -f "$services_manifest"
 }
 
 wait_for_rollouts() {
@@ -261,10 +392,13 @@ EOF
 }
 
 require_tools
+init_image_tags
 build_images
 apply_manifests
+apply_infra_manifests
 wait_for_rollouts "${ROLL_OUT_INFRA[@]}"
 apply_topics_job
+apply_app_manifests
 wait_for_rollouts "${ROLL_OUT_APPS[@]}"
 start_port_forward frontend "$LOCAL_FRONTEND_PORT" 80 "$FRONTEND_PORT_FORWARD_LOG" "$FRONTEND_PORT_FORWARD_PID_FILE"
 print_summary

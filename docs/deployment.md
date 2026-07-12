@@ -58,19 +58,29 @@ make deploy
 ```
 
 The deploy script uses `kubectl` by default, builds service images through
-`make`, applies manifests to the current Kubernetes context, waits for rollouts,
-and starts port-forwards:
+`make`, applies manifests to the current Kubernetes context, waits for staged
+rollouts, and starts a frontend port-forward:
 
-- frontend: `http://localhost:8080`
-- gateway: `http://localhost:8081`
+- frontend: `http://localhost:8085` by default, configurable with
+  `LOCAL_FRONTEND_PORT`
 
 Use `scripts/deploy.sh --dry-run` for client-side manifest validation and
 `scripts/deploy.sh --skip-build` when images are already available locally.
-Override `KUBECTL`, `IMAGE_PREFIX`, and `GIT_SHA` to match a non-default
-cluster or registry. Images are pushed to `IMAGE_PREFIX-<service>:<GIT_SHA>`
-(default `localhost:5000/velox-<service>:<git-sha>`); when a `velox-control-plane`
-kind node is running, `scripts/deploy.sh` also loads the built images directly
-into it. Full `kind` cluster creation is still follow-up automation work.
+Override `KUBECTL` and `IMAGE_PREFIX` to match a non-default cluster or
+registry. By default, each image is tagged with a 12-character checksum of its
+own build context, so unchanged services keep stable image tags and avoid
+unnecessary rollouts. Set `GIT_SHA` to force one shared tag for every image, or
+set `APIGATEWAY_IMAGE_TAG`, `ORDERSERVICE_IMAGE_TAG`, `SEATSERVICE_IMAGE_TAG`,
+`VIEWSERVICE_IMAGE_TAG`, `FRONTEND_IMAGE_TAG`, or `DATABASE_IMAGE_TAG` for
+per-image overrides. Images are pushed to
+`IMAGE_PREFIX-<service>:<tag>`; when a `velox-control-plane` kind node is
+running, `scripts/deploy.sh` also loads the built images directly into it. Full
+`kind` cluster creation is still follow-up automation work.
+
+Deploys apply base manifests first, then infrastructure, provision Kafka topics,
+and finally apply app services. Workloads are annotated with checksums for the
+Secrets and ConfigMaps they consume, so data-only changes roll the affected pods
+without forcing unrelated services to restart.
 
 Frontend container builds use `npm ci` against the committed lockfile in the
 builder stage and copy only the adapter-node build output into the Node runner
