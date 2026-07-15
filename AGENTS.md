@@ -66,19 +66,25 @@ scripts/deploy.sh  # build images, apply manifests, and port-forward
 - Use precise names and standard initialisms. Prefer clarity over compressed
   code and named constants over repeated policy-significant literals.
 - Keep related fixes together; do not expand a task into unrelated cleanup.
-- Comments explain constraints, invariants, security decisions, or non-obvious
-  intent. Do not narrate straightforward code or preserve implementation
-  history.
-- Comments should be concise but valuable. Reduce verbose 3-5 line explanations
-  to 1-2 lines when they preserve the essential constraint or intent, while
-  respecting documentation comments and language rules such as Go exported
-  identifier comments.
+- Code should be self-documenting through clear structure, naming, and small
+  functions. Add comments only for constraints, invariants, security decisions,
+  or non-obvious intent.
+- Keep comments compact, usually 1-2 lines. Preserve required documentation
+  comments, such as Go exported identifier comments, but keep them concise.
 - Do not suppress compiler, linter, type-checker, or test warnings to make
   checks pass. Fix the underlying issue. Use a narrowly scoped suppression only
   when required by an external API, generated code, or a documented false
   positive, and explain why it is safe.
 - Write behavior-oriented tests for critical paths, complex logic, and risky
   failure modes. Do not chase coverage percentages.
+
+## Documentation
+
+- Keep durable explanation in `docs/`, not scattered through code comments.
+- Keep documentation concise and current. `README` files may be a little more
+  approachable and complete; other docs should favor direct, compact guidance.
+- Preserve meaning when tightening prose. Remove repetition, implementation
+  history, and obvious restatement before removing useful constraints.
 
 ## Secure Engineering
 
