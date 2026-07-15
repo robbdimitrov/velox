@@ -53,10 +53,8 @@ func TestApplyEvent_SeatReservationCancelled_CancelsIssuedTicket(t *testing.T) {
 	}
 }
 
-// TestApplyEvent_SeatReservationCancelled_NoIssuedTicket_NoError covers the
-// common case where a seat was only ever HELD (never CONFIRMED), so no
-// wallet_tickets row exists for it. The UPDATE ... WHERE status = 'ISSUED'
-// affects zero rows in that case, which must not surface as an error.
+// TestApplyEvent_SeatReservationCancelled_NoIssuedTicket_NoError covers held
+// seats that never issued a wallet ticket; zero-row UPDATEs must be fine.
 func TestApplyEvent_SeatReservationCancelled_NoIssuedTicket_NoError(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -104,14 +102,8 @@ func TestApplyEvent_SeatReservationCancelled_NoIssuedTicket_NoError(t *testing.T
 	}
 }
 
-// TestApplyEvent_SkipsNonUUIDEventID guards against a real production
-// incident: orderservice's EventCancelled once resolved to a plain
-// "event-cancel:<id>" string rather than a UUID, and this consumer's dedup
-// check binds the resolved event_id against processed_events.event_id, a
-// uuid-typed column. That mismatch crash-looped this whole consumer on every
-// EventCancelled message. ApplyEvent must instead skip such an event
-// gracefully (no error, no query attempted) so one malformed message can
-// never block consumption of everything after it.
+// TestApplyEvent_SkipsNonUUIDEventID keeps malformed event IDs from
+// crash-looping the UUID-typed processed_events dedup insert.
 func TestApplyEvent_SkipsNonUUIDEventID(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

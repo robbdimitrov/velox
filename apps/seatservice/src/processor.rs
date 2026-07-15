@@ -50,10 +50,8 @@ async fn send_to_dlq(
     }
 }
 
-/// Returns whether the caller may commit the Kafka offset for this message:
-/// true once the message is durably handled (processed, deduplicated, or
-/// DLQ'd for an unrecoverable schema error); false for transient failures
-/// that should be retried via redelivery instead of committed.
+/// Returns whether the Kafka offset may be committed: true for durable handling
+/// or DLQ, false for transient failures that need redelivery.
 pub async fn process_message(
     db: &DbClient,
     producer: &FutureProducer,

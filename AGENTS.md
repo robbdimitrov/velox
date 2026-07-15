@@ -7,19 +7,18 @@ Velox is a high-scale event ticket marketplace using SvelteKit SSR with Svelte
 per service. Keep product and architecture documents in `docs/`.
 
 - `apps/frontend/` — SvelteKit SSR frontend with Svelte 5, Tailwind, DaisyUI,
-  Lucide, Runes state, WebSocket/SSE clients, seat-map rendering.
+  Lucide, Runes state, SSE clients, and seat-map rendering.
 - `apps/apigateway/` — Go public HTTP API, auth boundary, rate limiting,
   validation, and gRPC orchestration.
 - `apps/orderservice/` — Go order state, idempotency, reservation tokens,
   confirm/cancel actions, and PostgreSQL outbox.
 - `apps/seatservice/` — Rust Tokio inventory validator, event store integration,
   Kafka consumers/producers.
-- `apps/viewservice/` — Go Kafka projection workers, read APIs, and
-  WebSocket/SSE fanout.
+- `apps/viewservice/` — Go Kafka projection workers, read APIs, and SSE fanout.
 - `apps/database/` — PostgreSQL migrations and database bootstrap assets.
 - `pkg/` — shared generated transport contracts such as `pkg/pb`.
-- `deploy/` — Kafka, PostgreSQL, Redis, Elasticsearch/MongoDB, observability,
-  and application manifests.
+- `deploy/` — Kafka, PostgreSQL, Dragonfly/Redis, network policy, and
+  application manifests.
 - `scripts/` — local development, deployment, and maintenance automation.
 
 ## Commands
@@ -91,7 +90,7 @@ scripts/deploy.sh  # build images, apply manifests, and port-forward
 Security controls are design constraints, not review-time additions.
 
 - Validate untrusted data where it enters the system. Bound request bodies,
-  WebSocket messages, Kafka payloads, pagination, collection sizes, and stream
+  SSE messages, Kafka payloads, pagination, collection sizes, and stream
   reads before parsing or allocation.
 - Authentication and authorization default to deny. Never trust client-supplied
   user IDs, prices, seat states, reservation expiry, or fee totals. Derive
@@ -145,7 +144,8 @@ Security controls are design constraints, not review-time additions.
 - Name tests after observable behavior, such as
   `TestRejectsDuplicateIdempotencyKey` or
   `rejects_version_mismatch_for_held_seat`.
-- Aim for Pareto 80/20 test coverage focusing on critical control surfaces (e.g., Auth controllers, vendor actions, and core read-paths) rather than exhaustive line coverage.
+- Aim for Pareto 80/20 test coverage focused on critical control surfaces such
+  as auth controllers, organizer actions, and core read paths.
 - Keep Go API unit tests fast and hermetic by passing a `nil` store or using lightweight mocks instead of requiring live PostgreSQL instances.
 
 ## Resilience

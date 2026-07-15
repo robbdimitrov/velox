@@ -42,7 +42,7 @@
     return () => source.close();
   });
 
-  let announcements = $state<EventAnnouncement[]>(data.announcements);
+  let announcements = $state<EventAnnouncement[]>([]);
   $effect(() => {
     eventId; // establishes the reactive dependency so navigation resyncs data
     announcements = data.announcements;

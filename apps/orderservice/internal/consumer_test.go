@@ -156,10 +156,8 @@ func TestHandleSeatReservationConfirmationFailed_NotConfirmed(t *testing.T) {
 	}
 }
 
-// TestHandleSeatReservationConfirmationFailed_EventCancelled verifies that a
-// reason of "EVENT_CANCELLED" (the concurrent-EventCancelled race case, as
-// opposed to a plain hold expiry) sets the order to CANCELLED and writes an
-// OrderCancelled outbox row instead of EXPIRED/OrderExpired.
+// TestHandleSeatReservationConfirmationFailed_EventCancelled keeps the
+// concurrent event-cancel race mapped to CANCELLED/OrderCancelled.
 func TestHandleSeatReservationConfirmationFailed_EventCancelled(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

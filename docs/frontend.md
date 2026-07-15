@@ -38,7 +38,7 @@ Layout:
 4. Trending demand list: dense event rows with event image, venue, sale start,
    remaining inventory bucket, and demand score.
 5. Featured grid: cached event cards for top categories, refreshed from
-   Elasticsearch or MongoDB projections.
+   projection reads.
 
 Implementation rules:
 
@@ -75,13 +75,13 @@ Seat states:
 
 State sync:
 
-- WebSocket messages carry `seat_id`, `status`, `version`, `event_id`, and
+- SSE messages carry `seat_id`, `status`, `version`, `event_id`, and
   `expires_at_server_ms`.
 - Client state is a typed seat array keyed by numeric seat index. Updates
   replace only changed entries.
 - Reject any message with a version lower than the locally observed version for
   the same seat.
-- Live SSE and WebSocket effects must close streams and fallback timers on
+- Live SSE effects must close streams and fallback timers on
   component teardown. Malformed live payloads are ignored or logged in bounded
   UI state rather than breaking the seat selector.
 
@@ -104,7 +104,7 @@ Rules:
   cacheable like discovery reads.
 - No live push - the announcement feed changes far less often than seat
   availability, so the event page simply re-fetches on load rather than
-  holding an SSE/WebSocket connection open for it.
+  holding an SSE connection open for it.
 - If the event's own status is `CANCELLED`, the event page shows a persistent
   banner and disables the reserve action, regardless of what the announcement
   feed contains. Seat tiles remain visually togglable in this state (the

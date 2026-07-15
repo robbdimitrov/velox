@@ -199,10 +199,8 @@ func consumeEvents(ctx context.Context, cl *kgo.Client, store EventStore, health
 	}
 }
 
-// sendToDLQ publishes an unrecoverable record (one that can never succeed on
-// retry, e.g. a schema/deserialize failure) to the DLQ topic per
-// docs/infrastructure.md's poison-pill handling, so the caller can safely
-// commit the source offset without silently dropping the failure.
+// sendToDLQ records unrecoverable payloads before the source offset is
+// committed, preserving poison-pill visibility.
 func sendToDLQ(ctx context.Context, cl *kgo.Client, record *kgo.Record, requestID, errorClass, errorMessage string) {
 	hash := sha256.Sum256(record.Value)
 	now := time.Now().UTC()

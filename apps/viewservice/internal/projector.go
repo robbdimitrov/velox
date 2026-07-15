@@ -56,22 +56,22 @@ type Order struct {
 }
 
 type Projector struct {
-	mu              sync.Mutex
-	processed       map[string]struct{}
-	aggregateVer    map[string]int64
-	Seats           map[string]Seat
-	Orders          map[string]Order
-	VendorOrderIDs  map[string][]string
-	ProjectionLagMS int64
+	mu                sync.Mutex
+	processed         map[string]struct{}
+	aggregateVer      map[string]int64
+	Seats             map[string]Seat
+	Orders            map[string]Order
+	OrganizerOrderIDs map[string][]string
+	ProjectionLagMS   int64
 }
 
 func NewProjector() *Projector {
 	return &Projector{
-		processed:      map[string]struct{}{},
-		aggregateVer:   map[string]int64{},
-		Seats:          map[string]Seat{},
-		Orders:         map[string]Order{},
-		VendorOrderIDs: map[string][]string{},
+		processed:         map[string]struct{}{},
+		aggregateVer:      map[string]int64{},
+		Seats:             map[string]Seat{},
+		Orders:            map[string]Order{},
+		OrganizerOrderIDs: map[string][]string{},
 	}
 }
 
@@ -99,7 +99,7 @@ func (p *Projector) Apply(event Event) error {
 		p.Seats[key] = event.Seat
 	case "OrderCreated", "OrderConfirmed", "OrderCancelled", "OrderExpired":
 		p.Orders[event.Order.OrderID] = event.Order
-		p.VendorOrderIDs[event.Order.EventID] = appendUnique(p.VendorOrderIDs[event.Order.EventID], event.Order.OrderID)
+		p.OrganizerOrderIDs[event.Order.EventID] = appendUnique(p.OrganizerOrderIDs[event.Order.EventID], event.Order.OrderID)
 	}
 	return nil
 }

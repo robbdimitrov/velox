@@ -6,7 +6,6 @@
   let role = $state('STAFF');
 
   function handleInvite() {
-    // In a real app, send API request here
     email = '';
     role = 'STAFF';
     show = false;

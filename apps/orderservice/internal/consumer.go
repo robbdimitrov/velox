@@ -107,10 +107,8 @@ func StartConsumer(ctx context.Context, db *sql.DB, cl *kgo.Client, health *Pipe
 	}
 }
 
-// handleSeatReservationHeld records that seatservice successfully held the
-// requested seat(s). No outbox event is produced here: nothing external
-// cares that a hold succeeded until the user explicitly confirms or cancels,
-// or the hold expires.
+// handleSeatReservationHeld records a successful hold; no external event is
+// emitted until confirm, cancel, or expiry.
 func handleSeatReservationHeld(ctx context.Context, db *sql.DB, orderID string) error {
 	res, err := db.ExecContext(ctx, `UPDATE orders.orders SET status = 'HELD', updated_at = now() WHERE id = $1 AND status = 'PENDING'`, orderID)
 	if err != nil {
@@ -143,10 +141,8 @@ func handleSeatReservationFailed(ctx context.Context, db *sql.DB, orderID string
 	return nil
 }
 
-// handleSeatReservationExpired records that seatservice's periodic expiry
-// sweep timed out the hold before the user confirmed or cancelled. The
-// status guard ensures a timeout that races with a user's confirm/cancel
-// never clobbers that outcome.
+// handleSeatReservationExpired records seatservice timeouts without clobbering
+// a confirm/cancel that already won the race.
 func handleSeatReservationExpired(ctx context.Context, db *sql.DB, orderID string) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {

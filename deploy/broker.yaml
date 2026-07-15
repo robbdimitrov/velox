@@ -66,6 +66,12 @@ spec:
               port: admin
             initialDelaySeconds: 10
             periodSeconds: 10
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1536Mi
+            limits:
+              memory: 1536Mi
           volumeMounts:
             - name: broker-data
               mountPath: /var/lib/redpanda/data

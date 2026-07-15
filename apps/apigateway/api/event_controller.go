@@ -7,10 +7,8 @@ import (
 	"time"
 )
 
-// discoveryCacheControl matches docs/frontend.md's discovery-page rule:
-// "Cache hot discovery responses at the CDN for 1 second with
-// stale-while-revalidate." Query-only, non-authenticated read endpoints set
-// this; command/mutation and per-user endpoints must not.
+// discoveryCacheControl is only for query-only, unauthenticated reads; command
+// and per-user endpoints must not share this CDN policy.
 const discoveryCacheControl = "public, max-age=1, stale-while-revalidate=5"
 
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
@@ -64,10 +62,8 @@ func (s *Server) handleEvent(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"event": event, "projection_lag_ms": 0})
 }
 
-// dynamicSeatCacheControl is deliberately tighter than discoveryCacheControl:
-// seat availability changes far faster than event listings, but a 1s CDN
-// floor (HTTP max-age has no sub-second granularity) still meaningfully
-// absorbs stampede traffic ahead of the Redis-backed single-flight cache.
+// dynamicSeatCacheControl uses the shortest HTTP max-age while Redis
+// single-flight absorbs stampedes behind it.
 const dynamicSeatCacheControl = "public, max-age=1, stale-while-revalidate=1"
 
 func (s *Server) handleSeats(w http.ResponseWriter, r *http.Request) {

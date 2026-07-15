@@ -2,21 +2,21 @@
 
 **Velox** is a Kubernetes-first event ticket marketplace MVP built for
 flash-sale contention: many buyers competing for the same reserved seats while
-vendors watch live inventory and order state. It combines a SvelteKit SSR
+organizers watch live inventory and order state. It combines a SvelteKit SSR
 frontend with Go and Rust backend services, PostgreSQL-owned stores,
 Redpanda-compatible Kafka event flow, and Dragonfly-backed coordination.
 
 ## Features
 
-- **Authentication & Roles**: Secure JWT-based login and registration flow with distinct `Customer` and `Vendor` RBAC profiles.
+- **Authentication & Roles**: Secure JWT-based login and registration flow with distinct `Customer` and `Organizer` RBAC profiles.
 - **Seat reservations**: Event discovery, interactive SVG seat maps with Server-Sent Events (SSE) live updates, a 10-minute lock countdown pipeline, and order history.
-- **Vendor dashboard**: Role-protected portal for managing venues, staff, creating events via a multi-step wizard, and live analytics.
+- **Organizer dashboard**: Role-protected portal for managing venues, staff, creating events via a multi-step wizard, and live analytics.
 - **Virtual Waiting Room & Rate Limiting**: Token-bucket rate limiting via Dragonfly/Redis at the Go ingress, paired with a frontend virtual waiting room to gracefully handle `429 Too Many Requests` during flash sales.
 - **Idempotent commands**: Reservation requests require `Idempotency-Key`; duplicate matching requests return the original order while conflicting bodies are rejected.
 - **Optimistic Concurrency**: Seat double-booking is prevented using Sequence Version Numbers (`VersionMismatch`) in the Rust Event Store, avoiding slow SQL table locks.
 - **Compensating Sagas**: Order lifecycle changes (explicit cancellation via `OrderCancelled`, or a hold timing out in `seatservice`'s own expiry sweep) trigger Kafka-choreographed compensating transactions (`SeatReservationExpired`) to instantly free up inventory.
-- **Immutable Ledger**: User ticket wallets showcase a provenence ledger built directly from the backend's Event Sourcing streams.
-- **Kubernetes runtime**: Manifests and `scripts/deploy.sh` build images, create development secrets, apply resources, wait for rollouts, and port-forward the frontend and gateway.
+- **Immutable Ledger**: User ticket wallets show a provenance ledger built from backend event-sourcing streams.
+- **Kubernetes runtime**: Manifests and `scripts/deploy.sh` build images, create development secrets, apply resources, wait for rollouts, and port-forward the frontend.
 
 ## Architecture
 
@@ -59,11 +59,11 @@ graph TD
 
 | Service                           | Language   | Description                                                                                                  |
 | --------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------ |
-| [frontend](apps/frontend)         | TypeScript | SvelteKit SSR reserver and vendor UI with Tailwind, DaisyUI, Lucide icons, live seat state, and checkout.    |
+| [frontend](apps/frontend)         | TypeScript | SvelteKit SSR reservation and organizer UI with Tailwind, DaisyUI, Lucide icons, live seat state, and checkout. |
 | [apigateway](apps/apigateway)     | Go         | Public HTTP API, dev login, JWT session cookies, role checks, request bounds, and reservation orchestration. |
 | [orderservice](apps/orderservice) | Go         | Order state, idempotency, reservation confirmation, and transactional outbox behavior.                       |
 | [seatservice](apps/seatservice)   | Rust       | Seat stream concurrency rules, version checks, hold expiry, and ticket issuing rules.                        |
-| [viewservice](apps/viewservice)   | Go         | Idempotent projection helpers for read models and vendor-facing state.                                       |
+| [viewservice](apps/viewservice)   | Go         | Idempotent projection helpers for read models and organizer-facing state.                                    |
 | [database](apps/database)         | PostgreSQL | Versioned schema migrations and demo seed data for service-owned schemas.                                    |
 
 ## Infrastructure
@@ -86,7 +86,7 @@ Architectural specs live in [`docs/`](docs/):
 | ------------------------------------------- | -------------------------------------------------------------------------------- |
 | [architecture.md](docs/architecture.md)     | Service topology, event choreography, consistency model, and security boundaries |
 | [deployment.md](docs/deployment.md)         | Kubernetes local runtime, generated secrets, port-forwarding, and smoke checks   |
-| [frontend.md](docs/frontend.md)             | Buyer and vendor route map, UI behavior, live updates, and accessibility         |
+| [frontend.md](docs/frontend.md)             | Buyer and organizer route map, UI behavior, live updates, and accessibility      |
 | [infrastructure.md](docs/infrastructure.md) | Kafka failure modes, reservation expiry, cache behavior, and backpressure        |
 
 ## Deploy
@@ -98,13 +98,12 @@ Deploy Velox to the active Kubernetes context:
 ```
 
 The script builds images, creates or updates generated development secrets,
-applies manifests from `deploy/`, waits for rollouts, and starts port-forwards:
+applies manifests from `deploy/`, waits for rollouts, and starts a frontend port-forward:
 
-- Frontend: http://localhost:8080
-- Gateway: http://localhost:8081
+- Frontend: http://localhost:8085 by default, configurable with `LOCAL_FRONTEND_PORT`
 
-Images build and push to `localhost:5000/velox-<service>:<git-sha>` by default.
-Override the registry or commit tag when needed:
+Images build and push to `localhost:5000/velox-<service>:<content-checksum>` by
+default. Override the registry or force one shared tag when needed:
 
 ```sh
 IMAGE_PREFIX=localhost:5001/velox GIT_SHA=dev ./scripts/deploy.sh

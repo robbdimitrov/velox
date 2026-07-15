@@ -19,16 +19,8 @@ spec:
         - name: create-topics
           image: redpandadata/redpanda:v24.2.9
           imagePullPolicy: IfNotPresent
-          # A freshly created pod's IP takes a few seconds to propagate into
-          # the NetworkPolicy controller's ipset-based allow-list, so the very
-          # first connection attempt can see a real "connection refused" even
-          # though this pod's label is correctly allow-listed in
-          # networkpolicy.yaml. Retry on that specific failure instead of
-          # masking it. `rpk topic create` reports TOPIC_ALREADY_EXISTS per
-          # topic and still exits non-zero even when that's the only reason,
-          # so only "unable to dial"/connection failures are treated as
-          # retryable; anything else (including partial already-exists) ends
-          # the loop successfully, keeping this idempotent across redeploys.
+          # Retry transient NetworkPolicy propagation failures. Other rpk
+          # errors are treated as idempotent topic-exists outcomes.
           command:
             - /bin/sh
             - -c
@@ -55,3 +47,9 @@ spec:
                 echo "attempt $attempt: broker unreachable, retrying in 2s"
                 sleep 2
               done
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi

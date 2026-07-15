@@ -17,11 +17,8 @@ const (
 	defaultTokenAudience = "velox-api"
 )
 
-// scopesForRole returns the space-separated scope claim embedded in a
-// session token for the given role. Authorization itself still runs off the
-// User record re-fetched from the store on every request (see authenticate);
-// this claim is a zero-trust ingress check, not the source of truth for
-// permissions.
+// scopesForRole returns token scopes for ingress checks; authorization still
+// uses the store-backed User loaded by authenticate.
 func scopesForRole(role string) string {
 	switch role {
 	case RoleOrganizer:

@@ -21,18 +21,18 @@ Kafka
 seatservice <-> Append-Only Event Store
   |
   v
-viewservice -> Elasticsearch/MongoDB -> Read API/WebSockets/SSE
+viewservice -> PostgreSQL projection schema -> Read API/SSE
 ```
 
-Each service owns its database. Cross-service joins are forbidden on the write
-path. Kafka is the append-only integration log for choreography, projections,
-audit, and replay.
+Each service owns its logical schema. Cross-service joins are forbidden on the
+write path. Kafka is the append-only integration log for choreography,
+projections, audit, and replay.
 
 ## Frontend UI
 
 - Use SvelteKit SSR as the browser-facing application boundary.
 - Use Svelte 5 with Runes for selected seats, filter state, countdown offsets,
-  and WebSocket deltas.
+  and SSE deltas.
 - Use Tailwind for layout and utility styling.
 - Use DaisyUI for accessible, themeable controls where it fits the product UI.
 - Use Lucide icons for actions, navigation, and tool buttons.
@@ -158,8 +158,8 @@ by the same compare-and-append discipline as every other stream mutation.
 - `seatservice`: append-only event store, backed by PostgreSQL event table or
   RocksDB segments with durable WAL.
 - `orderservice`: PostgreSQL tables for orders and `outbox_events`.
-- Read model: Elasticsearch for search-heavy discovery or MongoDB for
-  document-oriented wallet and seat snapshots.
+- Read model: PostgreSQL `projection` schema for discovery, wallet, order, and
+  seat snapshots.
 - Redis: idempotency keys, token buckets, hot layout locks, and short-lived
   fanout coordination.
 
@@ -203,7 +203,7 @@ Successful path:
 4. `seatservice` consumes OrderCreated
 5. `seatservice` appends SeatReservationHeld expected_version=N
 6. `seatservice` publishes SeatReservationHeld
-7. `viewservice` updates seat as HELD and WebSocket broadcasts
+7. `viewservice` updates seat as HELD and SSE broadcasts
 8. `orderservice` consumes SeatReservationHeld and marks the order HELD
 9. Client POST /reservations/{reservation_id}/confirm idempotency_key=K2
 10. `orderservice` validates the order is HELD, marks it CONFIRMED, and

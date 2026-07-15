@@ -12,10 +12,8 @@ const config = {
         'default-src': ['self'],
         'script-src': ['self'],
         'style-src': ['self', 'https://fonts.googleapis.com'],
-        // Seat map (SeatCanvas.svelte) and health-panel gauges compute
-        // per-render pixel sizes and cursor state as inline style attributes;
-        // that content can't be hashed or known ahead of time, so this
-        // trades attribute-level styling only, not script-src or style-src.
+        // Seat maps and health gauges compute live inline style attributes;
+        // keep the exception scoped to attributes, not scripts or stylesheets.
         'style-src-attr': ['unsafe-inline'],
         'img-src': ['self'],
         'connect-src': ['self'],

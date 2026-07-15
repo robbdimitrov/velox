@@ -123,16 +123,8 @@ func (s *DatabaseStore) ListSeats(ctx context.Context, eventID, sectionID string
 	return seats, snapshotAgeMS, rows.Err()
 }
 
-// GetSeatStatusMap returns the current projected status for each seat in a
-// section. projection.seat_snapshots is this codebase's actual seat
-// existence source: catalog.venue_seats is defined in the schema but never
-// populated by any code path, and every seat (including brand-new ones) gets
-// its snapshot row pre-created with status AVAILABLE (see
-// apps/database/seeds/999_demo_reservation_mvp.sql and
-// CreateEvent's inventory.event_streams pre-seed) rather than lazily on
-// first inventory event. So an empty result for a section means the section
-// itself is unknown, and a seat_id missing from an otherwise-populated
-// section means that seat_id doesn't exist.
+// GetSeatStatusMap treats projection.seat_snapshots as the seat existence
+// source; an empty section is unknown, and a missing seat_id does not exist.
 func (s *DatabaseStore) GetSeatStatusMap(ctx context.Context, eventID, sectionID string) (map[string]string, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT seat_id, status FROM projection.seat_snapshots
@@ -154,11 +146,8 @@ func (s *DatabaseStore) GetSeatStatusMap(ctx context.Context, eventID, sectionID
 	return statuses, rows.Err()
 }
 
-// GetProjectionLagMS approximates read-model staleness for an event as the
-// age of its most recently updated seat snapshot. This is a proxy for true
-// Kafka consumer-group lag (which would require broker offset/watermark
-// polling, a larger addition); it's still a real, measured signal rather
-// than the previously hardcoded 0.
+// GetProjectionLagMS approximates read-model staleness from the newest seat
+// snapshot timestamp; broker offset lag would require a separate poller.
 func (s *DatabaseStore) GetProjectionLagMS(ctx context.Context, eventID string) (int64, error) {
 	var lagMS int64
 	err := s.db.QueryRowContext(ctx, `
@@ -180,13 +169,8 @@ func (s *DatabaseStore) GetGlobalProjectionLagMS(ctx context.Context) (int64, er
 	return lagMS, err
 }
 
-// GetWalletTickets returns a user's real issued tickets from the event-sourced
-// projection (projection.wallet_tickets), each with its provenance ledger
-// drawn from the actual inventory.events history for that order — not a
-// client-fabricated placeholder. Ticket lifecycle transitions beyond issuance
-// (transfer/use/upgrade) aren't modeled by any producer yet, so every ticket
-// today is status ISSUED; the ledger reflects only the events that actually
-// occurred (seat held, then confirmed).
+// GetWalletTickets returns issued projection tickets with their inventory event
+// ledger. Transfer/use/upgrade producers do not exist yet.
 func (s *DatabaseStore) GetWalletTickets(ctx context.Context, userID string) ([]WalletTicket, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT wt.ticket_id, wt.order_id::text, wt.event_id, wt.section_id, wt.seat_id, wt.status,
@@ -226,15 +210,8 @@ func (s *DatabaseStore) GetWalletTickets(ctx context.Context, userID string) ([]
 	return tickets, nil
 }
 
-// getTicketLedger queries by the seat's own stream_key rather than by
-// correlation_id: an order-scoped correlation_id (e.g. SeatReservationHeld/
-// Confirmed) only ever names the order that caused it, but a whole-event
-// cancellation's SeatReservationCancelled carries the catalog event_id as its
-// correlation_id instead (one fan-out spans many orders, so no single
-// order_id fits) - querying by correlation_id=orderID would silently drop
-// that entry from a cancelled ticket's ledger. stream_key is this seat's
-// permanent identity regardless of which operation produced each event, so
-// it captures the seat's complete history.
+// getTicketLedger queries by stream_key because event-wide cancellation uses
+// the catalog event_id as correlation_id, not a single order_id.
 func (s *DatabaseStore) getTicketLedger(ctx context.Context, eventID, sectionID, seatID string) ([]WalletTicketLedgerEntry, error) {
 	streamKey := fmt.Sprintf("seat:%s:%s:%s", eventID, sectionID, seatID)
 	rows, err := s.db.QueryContext(ctx, `
@@ -599,10 +576,8 @@ func (s *DatabaseStore) CreateEvent(ctx context.Context, event Event) error {
 	}
 
 	for _, st := range seats {
-		// Must match the stream_key format seatservice itself computes
-		// (format!("seat:{}:{}:{}", event_id, section_id, seat_id) in
-		// db_client.rs) — a mismatch here pre-creates orphaned rows that
-		// seatservice's own lazy stream creation never reuses.
+		// Must match seatservice's stream_key format; mismatches pre-create
+		// orphaned rows that lazy stream creation never reuses.
 		streamKey := fmt.Sprintf("seat:%s:%s:%s", event.ID, st.SectionID, st.SeatID)
 		_, err = tx.ExecContext(ctx, `
 			INSERT INTO inventory.event_streams (stream_key, event_id, section_id, seat_id)
@@ -651,10 +626,8 @@ func (s *DatabaseStore) GetEvents(ctx context.Context) ([]Event, error) {
 	return events, rows.Err()
 }
 
-// GetEvent's WHERE clause (`e.id = $1`) is intentionally kept in sync with
-// GetEventVenueID's below: both filter catalog.events by id alone, so any
-// future addition to that filter (e.g. a soft-delete `deleted_at IS NULL`
-// clause) must be applied to both queries or they will silently diverge.
+// Keep GetEvent's event filter in sync with GetEventVenueID so public reads
+// and ownership checks do not silently diverge.
 func (s *DatabaseStore) GetEvent(ctx context.Context, id string) (Event, error) {
 	var e Event
 	err := s.db.QueryRowContext(ctx, `
@@ -675,16 +648,8 @@ func (s *DatabaseStore) GetEvent(ctx context.Context, id string) (Event, error) 
 	return e, nil
 }
 
-// GetEventVenueID returns just an event's venue ID, for callers like
-// organizerOwnsEvent that only need to check ownership and would otherwise
-// pay for GetEvent's GetOrganizerInventory seat-count aggregation for no
-// reason. Do not use this as a substitute for GetEvent where SeatsOpen/
-// SeatsTotal are actually read (e.g. the public event-detail endpoint).
-//
-// Its WHERE clause (`id = $1`) must be kept in sync with GetEvent's above:
-// both filter catalog.events by id alone, so any future addition to that
-// filter (e.g. a soft-delete `deleted_at IS NULL` clause) must be applied to
-// both queries or they will silently diverge.
+// GetEventVenueID is the lean ownership-check path. Keep its event filter in
+// sync with GetEvent so ownership and public reads do not diverge.
 func (s *DatabaseStore) GetEventVenueID(ctx context.Context, eventID string) (string, error) {
 	var venueID string
 	err := s.db.QueryRowContext(ctx, `
@@ -696,12 +661,8 @@ func (s *DatabaseStore) GetEventVenueID(ctx context.Context, eventID string) (st
 	return venueID, err
 }
 
-// GetEventStatus returns just an event's catalog status, for callers like
-// handleCreateReservation's booking gate that only need to check
-// PUBLISHED-vs-not and would otherwise pay for GetEvent's
-// GetOrganizerInventory seat-count aggregation for no reason on apigateway's
-// hottest write path. Do not use this as a substitute for GetEvent where
-// SeatsOpen/SeatsTotal are actually read.
+// GetEventStatus is the lean booking gate path; use GetEvent when seat counts
+// or other public event details are needed.
 func (s *DatabaseStore) GetEventStatus(ctx context.Context, eventID string) (string, error) {
 	var status string
 	err := s.db.QueryRowContext(ctx, `
@@ -713,11 +674,8 @@ func (s *DatabaseStore) GetEventStatus(ctx context.Context, eventID string) (str
 	return status, err
 }
 
-// CancelEvent marks an event cancelled. It is intentionally idempotent (the
-// WHERE clause excludes already-cancelled rows and a 0-row match, whether
-// because the event doesn't exist or was already cancelled, is not an error)
-// so a caller retrying handleCancelEvent after a partial failure (e.g. the
-// orderservice bulk-cancel call failing) can safely call this again.
+// CancelEvent is idempotent so handleCancelEvent can safely retry after a
+// partial failure between catalog update and orderservice bulk cancellation.
 func (s *DatabaseStore) CancelEvent(ctx context.Context, eventID string) error {
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE catalog.events SET status = 'CANCELLED' WHERE id = $1 AND status <> 'CANCELLED'
@@ -736,11 +694,8 @@ func (s *DatabaseStore) CreateAnnouncement(ctx context.Context, eventID, organiz
 	return a, err
 }
 
-// GetEventAnnouncements returns the most recent 100 announcements for an
-// event, newest first. handleEventAnnouncements is public, unauthenticated,
-// and cacheable, so this fixed cap bounds the response regardless of how many
-// announcements accumulate; a real event's announcement feed realistically
-// has at most dozens of entries, so cursor-based pagination isn't warranted.
+// GetEventAnnouncements returns the newest public announcements with a fixed
+// cap because feeds are small and cacheable.
 func (s *DatabaseStore) GetEventAnnouncements(ctx context.Context, eventID string) ([]EventAnnouncement, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, event_id, title, body, severity, created_at

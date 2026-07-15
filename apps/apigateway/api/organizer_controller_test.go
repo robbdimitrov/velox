@@ -196,13 +196,8 @@ func TestCancelEventIsIdempotentOnRetry(t *testing.T) {
 	}
 }
 
-// TestCancelEventReturns503WithoutCommittingWhenOrderServiceUnset confirms
-// handleCancelEvent checks orderservice availability before writing
-// catalog.events.status = 'CANCELLED', not after. Committing the catalog
-// write first and only then discovering orderservice is unreachable would
-// permanently mark the event cancelled while every outstanding order stays
-// untouched, with a client retry hitting the same 503 forever (the catalog
-// write is idempotent, so a retry is a silent no-op).
+// TestCancelEventReturns503WithoutCommittingWhenOrderServiceUnset keeps event
+// cancellation fail-closed before the catalog write when orderservice is absent.
 func TestCancelEventReturns503WithoutCommittingWhenOrderServiceUnset(t *testing.T) {
 	server := NewServerWithStore("test", nil, nil)
 	client := newTestClient(server)

@@ -83,13 +83,8 @@ func tracingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// securityHeadersMiddleware sets response headers that apply regardless of
-// route or outcome. apigateway only ever emits application/json or
-// text/event-stream (see writeJSON and the SSE handlers), never HTML, so the
-// CSP can stay fully locked down rather than carrying a browser-app baseline
-// this origin doesn't need. No Strict-Transport-Security or
-// upgrade-insecure-requests: this deployment has no TLS termination, and
-// sending either over plain HTTP would be a false guarantee to clients.
+// securityHeadersMiddleware sets API-wide headers. This origin serves only
+// JSON/SSE over the no-TLS local runtime, so CSP stays locked down and HSTS is omitted.
 func securityHeadersMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()

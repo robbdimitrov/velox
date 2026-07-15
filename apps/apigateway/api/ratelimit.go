@@ -80,11 +80,8 @@ func (rl *RateLimiter) Middleware(endpoint string, next http.HandlerFunc) http.H
 	return func(w http.ResponseWriter, r *http.Request) {
 		allowed, err := rl.allow(r.Context(), endpoint+":ip:"+clientIP(r))
 		if err != nil {
-			// Rate limiting is a soft dependency (Redis), but per
-			// docs/infrastructure.md's backpressure rules, mutation endpoints
-			// must fail closed (503, not silently allow) when it's degraded,
-			// so clients know to retry rather than seeing a generic error.
-			// The raw Redis error is logged server-side only, never returned.
+			// Mutation rate limiting fails closed when Redis is degraded; keep
+			// raw Redis details in server logs only.
 			slog.Error("rate limiter unavailable", "error", err)
 			writeError(w, http.StatusServiceUnavailable, "rate_limiter_unavailable")
 			return
@@ -97,19 +94,14 @@ func (rl *RateLimiter) Middleware(endpoint string, next http.HandlerFunc) http.H
 	}
 }
 
-// AuthedMiddleware enforces both an IP bucket and an account bucket, each
-// namespaced by endpoint so distinct routes never share a bucket. It must run
-// after authentication (per docs/architecture.md's auth -> rate limit
-// ingress pipeline) since it needs the authenticated user's ID.
+// AuthedMiddleware enforces endpoint-scoped IP and account buckets. It must
+// run after authentication because account buckets need the user ID.
 func (rl *RateLimiter) AuthedMiddleware(endpoint string, next func(http.ResponseWriter, *http.Request, User)) func(http.ResponseWriter, *http.Request, User) {
 	return func(w http.ResponseWriter, r *http.Request, user User) {
 		ipAllowed, err := rl.allow(r.Context(), endpoint+":ip:"+clientIP(r))
 		if err != nil {
-			// Rate limiting is a soft dependency (Redis), but per
-			// docs/infrastructure.md's backpressure rules, mutation endpoints
-			// must fail closed (503, not silently allow) when it's degraded,
-			// so clients know to retry rather than seeing a generic error.
-			// The raw Redis error is logged server-side only, never returned.
+			// Mutation rate limiting fails closed when Redis is degraded; keep
+			// raw Redis details in server logs only.
 			slog.Error("rate limiter unavailable", "error", err)
 			writeError(w, http.StatusServiceUnavailable, "rate_limiter_unavailable")
 			return
@@ -121,11 +113,8 @@ func (rl *RateLimiter) AuthedMiddleware(endpoint string, next func(http.Response
 
 		accountAllowed, err := rl.allow(r.Context(), endpoint+":account:"+user.ID)
 		if err != nil {
-			// Rate limiting is a soft dependency (Redis), but per
-			// docs/infrastructure.md's backpressure rules, mutation endpoints
-			// must fail closed (503, not silently allow) when it's degraded,
-			// so clients know to retry rather than seeing a generic error.
-			// The raw Redis error is logged server-side only, never returned.
+			// Mutation rate limiting fails closed when Redis is degraded; keep
+			// raw Redis details in server logs only.
 			slog.Error("rate limiter unavailable", "error", err)
 			writeError(w, http.StatusServiceUnavailable, "rate_limiter_unavailable")
 			return

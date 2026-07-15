@@ -64,19 +64,14 @@ func NewServerWithStore(secret string, store *DatabaseStore, cacheClient *redis.
 	return s
 }
 
-// SetOrderServiceURL accepts the create-order endpoint URL (e.g.
-// "http://orderservice/orders") and derives the base URL used for every
-// orderservice call, including order creation itself, order-scoped actions
-// like confirm/cancel, and event cancellation ("http://orderservice") from
-// it, so callers only configure orderservice's location once.
+// SetOrderServiceURL accepts the create-order URL and derives the base URL for
+// all orderservice calls, so callers configure orderservice once.
 func (s *Server) SetOrderServiceURL(url string) {
 	s.orderSvcBaseURL = strings.TrimSuffix(url, "/orders")
 }
 
-// SetTokenIssuerAudience overrides the session/QR token iss/aud claims,
-// e.g. from JWT_ISSUER/JWT_AUDIENCE deployment config. Empty values are
-// ignored so callers can pass through unset env vars without clobbering the
-// defaults set in NewServerWithStore.
+// SetTokenIssuerAudience overrides token iss/aud claims; empty values preserve
+// NewServerWithStore defaults for unset deployment env vars.
 func (s *Server) SetTokenIssuerAudience(issuer, audience string) {
 	if issuer != "" {
 		s.tokenIssuer = issuer

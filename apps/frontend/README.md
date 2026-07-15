@@ -1,6 +1,6 @@
 # Velox Frontend
 
-SvelteKit SSR scaffold for buyer discovery, real-time seat selection, checkout, wallet, and vendor operations.
+SvelteKit SSR frontend for buyer discovery, real-time seat selection, checkout, wallet, and organizer operations.
 
 ## Commands
 
@@ -10,7 +10,7 @@ npm run check
 npm run build
 ```
 
-Dependencies are declared in `package.json`; this scaffold intentionally does not vendor `node_modules`.
+Dependencies are declared in `package.json`; `node_modules` is not vendored.
 
 ## Gateway Configuration
 

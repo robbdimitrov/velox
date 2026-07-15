@@ -8,7 +8,7 @@ Failure mode:
 
 - Read API saturates projection store.
 - CDN misses align at the same second.
-- WebSocket fanout repeatedly serializes identical snapshots.
+- Live fanout repeatedly serializes identical snapshots.
 
 Required controls:
 
@@ -26,7 +26,7 @@ SET hotload:{event_id}:{section_id} worker_id NX PX 1000
 Only the lock holder refreshes the projection snapshot. Other requests receive
 stale data that is marked with `snapshot_age_ms`.
 
-WebSocket rule: broadcast deltas, not full maps. A delta must include only
+Live-update rule: broadcast deltas, not full maps. A delta must include only
 changed seats:
 
 ```json
@@ -140,7 +140,7 @@ may lag.
 Rules:
 
 - Include `projection_lag_ms` in read API metadata.
-- Seat selector must favor WebSocket deltas over stale snapshot reads.
+- Seat selector must favor live deltas over stale snapshot reads.
 - Checkout must validate reservation tokens against command services, not
   projections.
 - If lag exceeds the configured threshold, freeze risky actions and show stale
@@ -178,7 +178,7 @@ Rules:
 - Reservation endpoints return `429` or `503` when Redis, Kafka, or
   `seatservice` health is degraded.
 - Checkout must fail closed if idempotency storage is unavailable.
-- WebSocket gateways should drop nonessential ticker messages before seat-state
+- Live gateways should drop nonessential ticker messages before seat-state
   messages.
 
 ## Dependency Connection Lifetimes and Probes

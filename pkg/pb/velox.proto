@@ -175,10 +175,8 @@ message SeatTicketUpgraded {
   Money price_delta = 5;
 }
 
-// EventCancelled is published once per organizer-initiated event
-// cancellation (aggregate_id is the catalog event_id, not an order_id).
-// seatservice fans it out into one SeatReservationCancelled per seat stream
-// still HELD or SOLD for that event.
+// EventCancelled is published once per organizer event cancellation.
+// seatservice fans it out to cancellable seat streams for that event.
 message EventCancelled {
   EventMetadata metadata = 1;
   string event_id = 2;

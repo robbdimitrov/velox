@@ -127,11 +127,8 @@ func (s *Store) CreateOrder(ctx context.Context, req OrderRequest) (string, erro
 		total += price
 	}
 
-	// "res_" + orderID matches the reservation ID convention apigateway
-	// already assumes everywhere else (see completePendingReservation in
-	// apps/apigateway/api/reservation_controller.go), so any client reading
-	// the order back via GET rather than the original create response still
-	// sees a reservation_id that forwardOrderAction's TrimPrefix can recover.
+	// Keep reservation_id reversible for apigateway forwardOrderAction, even
+	// when clients read the order via GET instead of the create response.
 	reservationID := "res_" + orderID
 
 	_, err = tx.ExecContext(ctx, `
@@ -171,8 +168,7 @@ func (s *Store) CreateOrder(ctx context.Context, req OrderRequest) (string, erro
 	payloadBytes, _ := json.Marshal(envelope)
 
 	headers := map[string]string{}
-	// Since we are in orderservice package 'internal', we don't have access to 'main.RequestIDKey'
-	// Wait, I will use a string key or define it in 'internal'
+	// Propagate request IDs from the gateway context into outbox headers.
 	if reqID, ok := ctx.Value("request_id").(string); ok && reqID != "" {
 		headers["X-Request-ID"] = reqID
 	}
@@ -202,10 +198,8 @@ func (s *Store) CreateOrder(ctx context.Context, req OrderRequest) (string, erro
 	return orderID, nil
 }
 
-// ConfirmOrder transitions an order from HELD to CONFIRMED in response to an
-// explicit user confirmation. It is idempotent: confirming an already
-// CONFIRMED order returns its current status rather than an error, so a
-// retried confirm request never fails.
+// ConfirmOrder is idempotent: confirming an already CONFIRMED order returns
+// its current status so retried confirms do not fail.
 func (s *Store) ConfirmOrder(ctx context.Context, orderID string) (string, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

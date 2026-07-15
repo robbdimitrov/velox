@@ -56,8 +56,8 @@ func TestOrderEvents(t *testing.T) {
 		t.Fatalf("expected status PENDING, got %s", got)
 	}
 
-	if len(p.VendorOrderIDs["event1"]) != 1 || p.VendorOrderIDs["event1"][0] != "order1" {
-		t.Fatalf("expected vendor order ID to be recorded")
+	if len(p.OrganizerOrderIDs["event1"]) != 1 || p.OrganizerOrderIDs["event1"][0] != "order1" {
+		t.Fatalf("expected organizer order ID to be recorded")
 	}
 }
 
@@ -83,31 +83,25 @@ func TestOrderCancelledAndExpiredEvents(t *testing.T) {
 			t.Fatalf("expected status %s, got %s", tc.status, got)
 		}
 
-		if len(p.VendorOrderIDs["event1"]) != 1 || p.VendorOrderIDs["event1"][0] != "order1" {
-			t.Fatalf("expected vendor order ID to be recorded")
+		if len(p.OrganizerOrderIDs["event1"]) != 1 || p.OrganizerOrderIDs["event1"][0] != "order1" {
+			t.Fatalf("expected organizer order ID to be recorded")
 		}
 	}
 }
 
 func TestAllowsZeroAggregateVersion(t *testing.T) {
 	p := NewProjector()
-	// Set an initial version
 	if err := p.Apply(Event{EventID: "evt1", AggregateID: "seat1", AggregateVersion: 2, Type: "SeatReservationHeld"}); err != nil {
 		t.Fatal(err)
 	}
-	// Try applying an event with AggregateVersion 0 (e.g. from a legacy system or external event)
 	err := p.Apply(Event{EventID: "evt2", AggregateID: "seat1", AggregateVersion: 0, Type: "SeatReservationExpired"})
 	if err != nil {
 		t.Fatalf("expected nil error for zero aggregate version, got %v", err)
 	}
 }
 
-// orderservice's real Kafka envelope has no top-level event_id/aggregate_id;
-// everything is nested under "Order" with "outbox_event_id"/"order_id".
-// ResolvedEventID/ResolvedAggregateID must fall back to those nested fields.
-// A struct literal setting EventID directly (as every other test in this file
-// does) can't catch a regression here, since it never exercises the JSON
-// unmarshal + empty-top-level-field path that broke in production.
+// orderservice nests IDs under Order; this fixture exercises the JSON path
+// where top-level event_id and aggregate_id are absent.
 const orderConfirmedEnvelope = `{
 	"Type": "OrderConfirmed",
 	"Order": {

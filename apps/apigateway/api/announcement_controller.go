@@ -24,10 +24,8 @@ type createAnnouncementRequest struct {
 	Severity string `json:"severity,omitempty"`
 }
 
-// handleCreateAnnouncement lets an event's organizer post a public update
-// (e.g. a schedule change or cancellation notice) that anyone viewing the
-// event page can read via handleEventAnnouncements. There is no live push;
-// clients simply re-fetch the list.
+// handleCreateAnnouncement posts public organizer updates. There is no live
+// push; event pages re-fetch the cacheable list.
 func (s *Server) handleCreateAnnouncement(w http.ResponseWriter, r *http.Request, user User) {
 	eventID := r.PathValue("eventId")
 	if !s.organizerOwnsEvent(r.Context(), eventID, user) {

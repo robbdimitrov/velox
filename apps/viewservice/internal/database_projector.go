@@ -162,11 +162,11 @@ func (s *DatabaseStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 			return err
 		}
 
-		vendorNotificationPayload, err := json.Marshal(map[string]any{
+		organizerNotificationPayload, err := json.Marshal(map[string]any{
 			"event_id": event.Seat.EventID,
 		})
 		if err == nil {
-			if _, err := tx.ExecContext(ctx, "SELECT pg_notify('vendor_updates', $1)", string(vendorNotificationPayload)); err != nil {
+			if _, err := tx.ExecContext(ctx, "SELECT pg_notify('vendor_updates', $1)", string(organizerNotificationPayload)); err != nil {
 				return err
 			}
 		}
@@ -187,11 +187,11 @@ func (s *DatabaseStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 		}
 
 		if event.Order.EventID != "" {
-			vendorNotificationPayload, err := json.Marshal(map[string]any{
+			organizerNotificationPayload, err := json.Marshal(map[string]any{
 				"event_id": event.Order.EventID,
 			})
 			if err == nil {
-				if _, err := tx.ExecContext(ctx, "SELECT pg_notify('vendor_updates', $1)", string(vendorNotificationPayload)); err != nil {
+				if _, err := tx.ExecContext(ctx, "SELECT pg_notify('vendor_updates', $1)", string(organizerNotificationPayload)); err != nil {
 					return err
 				}
 			}

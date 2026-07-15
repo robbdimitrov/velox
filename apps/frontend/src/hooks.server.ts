@@ -34,8 +34,7 @@ export const handle: Handle = async ({ event, resolve }) => {
     'Permissions-Policy',
     'camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=()'
   );
-  // No Strict-Transport-Security or upgrade-insecure-requests: this
-  // deployment has no TLS termination (see docs/deployment.md), so either
-  // would promise a guarantee the transport doesn't hold.
+  // Local deployment has no TLS termination, so HSTS and
+  // upgrade-insecure-requests would be false guarantees.
   return response;
 };

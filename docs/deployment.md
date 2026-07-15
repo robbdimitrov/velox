@@ -1,7 +1,7 @@
 # Deployment Support
 
-Velox deployment artifacts now include runtime images, database initialization,
-Kubernetes manifests, and a local deploy script for the reservation MVP.
+Velox deployment artifacts include runtime images, database initialization,
+Kubernetes manifests, and a local deploy script.
 
 ## Protobuf
 
@@ -13,7 +13,7 @@ The reservation MVP transport contract lives in `pkg/pb/velox.proto`. It covers:
 - order, reservation, ticket, and seat-delta messages used by the order, seat,
   and view services.
 
-Generated language bindings are not committed yet.
+Generated language bindings are not committed.
 
 ## Database
 
@@ -26,10 +26,10 @@ PostgreSQL schemas:
 - `projection`: processed-event dedupe, seat snapshots, order summaries, and
   wallet tickets.
 
-`apps/database/seeds/001_demo_reservation_mvp.sql` adds a small demo event seat
-set for local smoke testing. The local database image copies migrations and
-seeds into Postgres' `docker-entrypoint-initdb.d` directory, so a fresh volume
-is initialized on first startup.
+`apps/database/seeds/999_demo_reservation_mvp.sql` adds demo reservation data
+for local smoke testing. The database image copies migrations and seeds into
+Postgres' `docker-entrypoint-initdb.d`, so a fresh volume initializes on first
+startup.
 
 ## Kubernetes
 

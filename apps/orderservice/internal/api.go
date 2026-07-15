@@ -117,10 +117,8 @@ func (api *API) HandleCancelOrder(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// HandleCancelEvent cancels every outstanding order (PENDING, HELD, or
-// CONFIRMED) for an event, used when an organizer cancels the entire event.
-// An event with zero orders is a valid request and returns cancelled_orders:
-// 0, so there is no not-found case to map here.
+// HandleCancelEvent bulk-cancels outstanding orders for organizer event
+// cancellation. Zero matching orders is valid and returns cancelled_orders: 0.
 func (api *API) HandleCancelEvent(w http.ResponseWriter, r *http.Request) {
 	eventID := r.PathValue("id")
 	cancelled, err := api.Store.CancelOrdersForEvent(r.Context(), eventID)

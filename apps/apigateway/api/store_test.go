@@ -8,12 +8,8 @@ import (
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 )
 
-// TestGetEventAnnouncementsCapsResultSet confirms GetEventAnnouncements' query
-// carries a fixed LIMIT so the public, unauthenticated announcements endpoint
-// can never be made to return an unbounded result set (AGENTS.md's Secure
-// Engineering section requires bounding collection sizes at the point untrusted
-// requests read them). The regex requires "LIMIT 100" to appear after the
-// ORDER BY clause, so this fails if the cap is ever dropped.
+// TestGetEventAnnouncementsCapsResultSet keeps the public announcements read
+// bounded; LIMIT 100 must remain after ORDER BY.
 func TestGetEventAnnouncementsCapsResultSet(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -40,15 +36,8 @@ func TestGetEventAnnouncementsCapsResultSet(t *testing.T) {
 	}
 }
 
-// TestGetTicketLedgerQueriesByStreamKeyNotCorrelationID confirms the ledger
-// query keys on the seat's own stream_key rather than an order's
-// correlation_id. A whole-event cancellation's SeatReservationCancelled
-// carries the catalog event_id as its correlation_id (not any single
-// order_id, since one fan-out spans many orders) - querying by
-// correlation_id=orderID would silently omit that entry from a cancelled
-// ticket's ledger. This test's mocked row set could only ever satisfy a
-// stream_key-based query: it has no correlation_id column in the WHERE
-// clause's bound argument at all.
+// TestGetTicketLedgerQueriesByStreamKeyNotCorrelationID ensures event-wide
+// cancellation entries stay visible even though their correlation_id is event-scoped.
 func TestGetTicketLedgerQueriesByStreamKeyNotCorrelationID(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -80,11 +69,8 @@ func TestGetTicketLedgerQueriesByStreamKeyNotCorrelationID(t *testing.T) {
 	}
 }
 
-// TestGetEventVenueIDReturnsVenueWithoutInventoryQuery confirms the lean
-// ownership-check path queries only catalog.events for venue_id and never
-// touches GetOrganizerInventory's seat-count aggregation over
-// projection.seat_snapshots, which GetEvent wastefully runs and discards when
-// only venue ownership is being checked.
+// TestGetEventVenueIDReturnsVenueWithoutInventoryQuery keeps ownership checks
+// from paying for unrelated inventory aggregation.
 func TestGetEventVenueIDReturnsVenueWithoutInventoryQuery(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -132,12 +118,8 @@ func TestGetEventVenueIDReturnsNotFoundForMissingEvent(t *testing.T) {
 	}
 }
 
-// TestGetEventStatusReturnsStatusWithoutInventoryQuery confirms
-// handleCreateReservation's booking-race gate queries only catalog.events for
-// status and never touches GetOrganizerInventory's seat-count aggregation
-// over projection.seat_snapshots, which GetEvent wastefully runs and discards
-// when only PUBLISHED-vs-not is being checked on apigateway's hottest write
-// path.
+// TestGetEventStatusReturnsStatusWithoutInventoryQuery keeps the reservation
+// booking gate on the lean status query.
 func TestGetEventStatusReturnsStatusWithoutInventoryQuery(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

@@ -372,11 +372,7 @@ func TestCancelOrder_IdempotentWhenAlreadyCancelled(t *testing.T) {
 }
 
 // TestCancelOrdersForEvent_TransitionsPendingHeldAndConfirmed verifies the
-// single-transaction, batched implementation: one UPDATE ... RETURNING
-// matches every order left cancellable by its WHERE status IN (...) clause
-// (PENDING, HELD, or CONFIRMED alike, since that clause is itself the atomic
-// check-and-set), one outbox row is inserted per row returned, and the whole
-// event's cancellation commits once instead of once per order.
+// single-transaction bulk cancel and one outbox row per returned order.
 func TestCancelOrdersForEvent_TransitionsPendingHeldAndConfirmed(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -425,10 +421,8 @@ func TestCancelOrdersForEvent_TransitionsPendingHeldAndConfirmed(t *testing.T) {
 	}
 }
 
-// TestCancelOrdersForEvent_SkipsAlreadyCancelled verifies that an
-// already-CANCELLED order is excluded by the UPDATE's WHERE status IN (...)
-// clause: the batched statement simply never returns it, so it is not
-// re-cancelled and not double-counted.
+// TestCancelOrdersForEvent_SkipsAlreadyCancelled ensures already-cancelled
+// orders are not returned, re-cancelled, or double-counted.
 func TestCancelOrdersForEvent_SkipsAlreadyCancelled(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -496,12 +490,8 @@ func TestCancelOrdersForEvent_NoOrdersForEvent(t *testing.T) {
 	}
 }
 
-// TestWriteEventCancelledOutboxTx_DeterministicDedupID confirms that two
-// separate calls for the same eventID produce the identical payload-level
-// outbox_event_id, which is what lets seatservice's inventory.processed_events
-// dedup recognize a retried cancel instead of reprocessing it. The
-// orders.outbox_events.id row primary key itself is allowed, and expected, to
-// differ between the two calls.
+// TestWriteEventCancelledOutboxTx_DeterministicDedupID keeps retried event
+// cancellation dedup stable while row primary keys remain unique.
 func TestWriteEventCancelledOutboxTx_DeterministicDedupID(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -552,12 +542,8 @@ func TestWriteEventCancelledOutboxTx_DeterministicDedupID(t *testing.T) {
 	if dedupIDs[0] != eventCancelledDedupID(eventID) {
 		t.Fatalf("payload outbox_event_id = %q, want %q", dedupIDs[0], eventCancelledDedupID(eventID))
 	}
-	// Must be a syntactically valid UUID: viewservice also consumes
-	// order.events.v1 and keys its own dedup check on
-	// projection.processed_events.event_id, a uuid-typed column (unlike
-	// seatservice's TEXT-typed equivalent) - a non-UUID value here breaks
-	// every EventCancelled message for viewservice with a Postgres
-	// "invalid input syntax for type uuid" error.
+	// viewservice dedups order events in a uuid-typed column, so EventCancelled
+	// outbox IDs must remain syntactically valid UUIDs.
 	if _, err := uuid.Parse(dedupIDs[0]); err != nil {
 		t.Fatalf("payload outbox_event_id %q is not a valid UUID: %v", dedupIDs[0], err)
 	}
