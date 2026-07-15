@@ -6,7 +6,6 @@ metadata:
 data:
   KAFKA_BROKERS: broker.velox.svc.cluster.local:9092
   REDIS_ADDR: cache.velox.svc.cluster.local:6379
-  PUBLIC_GATEWAY_BASE_URL: http://localhost:8081
   ORDER_EVENTS_TOPIC: order.events.v1
   INVENTORY_EVENTS_TOPIC: inventory.events.v1
   POSTGRES_DB: velox

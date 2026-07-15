@@ -3,7 +3,6 @@
 KUBECTL ?= kubectl
 IMAGE_PREFIX ?= localhost:5000/velox
 GIT_SHA ?= $(shell git rev-parse --short HEAD)
-PUBLIC_GATEWAY_BASE_URL ?= http://localhost:8081
 
 .PHONY: all
 all: apigateway orderservice seatservice viewservice frontend database
@@ -84,7 +83,7 @@ build:
 
 .PHONY: frontend
 frontend:
-	docker build --build-arg PUBLIC_GATEWAY_BASE_URL=$(PUBLIC_GATEWAY_BASE_URL) -t $(IMAGE_PREFIX)-frontend:$(GIT_SHA) apps/frontend
+	docker build -t $(IMAGE_PREFIX)-frontend:$(GIT_SHA) apps/frontend
 	docker push $(IMAGE_PREFIX)-frontend:$(GIT_SHA)
 
 .PHONY: database

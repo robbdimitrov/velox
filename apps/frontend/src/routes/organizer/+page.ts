@@ -1,8 +1,10 @@
-import { env } from '$env/dynamic/public';
 import type { PageLoad } from './$types';
 
+// Same-origin proxy path used by every other gateway call in this app (see
+// apps/frontend/src/routes/api/[...path]/+server.ts) so this SSE connection
+// doesn't need a cross-origin CSP connect-src allowance.
 export const load: PageLoad = async () => {
   return {
-    gatewayBaseURL: env.PUBLIC_GATEWAY_BASE_URL || 'http://localhost:8080'
+    gatewayBaseURL: '/api'
   };
 };
