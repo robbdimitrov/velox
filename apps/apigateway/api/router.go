@@ -53,7 +53,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /organizer/events/{eventId}/announcements", s.requireRole(RoleOrganizer, s.handleCreateAnnouncement))
 	mux.HandleFunc("POST /organizer/events/{eventId}/cancel", s.requireRole(RoleOrganizer, s.handleCancelEvent))
 	handler := limitBody(mux, 1<<20)
-	return tracingMiddleware(handler)
+	return securityHeadersMiddleware(tracingMiddleware(handler))
 }
 
 type contextKey string
@@ -79,6 +79,25 @@ func tracingMiddleware(next http.Handler) http.Handler {
 			"remote_addr", r.RemoteAddr,
 		)
 
+		next.ServeHTTP(w, r)
+	})
+}
+
+// securityHeadersMiddleware sets response headers that apply regardless of
+// route or outcome. apigateway only ever emits application/json or
+// text/event-stream (see writeJSON and the SSE handlers), never HTML, so the
+// CSP can stay fully locked down rather than carrying a browser-app baseline
+// this origin doesn't need. No Strict-Transport-Security or
+// upgrade-insecure-requests: this deployment has no TLS termination, and
+// sending either over plain HTTP would be a false guarantee to clients.
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("X-Frame-Options", "DENY")
+		h.Set("X-XSS-Protection", "0")
+		h.Set("Referrer-Policy", "no-referrer")
+		h.Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
 		next.ServeHTTP(w, r)
 	})
 }

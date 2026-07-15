@@ -9,27 +9,33 @@ export const handle: Handle = async ({ event, resolve }) => {
 
   if (!sessionToken) {
     event.locals.user = null;
-    return resolve(event);
-  }
+  } else {
+    try {
+      // Use global fetch against the gateway; event.fetch('/api/auth/me') would
+      // re-enter this handle hook and recurse with the same session cookie.
+      const response = await fetch(`${GATEWAY_URL}/auth/me`, {
+        headers: {
+          cookie: `velox_session=${sessionToken}`
+        }
+      });
 
-  try {
-    // Use global fetch against the gateway; event.fetch('/api/auth/me') would
-    // re-enter this handle hook and recurse with the same session cookie.
-    const response = await fetch(`${GATEWAY_URL}/auth/me`, {
-      headers: {
-        cookie: `velox_session=${sessionToken}`
-      }
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      event.locals.user = data;
-    } else {
+      event.locals.user = response.ok ? await response.json() : null;
+    } catch {
       event.locals.user = null;
     }
-  } catch {
-    event.locals.user = null;
   }
 
-  return resolve(event);
+  const response = await resolve(event);
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+  response.headers.set(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=()'
+  );
+  // No Strict-Transport-Security or upgrade-insecure-requests: this
+  // deployment has no TLS termination (see docs/deployment.md), so either
+  // would promise a guarantee the transport doesn't hold.
+  return response;
 };

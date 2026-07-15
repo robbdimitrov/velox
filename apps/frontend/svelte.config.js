@@ -5,7 +5,28 @@ import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 const config = {
   preprocess: vitePreprocess(),
   kit: {
-    adapter: adapter()
+    adapter: adapter(),
+    csp: {
+      mode: 'nonce',
+      directives: {
+        'default-src': ['self'],
+        'script-src': ['self'],
+        'style-src': ['self', 'https://fonts.googleapis.com'],
+        // Seat map (SeatCanvas.svelte) and health-panel gauges compute
+        // per-render pixel sizes and cursor state as inline style attributes;
+        // that content can't be hashed or known ahead of time, so this
+        // trades attribute-level styling only, not script-src or style-src.
+        'style-src-attr': ['unsafe-inline'],
+        'img-src': ['self'],
+        'connect-src': ['self'],
+        'font-src': ['self', 'https://fonts.gstatic.com'],
+        'object-src': ['none'],
+        'base-uri': ['self'],
+        'form-action': ['self'],
+        'frame-ancestors': ['none'],
+        'frame-src': ['none']
+      }
+    }
   }
 };
 
