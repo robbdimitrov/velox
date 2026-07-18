@@ -2,26 +2,18 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: velox-service-config
-  namespace: velox
 data:
-  KAFKA_BROKERS: broker.velox.svc.cluster.local:9092
-  REDIS_ADDR: cache.velox.svc.cluster.local:6379
+  KAFKA_BROKERS: broker:9092
+  REDIS_ADDR: cache:6379
   ORDER_EVENTS_TOPIC: order.events.v1
   INVENTORY_EVENTS_TOPIC: inventory.events.v1
   POSTGRES_DB: velox
   POSTGRES_USER: velox
 ---
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: velox-runtime
-  namespace: velox
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: apigateway
-  namespace: velox
   labels:
     app.kubernetes.io/name: apigateway
     app.kubernetes.io/part-of: velox
@@ -36,11 +28,24 @@ spec:
         app.kubernetes.io/name: apigateway
         app.kubernetes.io/part-of: velox
     spec:
-      serviceAccountName: velox-runtime
+      serviceAccountName: apigateway
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: apigateway
           image: ghcr.io/example/velox-apigateway:dev
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           ports:
             - name: http
               containerPort: 8080
@@ -49,14 +54,14 @@ spec:
                 name: velox-service-config
           env:
             - name: ORDER_SERVICE_ADDR
-              value: orderservice.velox.svc.cluster.local:9000
+              value: orderservice:9000
             - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: velox-database-secret
                   key: password
             - name: DATABASE_URL
-              value: user=velox password=$(DATABASE_PASSWORD) host=database.velox.svc.cluster.local port=5432 dbname=velox sslmode=disable
+              value: user=velox password=$(DATABASE_PASSWORD) host=database port=5432 dbname=velox sslmode=disable
             - name: VELOX_SESSION_SECRET
               valueFrom:
                 secretKeyRef:
@@ -99,7 +104,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: apigateway
-  namespace: velox
 spec:
   selector:
     app.kubernetes.io/name: apigateway
@@ -112,7 +116,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: orderservice
-  namespace: velox
   labels:
     app.kubernetes.io/name: orderservice
     app.kubernetes.io/part-of: velox
@@ -127,11 +130,24 @@ spec:
         app.kubernetes.io/name: orderservice
         app.kubernetes.io/part-of: velox
     spec:
-      serviceAccountName: velox-runtime
+      serviceAccountName: orderservice
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: orderservice
           image: ghcr.io/example/velox-orderservice:dev
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           ports:
             - name: http
               containerPort: 8080
@@ -140,7 +156,7 @@ spec:
                 name: velox-service-config
           env:
             - name: DATABASE_HOST
-              value: database.velox.svc.cluster.local
+              value: database
             - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -178,7 +194,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: orderservice
-  namespace: velox
 spec:
   selector:
     app.kubernetes.io/name: orderservice
@@ -191,7 +206,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: seatservice
-  namespace: velox
   labels:
     app.kubernetes.io/name: seatservice
     app.kubernetes.io/part-of: velox
@@ -206,11 +220,24 @@ spec:
         app.kubernetes.io/name: seatservice
         app.kubernetes.io/part-of: velox
     spec:
-      serviceAccountName: velox-runtime
+      serviceAccountName: seatservice
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: seatservice
           image: ghcr.io/example/velox-seatservice:dev
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           ports:
             - name: http
               containerPort: 8080
@@ -219,7 +246,7 @@ spec:
                 name: velox-service-config
           env:
             - name: DATABASE_HOST
-              value: database.velox.svc.cluster.local
+              value: database
             - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -262,7 +289,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: seatservice
-  namespace: velox
 spec:
   selector:
     app.kubernetes.io/name: seatservice
@@ -275,7 +301,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: viewservice
-  namespace: velox
   labels:
     app.kubernetes.io/name: viewservice
     app.kubernetes.io/part-of: velox
@@ -290,11 +315,24 @@ spec:
         app.kubernetes.io/name: viewservice
         app.kubernetes.io/part-of: velox
     spec:
-      serviceAccountName: velox-runtime
+      serviceAccountName: viewservice
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: viewservice
           image: ghcr.io/example/velox-viewservice:dev
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           ports:
             - name: http
               containerPort: 8080
@@ -303,7 +341,7 @@ spec:
                 name: velox-service-config
           env:
             - name: DATABASE_HOST
-              value: database.velox.svc.cluster.local
+              value: database
             - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -341,7 +379,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: viewservice
-  namespace: velox
 spec:
   selector:
     app.kubernetes.io/name: viewservice
@@ -354,7 +391,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: frontend
-  namespace: velox
   labels:
     app.kubernetes.io/name: frontend
     app.kubernetes.io/part-of: velox
@@ -369,11 +405,24 @@ spec:
         app.kubernetes.io/name: frontend
         app.kubernetes.io/part-of: velox
     spec:
-      serviceAccountName: velox-runtime
+      serviceAccountName: frontend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: frontend
           image: ghcr.io/example/velox-frontend:dev
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           ports:
             - name: http
               containerPort: 8080
@@ -394,12 +443,17 @@ spec:
               path: /
               port: http
             periodSeconds: 10
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: frontend
-  namespace: velox
 spec:
   selector:
     app.kubernetes.io/name: frontend

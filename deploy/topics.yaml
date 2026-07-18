@@ -2,7 +2,6 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: broker-topics-init
-  namespace: velox
   labels:
     app.kubernetes.io/name: broker-topics-init
     app.kubernetes.io/part-of: velox
@@ -15,10 +14,24 @@ spec:
         app.kubernetes.io/part-of: velox
     spec:
       restartPolicy: OnFailure
+      serviceAccountName: broker-topics-init
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: create-topics
           image: redpandadata/redpanda:v24.2.9
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            # readOnlyRootFilesystem omitted: rpk writes /etc/redpanda/redpanda.yaml on start.
+            capabilities:
+              drop:
+                - ALL
           # Retry transient NetworkPolicy propagation failures. Other rpk
           # errors are treated as idempotent topic-exists outcomes.
           command:
@@ -26,7 +39,7 @@ spec:
             - -c
             - |
               topics="order.events.v1 inventory.events.v1 dlq.order.events.v1 dlq.inventory.events.v1"
-              broker="broker.velox.svc.cluster.local:9092"
+              broker="broker:9092"
               attempt=0
               max_attempts=15
               while :; do

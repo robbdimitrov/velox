@@ -2,7 +2,6 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: velox-database-config
-  namespace: velox
 data:
   POSTGRES_DB: velox
   POSTGRES_USER: velox
@@ -11,7 +10,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: database
-  namespace: velox
   labels:
     app.kubernetes.io/name: database
     app.kubernetes.io/part-of: velox
@@ -27,7 +25,6 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: database
-  namespace: velox
   labels:
     app.kubernetes.io/name: database
     app.kubernetes.io/part-of: velox
@@ -43,10 +40,24 @@ spec:
         app.kubernetes.io/name: database
         app.kubernetes.io/part-of: velox
     spec:
+      serviceAccountName: database
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: database
           image: ghcr.io/example/velox-database:dev
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            # readOnlyRootFilesystem omitted: postgres writes PGDATA and socket/PID files.
+            capabilities:
+              drop:
+                - ALL
           ports:
             - name: database
               containerPort: 5432

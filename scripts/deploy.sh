@@ -179,9 +179,9 @@ build_images() {
 apply_file() {
   local file="$1"
   if [[ -n "$DRY_RUN" ]]; then
-    $KUBECTL apply --dry-run=client -f "$file"
+    $KUBECTL apply --dry-run=client -n "$NS" -f "$file"
   else
-    $KUBECTL apply -f "$file"
+    $KUBECTL apply -n "$NS" -f "$file"
   fi
 }
 
@@ -201,6 +201,9 @@ render_manifest() {
 }
 
 ensure_namespace() {
+  if [[ -n "$DRY_RUN" ]]; then
+    return
+  fi
   $KUBECTL create namespace "$NS" >/dev/null 2>&1 || true
 }
 
@@ -229,11 +232,9 @@ ensure_dev_secrets() {
 
 apply_manifests() {
   log "applying base manifests"
-  apply_file "$DEPLOY_DIR/namespace.yaml"
+  ensure_namespace
+  apply_file "$DEPLOY_DIR/serviceaccounts.yaml"
   apply_file "$DEPLOY_DIR/networkpolicy.yaml"
-  if [[ -z "$DRY_RUN" ]]; then
-    ensure_namespace
-  fi
   ensure_dev_secrets
 }
 

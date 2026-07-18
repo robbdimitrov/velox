@@ -2,7 +2,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: default-deny-ingress
-  namespace: velox
 spec:
   podSelector: {}
   policyTypes:
@@ -12,7 +11,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: default-deny-egress
-  namespace: velox
 spec:
   podSelector: {}
   policyTypes:
@@ -22,7 +20,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: dns-egress
-  namespace: velox
 spec:
   podSelector: {}
   policyTypes:
@@ -45,7 +42,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: frontend-egress
-  namespace: velox
 spec:
   podSelector:
     matchLabels:
@@ -67,7 +63,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: apigateway-egress
-  namespace: velox
 spec:
   podSelector:
     matchLabels:
@@ -103,7 +98,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: app-services-egress
-  namespace: velox
 spec:
   podSelector:
     matchExpressions:
@@ -135,7 +129,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: broker-topics-init-egress
-  namespace: velox
 spec:
   podSelector:
     matchLabels:
@@ -155,7 +148,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: broker-egress
-  namespace: velox
 spec:
   podSelector:
     matchLabels:
@@ -177,7 +169,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: frontend-ingress
-  namespace: velox
 spec:
   podSelector:
     matchLabels:
@@ -195,7 +186,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: apigateway-ingress
-  namespace: velox
 spec:
   podSelector:
     matchLabels:
@@ -217,7 +207,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: orderservice-ingress
-  namespace: velox
 spec:
   podSelector:
     matchLabels:
@@ -239,7 +228,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: viewservice-ingress
-  namespace: velox
 spec:
   podSelector:
     matchLabels:
@@ -259,7 +247,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: seatservice-ingress
-  namespace: velox
 spec:
   podSelector:
     matchLabels:
@@ -272,7 +259,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: database-ingress
-  namespace: velox
 spec:
   podSelector:
     matchLabels:
@@ -301,7 +287,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: broker-ingress
-  namespace: velox
 spec:
   podSelector:
     matchLabels:
@@ -336,7 +321,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: cache-ingress
-  namespace: velox
 spec:
   podSelector:
     matchLabels:

@@ -35,12 +35,19 @@ startup.
 
 Manifests live in `deploy/` and create:
 
-- `velox` namespace;
+- per-workload ServiceAccounts;
 - Database StatefulSet and service;
 - Broker StatefulSet and service;
 - Cache Deployment and service;
 - service Deployments for `frontend`, `apigateway`, `orderservice`,
   `seatservice`, and `viewservice`.
+
+No manifest sets its own namespace. `scripts/deploy.sh` creates the namespace
+named by `NS` (default `velox`) and applies every manifest into it with
+`kubectl apply -n`. Inter-service addresses use unqualified Service names
+(`broker`, `database`, `cache`, `orderservice`), which resolve within whatever
+namespace the pods actually run in, so `NS` can be overridden without editing
+any manifest.
 
 Secrets are referenced, not committed. `scripts/deploy.sh` creates or updates
 generated development secrets for local use. For shared or production-like

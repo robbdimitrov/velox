@@ -37,13 +37,13 @@ db-check:
 
 .PHONY: k8s-check
 k8s-check:
-	@$(KUBECTL) apply --dry-run=client -f deploy/namespace.yaml
-	@$(KUBECTL) apply --dry-run=client -f deploy/networkpolicy.yaml
-	@$(KUBECTL) apply --dry-run=client -f deploy/database.yaml
-	@$(KUBECTL) apply --dry-run=client -f deploy/broker.yaml
-	@$(KUBECTL) apply --dry-run=client -f deploy/cache.yaml
-	@$(KUBECTL) apply --dry-run=client -f deploy/topics.yaml
-	@$(KUBECTL) apply --dry-run=client -f deploy/services.yaml
+	@$(KUBECTL) apply --dry-run=client -n velox -f deploy/serviceaccounts.yaml
+	@$(KUBECTL) apply --dry-run=client -n velox -f deploy/networkpolicy.yaml
+	@$(KUBECTL) apply --dry-run=client -n velox -f deploy/database.yaml
+	@$(KUBECTL) apply --dry-run=client -n velox -f deploy/broker.yaml
+	@$(KUBECTL) apply --dry-run=client -n velox -f deploy/cache.yaml
+	@$(KUBECTL) apply --dry-run=client -n velox -f deploy/topics.yaml
+	@$(KUBECTL) apply --dry-run=client -n velox -f deploy/services.yaml
 
 .PHONY: format
 format:

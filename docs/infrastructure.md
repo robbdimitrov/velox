@@ -214,11 +214,33 @@ consumer loops. The script restarts PostgreSQL, cache, and broker workloads,
 then waits for the application deployments to remain rolled out. Override the
 namespace and wait budget with `NAMESPACE=...` and `TIMEOUT=...`.
 
+## Pod Identity and Hardening
+
+Every workload — application services, `frontend`, `database`, `cache`,
+`broker`, and `broker-topics-init` — runs under its own `ServiceAccount` with
+`automountServiceAccountToken: false`; none of them call the Kubernetes API.
+Pods run as a non-root UID matching the container image's native user
+(`65532` for the Go/Rust services, `1000` for `frontend`, `70` for
+`database`, `999` for `cache`, `101` for `broker` and
+`broker-topics-init`), drop all Linux capabilities, and deny privilege
+escalation.
+
+`readOnlyRootFilesystem` is enabled everywhere except:
+
+- `database`: PostgreSQL writes PGDATA and socket/PID files.
+- `broker` and `broker-topics-init`: `rpk` regenerates
+  `/etc/redpanda/redpanda.yaml` on start; mounting that path as a separate
+  volume breaks its advertised-listener validation for StatefulSet pod
+  hostnames.
+
+`frontend` and `cache` mount a writable `emptyDir` for `/tmp` and `/data`
+respectively to keep `readOnlyRootFilesystem` enabled.
+
 ## Network Policy
 
-The `velox` namespace uses default-deny ingress and egress policies. Every pod
-may resolve DNS through `kube-system` CoreDNS, and explicit egress rules mirror
-the current service graph:
+The namespace uses default-deny ingress and egress policies. Every pod may
+resolve DNS through `kube-system` CoreDNS, and explicit egress rules mirror the
+current service graph:
 
 - `frontend` may call `apigateway`.
 - `apigateway` may call `orderservice`, PostgreSQL, and Redis.
