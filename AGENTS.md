@@ -65,11 +65,15 @@ scripts/deploy.sh  # build images, apply manifests, and port-forward
 - Use precise names and standard initialisms. Prefer clarity over compressed
   code and named constants over repeated policy-significant literals.
 - Keep related fixes together; do not expand a task into unrelated cleanup.
-- Code should be self-documenting through clear structure, naming, and small
-  functions. Add comments only for constraints, invariants, security decisions,
-  or non-obvious intent.
-- Keep comments compact, usually 1-2 lines. Preserve required documentation
-  comments, such as Go exported identifier comments, but keep them concise.
+- Code should be self-documenting; default to no comment. Add one only for a
+  non-obvious constraint, invariant, or security/design decision — never to
+  narrate what the code does or preserve implementation history — and keep it
+  to 1-2 lines. Prefer a trailing clause on the code line when the comment
+  concerns that one line, e.g. `maxBatchSize = 500 // provider API caps
+  requests at 500 items; larger batches truncate silently`; use a short
+  standalone comment above the block when it doesn't attach to a single line,
+  e.g. explaining a whole function or parameter. Preserve required
+  documentation comments, e.g. Go exported identifier docs.
 - Do not suppress compiler, linter, type-checker, or test warnings to make
   checks pass. Fix the underlying issue. Use a narrowly scoped suppression only
   when required by an external API, generated code, or a documented false
