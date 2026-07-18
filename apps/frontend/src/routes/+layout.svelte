@@ -24,7 +24,7 @@
   <div
     class="fixed inset-0 z-[-1] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-signal/20 via-carbon to-carbon pointer-events-none"
   ></div>
-  <header class="sticky top-4 z-30 mx-auto max-w-7xl px-4 pt-2 pb-6">
+  <header class="app-shell sticky top-4 z-30 pt-2 pb-6">
     <nav
       class="glass-panel flex h-16 items-center justify-between px-6 shadow-glow"
     >
@@ -32,16 +32,14 @@
         href="/"
         class="flex items-center gap-2 text-2xl font-black uppercase tracking-tight hover:scale-105 transition-transform"
       >
-        <div
-          class="p-2 bg-gradient-to-br from-signal to-accent rounded shadow-lg shadow-signal/30"
-        >
-          <Ticket class="text-white" size={24} />
+        <div class="rounded bg-signal p-2 shadow-lg shadow-signal/30">
+          <Ticket class="text-carbon" size={24} />
         </div>
         Velox
       </a>
 
       <label
-        class="hidden md:flex items-center gap-2 bg-black/40 border border-white/10 rounded-full px-4 py-2 w-1/3 hover:border-signal/50 transition-colors shadow-inner"
+        class="velox-field hidden w-1/3 items-center gap-2 px-4 py-2 shadow-inner hover:border-signal/50 md:flex"
       >
         <Search size={18} class="text-inkMuted" />
         <input
@@ -81,7 +79,7 @@
               <li>
                 <a
                   href="/organizer"
-                  class="hover:bg-white/10 hover:text-info rounded transition-colors flex items-center gap-2"
+                  class="hover:bg-white/10 hover:text-signal rounded transition-colors flex items-center gap-2"
                   ><BriefcaseBusiness size={14} /> Host Events</a
                 >
               </li>
@@ -95,7 +93,7 @@
               <li>
                 <a
                   href="/api/auth/logout"
-                  class="hover:bg-white/10 hover:text-danger rounded transition-colors"
+                  class="hover:bg-white/10 hover:text-urgency rounded transition-colors"
                   >Logout</a
                 >
               </li>
@@ -109,7 +107,7 @@
             <LogIn size={16} /> Login
           </a>
           <a
-            class="btn btn-sm border-none bg-gradient-to-r from-signal to-accent text-white shadow-lg shadow-signal/20 hover:shadow-signal/40 hover:scale-105 rounded transition-all"
+            class="btn btn-sm velox-action rounded transition-all hover:scale-105"
             href="/register"
           >
             <UserPlus size={16} /> Register
@@ -119,7 +117,7 @@
     </nav>
   </header>
 
-  <div class="mx-auto max-w-7xl pt-4">
+  <div class="pt-4">
     {@render children()}
   </div>
 </div>

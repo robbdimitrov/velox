@@ -249,7 +249,7 @@
   }
 </script>
 
-<main class="grid gap-6 px-4 pb-8 xl:grid-cols-[280px_1fr_340px]">
+<main class="app-screen grid gap-6 xl:grid-cols-[280px_1fr_340px]">
   <aside class="glass-panel h-max p-5 xl:sticky xl:top-28">
     <div
       class="mb-5 flex items-center justify-between border-b border-white/10 pb-4"
@@ -270,7 +270,7 @@
         >
         <select
           bind:value={filterState.eventType}
-          class="select select-bordered select-sm rounded border-white/10 bg-black/40 focus:border-signal"
+          class="select select-bordered select-sm velox-field w-full"
         >
           {#each categoryOptions as category}
             <option>{category}</option>
@@ -284,7 +284,7 @@
         >
         <select
           bind:value={filterState.dateWindow}
-          class="select select-bordered select-sm rounded border-white/10 bg-black/40 focus:border-signal"
+          class="select select-bordered select-sm velox-field w-full"
         >
           {#each dateWindows as dateWindow}
             <option>{dateWindow}</option>
@@ -294,9 +294,7 @@
 
       <label class="form-control">
         <span class="label-text mb-1 font-medium text-inkMuted">City</span>
-        <div
-          class="flex items-center gap-2 rounded border border-white/10 bg-black/40 px-3 py-1.5 transition-colors focus-within:border-signal"
-        >
+        <div class="velox-field w-full flex items-center gap-2 px-3 py-1.5">
           <MapPin size={15} class="text-signal" />
           <select
             bind:value={filterState.city}
@@ -402,7 +400,7 @@
         <div class="flex flex-wrap gap-2">
           {#each categoryOptions as category}
             <button
-              class={`btn btn-xs rounded border border-white/10 px-3 uppercase ${filterState.eventType === category ? 'bg-signal text-carbon hover:bg-signalHover' : 'bg-black/40 text-inkMuted hover:border-signal hover:bg-black/60 hover:text-white'}`}
+              class={`btn btn-xs rounded border border-white/10 px-3 uppercase ${filterState.eventType === category ? 'velox-action hover:bg-signalHover' : 'bg-black/40 text-inkMuted hover:border-signal hover:bg-black/60 hover:text-white'}`}
               aria-pressed={filterState.eventType === category}
               onclick={() => (filterState.eventType = category)}
             >

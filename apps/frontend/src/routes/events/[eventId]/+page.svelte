@@ -83,7 +83,6 @@
     sectionID = data.snapshot.section_id;
     seatState.load(data.snapshot.seats, data.snapshot.server_time_ms);
     eventLog = ['Snapshot loaded from projection read model'];
-    // Reset zoom when section changes
     zoomLevel = 1;
   });
 
@@ -148,9 +147,7 @@
 {#if data.isRateLimited}
   <VirtualWaitingRoom />
 {:else}
-  <main
-    class="mx-auto grid max-w-7xl gap-6 px-4 py-8 lg:grid-cols-[260px_1fr_320px]"
-  >
+  <main class="app-screen grid gap-6 lg:grid-cols-[260px_1fr_320px]">
     {#if isCancelled}
       <div
         class="lg:col-span-3 flex items-center gap-3 rounded border border-urgency/50 bg-urgency/10 p-4 text-urgency"
@@ -165,10 +162,8 @@
 
     <aside class="glass-panel h-max p-6 sticky top-28">
       <div class="flex items-center gap-3 border-b border-white/10 pb-4 mb-6">
-        <div
-          class="p-2 bg-gradient-to-br from-signal to-primary rounded shadow-md"
-        >
-          <Layers class="text-white" size={18} />
+        <div class="rounded bg-signal p-2 shadow-md shadow-signal/20">
+          <Layers class="text-carbon" size={18} />
         </div>
         <h2 class="text-sm font-black uppercase tracking-wider text-white">
           Section Tools
@@ -180,7 +175,7 @@
         <select
           bind:value={sectionID}
           onchange={() => goto(`?section_id=${sectionID}`)}
-          class="select select-bordered select-sm border-white/10 bg-black/40 text-ink rounded focus:border-signal"
+          class="select select-bordered select-sm velox-field w-full text-ink"
         >
           <option>A</option>
           <option>B</option>
@@ -219,21 +214,21 @@
         class="space-y-3 border-t border-white/10 pt-6 text-xs uppercase font-bold tracking-wider text-inkMuted"
       >
         <p class="flex items-center gap-3">
-          <span class="inline-block h-3 w-3 rounded-full bg-[#9CA3AF]"></span> Available
+          <span class="inline-block h-3 w-3 rounded-full bg-inkMuted"></span> Available
         </p>
         <p class="flex items-center gap-3">
           <span
-            class="inline-block h-3 w-3 rounded-full bg-signal shadow-[0_0_8px_rgba(124,58,237,0.8)]"
+            class="inline-block h-3 w-3 rounded-full bg-signal shadow-[0_0_8px_rgba(250,204,21,0.8)]"
           ></span> Selected
         </p>
         <p class="flex items-center gap-3">
           <span
-            class="inline-block h-3 w-3 rounded-full bg-accent shadow-[0_0_8px_rgba(255,42,95,0.8)]"
+            class="inline-block h-3 w-3 rounded-full bg-urgency shadow-[0_0_8px_rgba(239,68,68,0.8)]"
           ></span> Held
         </p>
         <p class="flex items-center gap-3">
           <span
-            class="inline-block h-3 w-3 rounded-full bg-[#15151A] border border-white/20"
+            class="inline-block h-3 w-3 rounded-full border border-white/20 bg-panel"
           ></span> Sold
         </p>
       </div>
@@ -257,7 +252,7 @@
           </p>
         </div>
         <div
-          class="bg-black/40 px-3 py-1.5 rounded-full border border-white/5 flex flex-col items-end"
+          class="flex flex-col items-end rounded border border-white/5 bg-black/40 px-3 py-1.5"
         >
           <p class="font-mono text-xs text-ink/60 uppercase tracking-widest">
             Snapshot <span class="text-white"
@@ -354,7 +349,7 @@
             Selected Seats
           </h2>
           <button
-            class="btn btn-ghost btn-xs bg-black/20 hover:bg-signal hover:text-white rounded-full h-8 w-8 p-0 flex items-center justify-center transition-all"
+            class="btn btn-ghost btn-xs flex h-8 w-8 items-center justify-center rounded bg-black/20 p-0 transition-all hover:bg-signal hover:text-carbon"
             onclick={() =>
               seatState.load(data.snapshot.seats, data.snapshot.server_time_ms)}
           >

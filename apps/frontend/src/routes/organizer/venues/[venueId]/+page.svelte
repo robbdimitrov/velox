@@ -31,7 +31,7 @@
   ]);
 </script>
 
-<div class="p-8 max-w-7xl mx-auto">
+<div class="space-y-8">
   <div class="mb-8 flex justify-between items-end">
     <div>
       <h1 class="text-3xl font-black uppercase text-white tracking-tight">
@@ -41,10 +41,7 @@
         Venue: {venueId}
       </p>
     </div>
-    <button
-      class="btn bg-signal hover:bg-signal/80 border-none text-white rounded shadow-glow flex items-center gap-2"
-      onclick={() => (showModal = true)}
-    >
+    <button class="btn velox-action rounded" onclick={() => (showModal = true)}>
       <UserPlus size={18} />
       Invite Staff
     </button>
@@ -76,7 +73,7 @@
               <td class="px-6 py-4">
                 <div class="flex items-center gap-3">
                   <div
-                    class="w-8 h-8 rounded-full bg-gradient-to-br from-signal/40 to-primary/40 flex items-center justify-center text-white font-bold text-xs"
+                    class="flex h-8 w-8 items-center justify-center rounded bg-signal/20 text-xs font-bold text-signal"
                   >
                     {member.name.charAt(0)}
                   </div>
@@ -91,14 +88,14 @@
                   class="flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider text-inkMuted"
                 >
                   {#if member.role === 'ADMIN'}
-                    <Shield size={14} class="text-primary" />
+                    <Shield size={14} class="text-signal" />
                   {/if}
                   {member.role}
                 </div>
               </td>
               <td class="px-6 py-4">
                 <span
-                  class={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full border ${member.status === 'ACTIVE' ? 'border-ok/30 text-ok bg-ok/10' : 'border-warn/30 text-warn bg-warn/10'}`}
+                  class={`rounded border px-2 py-1 text-[10px] font-black uppercase tracking-widest ${member.status === 'ACTIVE' ? 'border-ok/30 text-ok bg-ok/10' : 'border-warn/30 text-warn bg-warn/10'}`}
                 >
                   {member.status}
                 </span>

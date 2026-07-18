@@ -21,7 +21,7 @@
   );
 </script>
 
-<main class="mx-auto max-w-6xl px-4 py-8">
+<main class="app-screen">
   <section class="glass-panel p-6">
     <div
       class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-6 mb-6"
@@ -39,7 +39,7 @@
         </p>
       </div>
       <div
-        class="flex items-center gap-2 font-mono text-sm font-bold text-ok bg-ok/10 border border-ok/20 px-4 py-2 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.2)]"
+        class="flex items-center gap-2 rounded border border-ok/20 bg-ok/10 px-4 py-2 font-mono text-sm font-bold text-ok shadow-[0_0_15px_rgba(16,185,129,0.2)]"
       >
         <ShieldCheck size={18} />
         {data.wallet.verification_state}
@@ -65,7 +65,7 @@
           >
             <div class="flex gap-5 p-5">
               <div
-                class="grid h-24 w-24 shrink-0 place-items-center rounded bg-white text-carbon shadow-inner group-hover:scale-105 transition-transform"
+                class="grid h-24 w-24 shrink-0 place-items-center rounded bg-white text-carbon shadow-inner transition-transform group-hover:scale-105"
                 title={ticket.qr_token}
               >
                 <QrCode size={64} />
@@ -78,7 +78,7 @@
                 </h2>
                 <p class="text-sm text-inkMuted font-medium">{ticket.venue}</p>
                 <div
-                  class="mt-2 inline-block bg-black/40 border border-white/5 rounded px-2 py-1 font-mono text-xs font-bold text-white shadow-sm"
+                  class="mt-2 inline-block rounded border border-white/5 bg-black/40 px-2 py-1 font-mono text-xs font-bold text-white shadow-sm"
                 >
                   {ticket.seat} <span class="text-ink/40 mx-1">|</span>
                   {ticket.status}
@@ -92,7 +92,7 @@
                 class="font-mono text-xs font-bold uppercase tracking-widest text-inkMuted flex items-center gap-2"
               >
                 <span
-                  class="w-1.5 h-1.5 rounded-full {ticket.transfer_status ===
+                  class="h-1.5 w-1.5 rounded-full {ticket.transfer_status ===
                   'AVAILABLE'
                     ? 'bg-ok shadow-[0_0_5px_rgba(16,185,129,0.8)]'
                     : 'bg-ink/30'}"
@@ -100,7 +100,7 @@
                 {ticket.transfer_status}
               </span>
               <button
-                class="btn btn-sm rounded border-0 bg-white/10 hover:bg-signal text-white font-bold transition-all disabled:opacity-30 disabled:hover:bg-white/10"
+                class="btn btn-sm rounded border-0 bg-white/10 font-bold text-white transition-all hover:bg-signal hover:text-carbon disabled:opacity-30 disabled:hover:bg-white/10 disabled:hover:text-white"
                 disabled={ticket.transfer_status !== 'AVAILABLE' ||
                   ticket.status === 'CANCELLED'}
               >

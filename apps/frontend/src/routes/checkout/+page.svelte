@@ -100,12 +100,10 @@
   }
 </script>
 
-<main class="mx-auto grid max-w-5xl gap-6 px-4 py-8 lg:grid-cols-[1fr_360px]">
+<main class="app-screen-focused grid gap-6 lg:grid-cols-[1fr_360px]">
   {#if checkoutState.reservation}
     <section class="glass-panel p-8 flex flex-col h-full">
-      <h1
-        class="text-3xl font-black uppercase tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-inkMuted"
-      >
+      <h1 class="text-3xl font-black uppercase tracking-tight text-white">
         Confirm Reservation
       </h1>
 
@@ -121,7 +119,7 @@
           Hold expires in
         </p>
         <p
-          class="mono-num font-mono text-5xl font-black text-urgency drop-shadow-[0_0_10px_rgba(255,42,95,0.8)] relative"
+          class="mono-num font-mono text-5xl font-black text-urgency drop-shadow-[0_0_10px_rgba(239,68,68,0.8)] relative"
         >
           {formatCountdown(remaining)}
         </p>
@@ -154,10 +152,8 @@
 
     <aside class="glass-panel h-max p-6 sticky top-28">
       <div class="flex items-center gap-3 border-b border-white/10 pb-4 mb-6">
-        <div
-          class="p-2 bg-gradient-to-br from-signal to-primary rounded shadow-md"
-        >
-          <CheckCircle2 class="text-white" size={20} />
+        <div class="rounded bg-signal p-2 shadow-md shadow-signal/20">
+          <CheckCircle2 class="text-carbon" size={20} />
         </div>
         <h2 class="text-lg font-black uppercase tracking-wider text-white">
           Review & Complete
@@ -206,9 +202,9 @@
     </aside>
   {:else}
     <section
-      class="glass-panel p-12 text-center col-span-full max-w-2xl mx-auto flex flex-col items-center justify-center min-h-[400px]"
+      class="glass-panel col-span-full mx-auto flex min-h-[400px] max-w-2xl flex-col items-center justify-center p-12 text-center"
     >
-      <div class="p-4 bg-white/5 rounded-full mb-6 text-signal">
+      <div class="mb-6 rounded bg-white/5 p-4 text-signal">
         <AlertTriangle size={48} />
       </div>
       <h1 class="text-3xl font-black uppercase text-white mb-3">
@@ -218,9 +214,8 @@
         Your hold has expired or you haven't selected any seats yet. Return to
         the seat map and secure your tickets.
       </p>
-      <a
-        class="btn btn-primary btn-lg rounded-full px-8 mt-8 shadow-glow text-white"
-        href="/">Find Events</a
+      <a class="btn btn-lg velox-action mt-8 rounded px-8" href="/"
+        >Find Events</a
       >
     </section>
   {/if}

@@ -46,7 +46,7 @@ describe('EventCard', () => {
   });
 
   it.each([
-    ['LOW', 'text-accent'],
+    ['LOW', 'text-urgency'],
     ['MEDIUM', 'text-warn'],
     ['HIGH', 'text-ok'],
     ['SOLD_OUT', 'text-urgency']

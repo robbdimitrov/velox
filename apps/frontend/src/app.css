@@ -75,6 +75,82 @@ select {
   border-radius: var(--radius-card);
 }
 
+.app-shell,
+.app-screen,
+.app-screen-focused,
+.app-screen-narrow,
+.app-auth {
+  width: min(calc(100% - 2rem), var(--screen-max));
+  margin-inline: auto;
+}
+
+.app-shell,
+.app-screen {
+  --screen-max: 80rem;
+}
+
+.app-screen-focused {
+  --screen-max: 64rem;
+}
+
+.app-screen-narrow {
+  --screen-max: 48rem;
+}
+
+.app-auth {
+  --screen-max: 28rem;
+}
+
+.app-screen,
+.app-screen-focused,
+.app-screen-narrow {
+  padding-block: 2rem;
+}
+
+.content-narrow {
+  max-width: 48rem;
+  margin-inline: auto;
+}
+
+.velox-field {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.4);
+  color: #f8fafc;
+  border-radius: var(--radius-ui);
+  outline: none;
+  transition:
+    border-color 0.2s ease-in-out,
+    box-shadow 0.2s ease-in-out;
+}
+
+.velox-field:focus,
+.velox-field:focus-within {
+  border-color: #facc15;
+  box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.55);
+}
+
+.velox-action {
+  border: 0;
+  background: #facc15;
+  color: #050505;
+  font-weight: 700;
+  box-shadow: 0 0 20px rgba(250, 204, 21, 0.28);
+}
+
+.velox-action:hover:not(:disabled) {
+  background: #fde047;
+}
+
+.velox-action:disabled,
+.velox-action[disabled] {
+  background: rgba(148, 163, 184, 0.3);
+  color: rgba(248, 250, 252, 0.4);
+  box-shadow: none;
+  cursor: not-allowed;
+  scale: 1;
+  transform: none;
+}
+
 .mono-num {
   font-variant-numeric: tabular-nums;
   font-family: 'Space Mono', monospace;

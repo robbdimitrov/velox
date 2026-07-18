@@ -115,7 +115,7 @@
   }
 </script>
 
-<div class="p-8 max-w-7xl mx-auto">
+<div class="space-y-8">
   <div class="mb-8 flex justify-between items-end">
     <div>
       <h1 class="text-3xl font-black uppercase text-white tracking-tight">
@@ -177,7 +177,7 @@
 
         <button
           type="submit"
-          class="btn btn-sm w-full border-0 bg-gradient-to-r from-signal to-primary text-white font-bold rounded disabled:opacity-40"
+          class="btn btn-sm velox-action w-full rounded disabled:bg-inkMuted/30 disabled:text-white/40"
           disabled={postingAnnouncement ||
             !announcementTitle.trim() ||
             !announcementBody.trim()}

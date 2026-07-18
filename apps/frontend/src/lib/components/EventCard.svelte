@@ -8,7 +8,7 @@
     event.remaining_bucket === 'SOLD_OUT'
       ? 'text-urgency drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]'
       : event.remaining_bucket === 'LOW'
-        ? 'text-accent drop-shadow-[0_0_8px_rgba(255,42,95,0.8)]'
+        ? 'text-urgency drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]'
         : event.remaining_bucket === 'MEDIUM'
           ? 'text-warn drop-shadow-[0_0_8px_rgba(245,158,11,0.8)]'
           : 'text-ok drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]'
@@ -50,7 +50,7 @@
     >
       <span
         class="flex items-center gap-1.5 bg-white/5 px-2 py-1 rounded shadow-sm"
-        ><Clock size={13} class="text-info" /> {saleTime}</span
+        ><Clock size={13} class="text-signal" /> {saleTime}</span
       >
       <span
         class={`font-mono px-2 py-1 bg-white/5 rounded shadow-sm ${scarcityTone}`}

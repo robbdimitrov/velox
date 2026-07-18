@@ -22,6 +22,15 @@ Velox uses a "Moon Landing" / aerospace aesthetic to handle live entertainment u
 
 Use sharp 0 to 4 px radii for core controls. Prefer `Space Grotesk` for UI text and `Space Mono` numerals for timers, counters, and seat identifiers. The interface should feel like a classic, high-reliability aerospace control center.
 
+Screen widths use a small set of shared tiers:
+
+- `app-shell` / `app-screen`: 80 rem max for discovery, seat maps, wallet, organizer dashboards, and other multi-panel workspaces.
+- `app-screen-focused`: 64 rem max for two-panel confirmation and review flows.
+- `app-screen-narrow` / `content-narrow`: 48 rem max for forms and single-column organizer setup flows; use `content-narrow` inside an existing `app-screen`.
+- `app-auth`: 28 rem max for login, registration, and compact modal-like entry screens.
+
+Use `velox-field` for standard text, select, and textarea controls and `velox-action` for primary actions. Keep secondary and destructive actions explicit with neutral or urgency tokens.
+
 ## Landing and Event Discovery Page
 
 Purpose: handle high-volume reads without touching write databases.

@@ -4,7 +4,6 @@
   let loading = $state(false);
   let error = $state('');
 
-  // Form State
   let venueName = $state('');
   let venueCity = $state('');
   let venueAddress = $state('');
@@ -44,7 +43,7 @@
   <title>Create Venue - Velox Organizer</title>
 </svelte:head>
 
-<div class="max-w-3xl mx-auto mt-4">
+<div class="content-narrow mt-4">
   <div class="mb-8">
     <div class="flex items-center gap-2">
       <a
@@ -69,7 +68,7 @@
   >
     {#if error}
       <div
-        class="bg-danger/20 border border-danger/50 text-danger p-3 rounded mb-6 text-sm backdrop-blur-sm animate-pulse"
+        class="bg-urgency/20 border border-urgency/50 text-urgency p-3 rounded mb-6 text-sm backdrop-blur-sm animate-pulse"
       >
         {error}
       </div>
@@ -79,7 +78,7 @@
       class="flex-1 space-y-5 animate-in slide-in-from-right fade-in duration-300"
     >
       <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
-        <MapPin size={20} class="text-info" />
+        <MapPin size={20} class="text-signal" />
         Venue Details
       </h2>
 
@@ -92,7 +91,7 @@
           id="name"
           type="text"
           bind:value={venueName}
-          class="w-full bg-black/40 border border-white/10 rounded py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
+          class="velox-field w-full px-4 py-3 placeholder:text-inkMuted/50"
           placeholder="e.g. Velox Arena"
         />
       </div>
@@ -106,7 +105,7 @@
           id="city"
           type="text"
           bind:value={venueCity}
-          class="w-full bg-black/40 border border-white/10 rounded py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
+          class="velox-field w-full px-4 py-3 placeholder:text-inkMuted/50"
           placeholder="e.g. Chicago"
         />
       </div>
@@ -120,7 +119,7 @@
           id="address"
           type="text"
           bind:value={venueAddress}
-          class="w-full bg-black/40 border border-white/10 rounded py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
+          class="velox-field w-full px-4 py-3 placeholder:text-inkMuted/50"
           placeholder="e.g. 123 Main St"
         />
       </div>
@@ -135,17 +134,16 @@
           type="number"
           bind:value={venueCapacity}
           min="1"
-          class="w-full bg-black/40 border border-white/10 rounded py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
+          class="velox-field w-full px-4 py-3 placeholder:text-inkMuted/50"
           placeholder="e.g. 5000"
         />
       </div>
     </div>
 
-    <!-- Navigation -->
     <div class="mt-8 pt-6 border-t border-white/10 flex justify-end">
       <button
         type="button"
-        class="btn btn-sm border-none bg-gradient-to-r from-signal to-accent text-white shadow-lg shadow-signal/20 hover:shadow-signal/40 hover:scale-105 rounded transition-all"
+        class="btn btn-sm velox-action rounded transition-all hover:scale-105"
         onclick={submitVenue}
         disabled={loading ||
           !venueName ||

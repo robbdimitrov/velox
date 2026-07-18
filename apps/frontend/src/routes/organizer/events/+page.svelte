@@ -14,10 +14,7 @@
       Manage your upcoming and past events.
     </p>
   </div>
-  <a
-    href="/organizer/events/new"
-    class="btn btn-sm border-none bg-gradient-to-r from-info to-accent text-white shadow-lg shadow-info/20 hover:shadow-info/40 rounded"
-  >
+  <a href="/organizer/events/new" class="btn btn-sm velox-action rounded">
     <Plus size={16} /> Create Event
   </a>
 </div>
@@ -27,7 +24,7 @@
     class="glass-panel p-12 rounded flex flex-col items-center justify-center text-center shadow-glow"
   >
     <div
-      class="w-16 h-16 rounded-full bg-info/10 flex items-center justify-center mb-4 text-info shadow-inner"
+      class="mb-4 flex h-16 w-16 items-center justify-center rounded bg-signal/10 text-signal shadow-inner"
     >
       <Calendar size={32} />
     </div>
@@ -36,10 +33,7 @@
       You haven't created any events yet. Create an event to start selling
       tickets!
     </p>
-    <a
-      href="/organizer/events/new"
-      class="btn btn-sm border-none bg-info text-white hover:bg-info/90 shadow-lg shadow-info/20 rounded"
-    >
+    <a href="/organizer/events/new" class="btn btn-sm velox-action rounded">
       <Plus size={16} /> Create Your First Event
     </a>
   </div>
@@ -50,12 +44,12 @@
         class="glass-panel p-6 rounded shadow-glow relative overflow-hidden group hover:-translate-y-1 transition-all duration-300 flex flex-col"
       >
         <div
-          class="absolute inset-0 bg-gradient-to-br from-info/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"
+          class="absolute inset-0 bg-gradient-to-br from-signal/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"
         ></div>
         <div class="relative z-10 flex-1 flex flex-col">
           <div class="flex justify-between items-start mb-4">
             <div
-              class="w-10 h-10 rounded bg-info/20 flex items-center justify-center text-info shadow-inner"
+              class="flex h-10 w-10 items-center justify-center rounded bg-signal/20 text-signal shadow-inner"
             >
               <Calendar size={20} />
             </div>
@@ -71,11 +65,11 @@
             class="pt-4 border-t border-white/10 flex justify-between items-center mt-auto"
           >
             <div class="text-sm text-inkMuted">
-              {event.status === 'published' ? '🟢 Published' : '⚪ Draft'}
+              {event.status === 'published' ? 'Published' : 'Draft'}
             </div>
             <a
               href={`/organizer/events/${event.id}/dashboard`}
-              class="btn btn-xs btn-ghost text-info hover:bg-info/10 rounded"
+              class="btn btn-xs btn-ghost rounded text-signal hover:bg-signal/10"
             >
               Manage <ExternalLink size={14} />
             </a>

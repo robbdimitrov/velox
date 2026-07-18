@@ -57,7 +57,7 @@
   <title>Create Event - Velox Organizer</title>
 </svelte:head>
 
-<div class="max-w-3xl mx-auto mt-4">
+<div class="content-narrow mt-4">
   <div class="mb-8">
     <h1 class="text-3xl font-black uppercase tracking-tight">Create Event</h1>
     <p class="text-inkMuted text-sm mt-1">
@@ -69,7 +69,7 @@
     {#each steps as step}
       <li
         class="step {currentStep >= step.id
-          ? 'step-info text-info'
+          ? 'step-primary text-signal'
           : 'text-inkMuted'}"
       >
         <div class="flex items-center gap-2 mt-2">
@@ -85,7 +85,7 @@
   >
     {#if error}
       <div
-        class="bg-danger/20 border border-danger/50 text-danger p-3 rounded mb-6 text-sm backdrop-blur-sm animate-pulse"
+        class="bg-urgency/20 border border-urgency/50 text-urgency p-3 rounded mb-6 text-sm backdrop-blur-sm animate-pulse"
       >
         {error}
       </div>
@@ -111,7 +111,7 @@
                 onclick={() => (selectedVenue = venue.id)}
                 class="text-left p-4 rounded border transition-all duration-300 {selectedVenue ===
                 venue.id
-                  ? 'bg-info/20 border-info shadow-inner shadow-info/20'
+                  ? 'bg-signal/20 border-signal shadow-inner shadow-signal/20'
                   : 'bg-black/40 border-white/10 hover:border-white/30'}"
               >
                 <div class="font-bold">{venue.name}</div>
@@ -140,7 +140,7 @@
             id="name"
             type="text"
             bind:value={eventName}
-            class="w-full bg-black/40 border border-white/10 rounded py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
+            class="velox-field w-full px-4 py-3 placeholder:text-inkMuted/50"
             placeholder="e.g. Summer Music Festival"
           />
         </div>
@@ -154,7 +154,7 @@
             id="desc"
             bind:value={eventDescription}
             rows="3"
-            class="w-full bg-black/40 border border-white/10 rounded py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none resize-none"
+            class="velox-field w-full resize-none px-4 py-3 placeholder:text-inkMuted/50"
             placeholder="Tell attendees what to expect..."></textarea>
         </div>
 
@@ -167,7 +167,7 @@
             id="date"
             type="datetime-local"
             bind:value={eventDate}
-            class="w-full bg-black/40 border border-white/10 rounded py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
+            class="velox-field w-full px-4 py-3 placeholder:text-inkMuted/50"
           />
         </div>
       </div>
@@ -222,7 +222,7 @@
       {#if currentStep < 3}
         <button
           type="button"
-          class="btn btn-sm border-none bg-info text-white hover:bg-info/80 shadow-lg shadow-info/20 rounded"
+          class="btn btn-sm velox-action rounded"
           onclick={() => currentStep++}
           disabled={(currentStep === 1 && !selectedVenue) ||
             (currentStep === 2 && (!eventName || !eventDate))}
@@ -232,7 +232,7 @@
       {:else}
         <button
           type="button"
-          class="btn btn-sm border-none bg-gradient-to-r from-signal to-accent text-white shadow-lg shadow-signal/20 hover:shadow-signal/40 hover:scale-105 rounded transition-all"
+          class="btn btn-sm velox-action rounded transition-all hover:scale-105"
           onclick={submitEvent}
           disabled={loading}
         >

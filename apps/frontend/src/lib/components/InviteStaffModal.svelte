@@ -39,9 +39,7 @@
             <span class="label-text text-inkMuted font-medium mb-1"
               >Email Address</span
             >
-            <div
-              class="flex items-center gap-2 border border-white/10 bg-black/40 px-3 py-2 rounded focus-within:border-signal transition-colors"
-            >
+            <div class="velox-field w-full flex items-center gap-2 px-3 py-2">
               <Mail size={16} class="text-inkMuted" />
               <input
                 bind:value={email}
@@ -56,7 +54,7 @@
             <span class="label-text text-inkMuted font-medium mb-1">Role</span>
             <select
               bind:value={role}
-              class="select select-bordered border-white/10 bg-black/40 text-white rounded focus:border-signal w-full"
+              class="select select-bordered velox-field w-full text-white"
             >
               <option value="ADMIN">Admin</option>
               <option value="MANAGER">Manager</option>
@@ -73,7 +71,7 @@
             Cancel
           </button>
           <button
-            class="btn btn-sm bg-signal hover:bg-signal/80 border-none text-white rounded shadow-glow"
+            class="btn btn-sm velox-action rounded"
             onclick={handleInvite}
             disabled={!email}
           >

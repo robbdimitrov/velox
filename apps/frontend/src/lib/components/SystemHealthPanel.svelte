@@ -39,7 +39,7 @@
       <div class="text-2xl font-mono text-white">{memory}%</div>
       <div class="w-full bg-black/60 h-1.5 rounded-full mt-3 overflow-hidden">
         <div
-          class="bg-primary h-full rounded-full"
+          class="bg-signal h-full rounded-full"
           style="width: {memory}%"
         ></div>
       </div>

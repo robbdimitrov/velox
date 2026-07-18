@@ -35,15 +35,15 @@
   class="grid h-28 grid-cols-[56px_1fr] overflow-hidden bg-black/50 backdrop-blur-md"
 >
   <div
-    class="flex flex-col items-center justify-center border-r border-white/10 bg-black/20 text-accent shadow-inner"
+    class="flex flex-col items-center justify-center border-r border-white/10 bg-black/20 text-signal shadow-inner"
   >
     <div class="relative">
       <div
-        class="absolute inset-0 animate-ping rounded-full bg-accent/40 blur-sm"
+        class="absolute inset-0 animate-ping rounded-full bg-signal/40 blur-sm"
       ></div>
       <Activity
         size={24}
-        class="relative drop-shadow-[0_0_8px_rgba(255,42,95,0.8)]"
+        class="relative drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]"
       />
     </div>
   </div>
@@ -51,7 +51,7 @@
     {#each messages as message, index (message)}
       <div class="flex h-6 items-center px-4" in:slide={{ duration: 300 }}>
         <span
-          class="mr-3 inline-block h-1.5 w-1.5 rounded-full bg-signal shadow-[0_0_5px_rgba(124,58,237,0.8)]"
+          class="mr-3 inline-block h-1.5 w-1.5 rounded-full bg-signal shadow-[0_0_5px_rgba(250,204,21,0.8)]"
         ></span>
         <p
           class="truncate font-mono text-xs uppercase text-inkMuted transition-colors hover:text-white"

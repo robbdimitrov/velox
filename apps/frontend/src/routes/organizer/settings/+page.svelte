@@ -19,7 +19,7 @@
   class="glass-panel p-12 rounded flex flex-col items-center justify-center text-center shadow-glow"
 >
   <div
-    class="w-16 h-16 rounded-full bg-info/10 flex items-center justify-center mb-4 text-info shadow-inner"
+    class="mb-4 flex h-16 w-16 items-center justify-center rounded bg-signal/10 text-signal shadow-inner"
   >
     <Settings size={32} />
   </div>

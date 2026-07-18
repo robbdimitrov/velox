@@ -70,15 +70,13 @@
   });
 </script>
 
-<main class="mx-auto max-w-7xl px-4 py-8">
+<main>
   <section class="glass-panel p-6">
     <div
       class="border-b border-white/10 pb-6 flex flex-col sm:flex-row justify-between sm:items-end gap-4"
     >
       <div>
-        <h1
-          class="text-3xl font-black uppercase tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-signal to-primary"
-        >
+        <h1 class="text-3xl font-black uppercase tracking-tight text-white">
           Organizer Analytics
         </h1>
         <p class="text-sm text-inkMuted mt-1">
@@ -87,7 +85,7 @@
         </p>
       </div>
       <div
-        class="flex items-center gap-3 bg-black/40 px-4 py-2 rounded-full border border-white/5"
+        class="flex items-center gap-3 rounded border border-white/5 bg-black/40 px-4 py-2"
       >
         <span class="relative flex h-3 w-3">
           <span
@@ -123,7 +121,7 @@
         </div>
       </div>
 
-      <div class="glass-panel p-6 border-l-4 border-l-info">
+      <div class="glass-panel p-6 border-l-4 border-l-signal">
         <div class="flex items-start justify-between">
           <div>
             <p
@@ -134,7 +132,7 @@
             <p class="text-3xl font-black text-white">{metrics.activeHolds}</p>
             <p class="text-xs text-ink/40 mt-2">Currently in checkout flow</p>
           </div>
-          <div class="p-3 bg-info/20 rounded text-info shadow-inner">
+          <div class="rounded bg-signal/20 p-3 text-signal shadow-inner">
             <Users size={28} />
           </div>
         </div>
@@ -180,7 +178,7 @@
                 >SEC {section}</span
               >
               <progress
-                class={`progress w-full h-2.5 bg-black/50 ${percentage < 40 ? 'progress-error drop-shadow-[0_0_5px_rgba(255,42,95,0.8)]' : percentage < 70 ? 'progress-warning drop-shadow-[0_0_5px_rgba(245,158,11,0.8)]' : 'progress-success drop-shadow-[0_0_5px_rgba(16,185,129,0.8)]'}`}
+                class={`progress w-full h-2.5 bg-black/50 ${percentage < 40 ? 'progress-error drop-shadow-[0_0_5px_rgba(239,68,68,0.8)]' : percentage < 70 ? 'progress-warning drop-shadow-[0_0_5px_rgba(245,158,11,0.8)]' : 'progress-success drop-shadow-[0_0_5px_rgba(16,185,129,0.8)]'}`}
                 value={percentage}
                 max="100"
               ></progress>
@@ -199,7 +197,7 @@
           <h2
             class="text-sm font-black uppercase tracking-wider text-white flex items-center gap-2"
           >
-            <RadioTower size={18} class="text-accent" /> System Health
+            <RadioTower size={18} class="text-signal" /> System Health
           </h2>
         </div>
 
