@@ -8,7 +8,6 @@ export type EventSummary = {
   sale_starts_at: string;
   remaining_bucket: 'LOW' | 'MEDIUM' | 'HIGH' | 'SOLD_OUT';
   demand_score: number;
-  min_price_cents: number;
   projection_lag_ms: number;
   status?: string;
 };

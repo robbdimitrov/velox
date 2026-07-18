@@ -1,16 +1,17 @@
 <script lang="ts">
   import { Clock, Gauge, MapPin } from '@lucide/svelte';
-  import { formatMoney } from '$lib/api/client';
   import type { EventSummary } from '$lib/api/types';
 
   let { event }: { event: EventSummary } = $props();
 
   const scarcityTone = $derived(
-    event.remaining_bucket === 'LOW'
-      ? 'text-accent drop-shadow-[0_0_8px_rgba(255,42,95,0.8)]'
-      : event.remaining_bucket === 'MEDIUM'
-        ? 'text-warn drop-shadow-[0_0_8px_rgba(245,158,11,0.8)]'
-        : 'text-ok drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]'
+    event.remaining_bucket === 'SOLD_OUT'
+      ? 'text-urgency drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]'
+      : event.remaining_bucket === 'LOW'
+        ? 'text-accent drop-shadow-[0_0_8px_rgba(255,42,95,0.8)]'
+        : event.remaining_bucket === 'MEDIUM'
+          ? 'text-warn drop-shadow-[0_0_8px_rgba(245,158,11,0.8)]'
+          : 'text-ok drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]'
   );
 
   const saleTime = $derived(
@@ -24,19 +25,19 @@
 </script>
 
 <a
-  class="group relative grid grid-cols-[110px_1fr_auto] gap-4 rounded border border-white/5 bg-black/40 p-3 transition-all duration-300 hover:-translate-y-1 hover:border-signal/40 hover:bg-black/60 hover:shadow-glow"
+  class="group relative grid grid-cols-[88px_1fr] gap-3 rounded border border-white/5 bg-black/40 p-3 transition-all duration-300 hover:-translate-y-1 hover:border-signal/40 hover:bg-black/60 hover:shadow-glow sm:grid-cols-[110px_1fr_auto] sm:gap-4"
   href={`/events/${event.id}`}
 >
   <div class="overflow-hidden rounded shadow-md bg-carbon">
     <img
-      class="h-24 w-full object-cover transition-transform duration-500 group-hover:scale-110"
+      class="h-20 w-full object-cover transition-transform duration-500 group-hover:scale-110 sm:h-24"
       src={event.image_url}
       alt=""
     />
   </div>
   <div class="flex flex-col justify-center min-w-0">
     <p
-      class="truncate text-xl font-black uppercase tracking-tight text-white group-hover:text-signal transition-colors"
+      class="truncate text-lg font-black uppercase tracking-tight text-white transition-colors group-hover:text-signal sm:text-xl"
     >
       {event.title}
     </p>
@@ -58,7 +59,9 @@
       </span>
     </div>
   </div>
-  <div class="flex flex-col items-end justify-between py-1 font-mono">
+  <div
+    class="col-span-2 flex items-center justify-between border-t border-white/10 pt-3 font-mono sm:col-span-1 sm:flex-col sm:items-end sm:border-t-0 sm:pt-1 sm:pb-1"
+  >
     <div
       class="bg-black/50 p-2 rounded border border-white/5 flex flex-col items-center gap-1 shadow-inner group-hover:border-signal/30 transition-colors"
     >

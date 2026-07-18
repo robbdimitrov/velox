@@ -18,7 +18,6 @@ function makeEvent(overrides: Partial<EventSummary> = {}): EventSummary {
     sale_starts_at: '2026-08-15T20:00:00Z',
     remaining_bucket: 'HIGH',
     demand_score: 94,
-    min_price_cents: 8500,
     projection_lag_ms: 120,
     ...overrides
   };
@@ -49,11 +48,12 @@ describe('EventCard', () => {
   it.each([
     ['LOW', 'text-accent'],
     ['MEDIUM', 'text-warn'],
-    ['HIGH', 'text-ok']
+    ['HIGH', 'text-ok'],
+    ['SOLD_OUT', 'text-urgency']
   ] as const)('applies the %s scarcity tone class', (bucket, expectedClass) => {
     render(EventCard, { event: makeEvent({ remaining_bucket: bucket }) });
 
-    const badge = screen.getByText(bucket);
+    const badge = screen.getByText(bucket.replace('_', ' '));
     expect(badge.className).toContain(expectedClass);
   });
 });

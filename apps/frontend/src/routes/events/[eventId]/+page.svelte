@@ -1,10 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import {
-    createIdempotencyKey,
-    createGatewayClient,
-    formatMoney
-  } from '$lib/api/client';
+  import { createIdempotencyKey, createGatewayClient } from '$lib/api/client';
   import type { SeatDelta } from '$lib/api/types';
   import SeatCanvas from '$lib/components/SeatCanvas.svelte';
   import VirtualWaitingRoom from '$lib/components/VirtualWaitingRoom.svelte';

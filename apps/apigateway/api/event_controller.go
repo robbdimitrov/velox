@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -20,6 +21,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			if lagErr != nil {
 				lagMS = 0
 			}
+			events = filterDiscoveryEvents(events, r)
 			writeJSON(w, http.StatusOK, map[string]any{"events": events, "projection_lag_ms": lagMS})
 			return
 		}
@@ -31,8 +33,70 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		event.SeatsOpen = s.openSeatsLocked(event.ID)
 		events = append(events, event)
 	}
+	events = filterDiscoveryEvents(events, r)
 	sort.Slice(events, func(i, j int) bool { return events[i].StartsAt.Before(events[j].StartsAt) })
 	writeJSON(w, http.StatusOK, map[string]any{"events": events, "projection_lag_ms": 0})
+}
+
+func filterDiscoveryEvents(events []Event, r *http.Request) []Event {
+	query := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
+	if len(query) > 120 {
+		query = query[:120]
+	}
+	city := strings.TrimSpace(r.URL.Query().Get("city"))
+	if strings.EqualFold(city, "all") {
+		city = ""
+	}
+	availableOnly := r.URL.Query().Get("available") != "false"
+	dateWindow := strings.TrimSpace(r.URL.Query().Get("date"))
+	now := time.Now()
+
+	filtered := events[:0]
+	for _, event := range events {
+		if query != "" {
+			haystack := strings.ToLower(event.Name + " " + event.Category + " " + event.Venue + " " + event.City)
+			if !strings.Contains(haystack, query) {
+				continue
+			}
+		}
+		if city != "" && !strings.EqualFold(event.City, city) {
+			continue
+		}
+		if availableOnly && event.SeatsOpen <= 0 {
+			continue
+		}
+		if !matchesDiscoveryDateWindow(event.StartsAt, dateWindow, now) {
+			continue
+		}
+		filtered = append(filtered, event)
+	}
+	return filtered
+}
+
+func matchesDiscoveryDateWindow(startsAt time.Time, dateWindow string, now time.Time) bool {
+	switch strings.TrimSpace(dateWindow) {
+	case "", "Any date":
+		return true
+	case "Today":
+		if startsAt.Before(now) {
+			return false
+		}
+		y1, m1, d1 := startsAt.Date()
+		y2, m2, d2 := now.Date()
+		return y1 == y2 && m1 == m2 && d1 == d2
+	case "This week":
+		if startsAt.Before(now) {
+			return false
+		}
+		return !startsAt.After(now.Add(7 * 24 * time.Hour))
+	case "This month":
+		if startsAt.Before(now) {
+			return false
+		}
+		return !startsAt.After(now.Add(31 * 24 * time.Hour))
+	default:
+		return true
+	}
 }
 
 func (s *Server) handleEvent(w http.ResponseWriter, r *http.Request) {

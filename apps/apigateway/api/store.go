@@ -601,9 +601,18 @@ func (s *DatabaseStore) CreateEvent(ctx context.Context, event Event) error {
 
 func (s *DatabaseStore) GetEvents(ctx context.Context) ([]Event, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT e.id, e.venue_id, e.name, e.starts_at, e.status, v.name, v.city
+		SELECT e.id, e.venue_id, e.name, e.starts_at, e.status, v.name, v.city,
+		       COALESCE(inv.available, 0), COALESCE(inv.held, 0), COALESCE(inv.sold, 0)
 		FROM catalog.events e
 		JOIN catalog.venues v ON v.id = e.venue_id
+		LEFT JOIN (
+			SELECT event_id,
+			       COUNT(*) FILTER (WHERE status = 'AVAILABLE') AS available,
+			       COUNT(*) FILTER (WHERE status = 'HELD') AS held,
+			       COUNT(*) FILTER (WHERE status = 'SOLD') AS sold
+			FROM projection.seat_snapshots
+			GROUP BY event_id
+		) inv ON inv.event_id = e.id
 	`)
 	if err != nil {
 		return nil, err
@@ -613,13 +622,11 @@ func (s *DatabaseStore) GetEvents(ctx context.Context) ([]Event, error) {
 	var events []Event
 	for rows.Next() {
 		var e Event
-		if err := rows.Scan(&e.ID, &e.VenueID, &e.Name, &e.StartsAt, &e.Status, &e.Venue, &e.City); err != nil {
+		var held, sold int
+		if err := rows.Scan(&e.ID, &e.VenueID, &e.Name, &e.StartsAt, &e.Status, &e.Venue, &e.City, &e.SeatsOpen, &held, &sold); err != nil {
 			return nil, err
 		}
-
-		counts, _, _ := s.GetOrganizerInventory(ctx, e.ID)
-		e.SeatsOpen = counts[StatusAvailable]
-		e.SeatsTotal = counts[StatusAvailable] + counts[StatusHeld] + counts[StatusSold]
+		e.SeatsTotal = e.SeatsOpen + held + sold
 
 		events = append(events, e)
 	}
@@ -630,21 +637,30 @@ func (s *DatabaseStore) GetEvents(ctx context.Context) ([]Event, error) {
 // and ownership checks do not silently diverge.
 func (s *DatabaseStore) GetEvent(ctx context.Context, id string) (Event, error) {
 	var e Event
+	var held, sold int
 	err := s.db.QueryRowContext(ctx, `
-		SELECT e.id, e.venue_id, e.name, e.starts_at, e.status, v.name, v.city
+		SELECT e.id, e.venue_id, e.name, e.starts_at, e.status, v.name, v.city,
+		       COALESCE(inv.available, 0), COALESCE(inv.held, 0), COALESCE(inv.sold, 0)
 		FROM catalog.events e
 		JOIN catalog.venues v ON v.id = e.venue_id
+		LEFT JOIN (
+			SELECT event_id,
+			       COUNT(*) FILTER (WHERE status = 'AVAILABLE') AS available,
+			       COUNT(*) FILTER (WHERE status = 'HELD') AS held,
+			       COUNT(*) FILTER (WHERE status = 'SOLD') AS sold
+			FROM projection.seat_snapshots
+			WHERE event_id = $1
+			GROUP BY event_id
+		) inv ON inv.event_id = e.id
 		WHERE e.id = $1
-	`, id).Scan(&e.ID, &e.VenueID, &e.Name, &e.StartsAt, &e.Status, &e.Venue, &e.City)
+	`, id).Scan(&e.ID, &e.VenueID, &e.Name, &e.StartsAt, &e.Status, &e.Venue, &e.City, &e.SeatsOpen, &held, &sold)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Event{}, ErrStoreNotFound
 	}
 	if err != nil {
 		return Event{}, err
 	}
-	counts, _, _ := s.GetOrganizerInventory(ctx, e.ID)
-	e.SeatsOpen = counts[StatusAvailable]
-	e.SeatsTotal = counts[StatusAvailable] + counts[StatusHeld] + counts[StatusSold]
+	e.SeatsTotal = e.SeatsOpen + held + sold
 	return e, nil
 }
 

@@ -1,13 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { formatMoney } from '$lib/api/client';
-  import {
-    Activity,
-    BadgeDollarSign,
-    RadioTower,
-    Ticket,
-    Users
-  } from '@lucide/svelte';
+  import { Activity, RadioTower, Ticket, Users } from '@lucide/svelte';
 
   let { data } = $props();
 

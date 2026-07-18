@@ -20,7 +20,6 @@ export const mockDiscovery: DiscoveryResponse = {
       sale_starts_at: new Date(now + 18 * 60_000).toISOString(),
       remaining_bucket: 'LOW',
       demand_score: 98,
-      min_price_cents: 8800,
       projection_lag_ms: 42
     },
     {
@@ -33,7 +32,6 @@ export const mockDiscovery: DiscoveryResponse = {
       sale_starts_at: new Date(now + 51 * 60_000).toISOString(),
       remaining_bucket: 'MEDIUM',
       demand_score: 91,
-      min_price_cents: 12400,
       projection_lag_ms: 73
     },
     {
@@ -46,7 +44,6 @@ export const mockDiscovery: DiscoveryResponse = {
       sale_starts_at: new Date(now + 3 * 60 * 60_000).toISOString(),
       remaining_bucket: 'HIGH',
       demand_score: 84,
-      min_price_cents: 6400,
       projection_lag_ms: 55
     }
   ],

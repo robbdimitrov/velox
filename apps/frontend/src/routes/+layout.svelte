@@ -46,7 +46,9 @@
         <Search size={18} class="text-inkMuted" />
         <input
           bind:value={filterState.query}
+          aria-label="Search events, venues, and cities"
           class="w-full bg-transparent text-sm outline-none placeholder:text-inkMuted"
+          maxlength="120"
           placeholder="Search events, venues, cities..."
         />
       </label>

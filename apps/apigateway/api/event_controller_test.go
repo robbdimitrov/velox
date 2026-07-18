@@ -29,6 +29,86 @@ func TestEventsListing(t *testing.T) {
 	}
 }
 
+func TestEventsListingAppliesDiscoveryFilters(t *testing.T) {
+	server := NewServerWithStore("test", nil, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/events?q=festival&city=Austin&type=Festivals", nil)
+	rr := httptest.NewRecorder()
+	server.Routes().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", rr.Code)
+	}
+
+	var resp struct {
+		Events []Event `json:"events"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Events) != 1 {
+		t.Fatalf("expected one filtered event, got %d: %+v", len(resp.Events), resp.Events)
+	}
+	if got := resp.Events[0]; got.ID != "evt_summer_fests" || got.Category != "Festivals" {
+		t.Fatalf("filtered event = %+v, want evt_summer_fests festival", got)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/events?q=sports", nil)
+	rr = httptest.NewRecorder()
+	server.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", rr.Code)
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Events) != 1 || resp.Events[0].Category != "Sports" {
+		t.Fatalf("expected category query to find sports event, got %+v", resp.Events)
+	}
+}
+
+func TestEventsListingExcludesUnavailableEventsByDefault(t *testing.T) {
+	server := NewServerWithStore("test", nil, nil)
+	server.mu.Lock()
+	for _, section := range server.seats["evt_neon_riot"] {
+		for _, seat := range section {
+			seat.Status = StatusSold
+		}
+	}
+	server.mu.Unlock()
+
+	req := httptest.NewRequest(http.MethodGet, "/events?q=neon", nil)
+	rr := httptest.NewRecorder()
+	server.Routes().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", rr.Code)
+	}
+
+	var resp struct {
+		Events []Event `json:"events"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Events) != 0 {
+		t.Fatalf("expected sold-out event to be hidden by default, got %+v", resp.Events)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/events?q=neon&available=false", nil)
+	rr = httptest.NewRecorder()
+	server.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", rr.Code)
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Events) != 1 || resp.Events[0].SeatsOpen != 0 {
+		t.Fatalf("expected sold-out event when availability filter is disabled, got %+v", resp.Events)
+	}
+}
+
 func TestGetEventAndSeats(t *testing.T) {
 	server := NewServerWithStore("test", nil, nil)
 

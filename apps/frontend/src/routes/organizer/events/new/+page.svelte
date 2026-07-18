@@ -12,12 +12,10 @@
   let loading = $state(false);
   let error = $state('');
 
-  // Form State
   let selectedVenue = $state('');
   let eventName = $state('');
   let eventDescription = $state('');
   let eventDate = $state('');
-  let eventPrice = $state(0);
 
   const steps = [
     { id: 1, title: 'Venue', icon: MapPin },
@@ -33,8 +31,7 @@
         venueId: selectedVenue,
         name: eventName,
         description: eventDescription,
-        date: new Date(eventDate).toISOString(),
-        basePrice: eventPrice
+        date: new Date(eventDate).toISOString()
       };
 
       const res = await fetch('/api/organizer/events', {
@@ -68,7 +65,6 @@
     </p>
   </div>
 
-  <!-- Progress Bar -->
   <ul class="steps steps-horizontal w-full mb-12 font-semibold">
     {#each steps as step}
       <li
@@ -95,7 +91,6 @@
       </div>
     {/if}
 
-    <!-- Step 1: Venue -->
     {#if currentStep === 1}
       <div class="flex-1 animate-in slide-in-from-right fade-in duration-300">
         <h2 class="text-xl font-bold mb-6">Select a Venue</h2>
@@ -130,7 +125,6 @@
       </div>
     {/if}
 
-    <!-- Step 2: Details -->
     {#if currentStep === 2}
       <div
         class="flex-1 space-y-5 animate-in slide-in-from-right fade-in duration-300"
@@ -164,38 +158,21 @@
             placeholder="Tell attendees what to expect..."></textarea>
         </div>
 
-        <div class="grid grid-cols-2 gap-4">
-          <div class="space-y-2">
-            <label
-              class="text-xs font-semibold uppercase tracking-wider text-inkMuted"
-              for="date">Date & Time</label
-            >
-            <input
-              id="date"
-              type="datetime-local"
-              bind:value={eventDate}
-              class="w-full bg-black/40 border border-white/10 rounded py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
-            />
-          </div>
-          <div class="space-y-2">
-            <label
-              class="text-xs font-semibold uppercase tracking-wider text-inkMuted"
-              for="price">Base Price ($)</label
-            >
-            <input
-              id="price"
-              type="number"
-              bind:value={eventPrice}
-              min="0"
-              step="0.01"
-              class="w-full bg-black/40 border border-white/10 rounded py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
-            />
-          </div>
+        <div class="space-y-2">
+          <label
+            class="text-xs font-semibold uppercase tracking-wider text-inkMuted"
+            for="date">Date & Time</label
+          >
+          <input
+            id="date"
+            type="datetime-local"
+            bind:value={eventDate}
+            class="w-full bg-black/40 border border-white/10 rounded py-3 px-4 text-ink placeholder:text-inkMuted/50 focus:border-info focus:ring-1 focus:ring-info transition-all outline-none"
+          />
         </div>
       </div>
     {/if}
 
-    <!-- Step 3: Confirm -->
     {#if currentStep === 3}
       <div class="flex-1 animate-in slide-in-from-right fade-in duration-300">
         <h2 class="text-xl font-bold mb-6">Review & Publish</h2>
@@ -207,7 +184,7 @@
             </div>
             <div class="font-bold text-lg">{eventName || 'Untitled Event'}</div>
           </div>
-          <div>
+          <div class="space-y-2">
             <div class="text-xs text-inkMuted uppercase font-semibold">
               Date & Time
             </div>
@@ -217,9 +194,9 @@
           </div>
           <div>
             <div class="text-xs text-inkMuted uppercase font-semibold">
-              Base Price
+              Description
             </div>
-            <div>${eventPrice.toFixed(2)}</div>
+            <div>{eventDescription || 'No description provided'}</div>
           </div>
           <div>
             <div class="text-xs text-inkMuted uppercase font-semibold">
@@ -231,7 +208,6 @@
       </div>
     {/if}
 
-    <!-- Navigation -->
     <div class="mt-8 pt-6 border-t border-white/10 flex justify-between">
       <button
         type="button"

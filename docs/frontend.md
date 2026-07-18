@@ -32,18 +32,23 @@ Layout:
    rate-limit friendly category tabs.
 2. Live ticker strip: SSE-fed upcoming sale and sell-through messages, capped to
    fixed-height rows to prevent layout shift.
-3. Filter rail: event type, date window, city, price band, and availability
-   threshold. Each filter mutates URL query state and triggers debounced
-   read-model queries.
+3. Filter rail: event type, date window, city, and availability threshold. Each
+   filter mutates URL query state and triggers debounced read-model queries.
 4. Trending demand list: dense event rows with event image, venue, sale start,
    remaining inventory bucket, and demand score.
-5. Featured grid: cached event cards for top categories, refreshed from
+5. Top venue rail: venue cards derived from event projection summaries until a
+   dedicated public venue read model exists.
+6. Featured grid: cached event cards for top categories, refreshed from
    projection reads.
 
 Implementation rules:
 
 - Query only read models. Never call `orderservice` or `seatservice` from
   discovery.
+- Search, city, date, and availability filters are URL-backed and issue
+  debounced `GET /events` discovery reads.
+- Public venue discovery must be derived from discovery projections unless the
+  gateway exposes an explicit cacheable venue read endpoint.
 - Cache hot discovery responses at the CDN for 1 second with
   stale-while-revalidate.
 - `EventCard.svelte` derives scarcity badges from streamed read data using
@@ -57,12 +62,12 @@ Purpose: present accurate seat state while avoiding component-wide re-rendering.
 
 Layout:
 
-1. Left toolbar: section selector, zoom controls, price class toggles,
+1. Left toolbar: section selector, zoom controls, seat attribute toggles, and
    accessibility filter.
 2. Main viewport: Canvas for high-density seat nodes; SVG overlay for section
    outlines and labels.
-3. Right panel: selected seats, expiration clocks, price breakdown, reserve
-   action.
+3. Right panel: selected seats, expiration clocks, reservation summary, and
+   reserve action.
 4. Bottom event log: compact live updates for section-level inventory movement.
 
 Seat states:

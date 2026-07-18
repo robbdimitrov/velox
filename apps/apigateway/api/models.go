@@ -59,12 +59,13 @@ type Event struct {
 	Status      string    `json:"status,omitempty"`
 	OrganizerID string    `json:"organizer_id,omitempty"`
 	Name        string    `json:"name"`
+	Category    string    `json:"category,omitempty"`
 	Venue       string    `json:"venue,omitempty"`
 	City        string    `json:"city,omitempty"`
 	StartsAt    time.Time `json:"starts_at"`
 	SectionIDs  []string  `json:"section_ids,omitempty"`
 	SeatsTotal  int       `json:"seats_total,omitempty"`
-	SeatsOpen   int       `json:"seats_open,omitempty"`
+	SeatsOpen   int       `json:"seats_open"`
 	DemandScore int       `json:"demand_score,omitempty"`
 }
 

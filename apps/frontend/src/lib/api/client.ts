@@ -157,16 +157,10 @@ export function createIdempotencyKey() {
   return crypto.randomUUID();
 }
 
-export function formatMoney(cents: number) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD'
-  }).format(cents / 100);
-}
-
 type GatewayEvent = {
   id: string;
   name: string;
+  category?: string;
   venue: string;
   city: string;
   starts_at: string;
@@ -203,7 +197,13 @@ function mapDiscovery(body: {
 }): DiscoveryResponse {
   const events = body.events.map((event): EventSummary => {
     const bucket =
-      event.seats_open < 20 ? 'LOW' : event.seats_open < 80 ? 'MEDIUM' : 'HIGH';
+      event.seats_open <= 0
+        ? 'SOLD_OUT'
+        : event.seats_open < 20
+          ? 'LOW'
+          : event.seats_open < 80
+            ? 'MEDIUM'
+            : 'HIGH';
     let image_url = '/event-midnight-array.svg';
     if (event.id === 'evt_neon_riot' || event.id === 'evt_summer_fests') {
       image_url = '/event-final-whistle.svg';
@@ -216,12 +216,11 @@ function mapDiscovery(body: {
       title: event.name,
       venue: event.venue,
       city: event.city,
-      category: 'Live',
+      category: event.category ?? 'Live',
       image_url,
       sale_starts_at: event.starts_at,
       remaining_bucket: bucket,
       demand_score: event.demand_score,
-      min_price_cents: 8650,
       projection_lag_ms: body.projection_lag_ms ?? 0,
       status: event.status
     };
