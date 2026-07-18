@@ -7,10 +7,15 @@ edition = "2021"
 name = "seatservice"
 path = "src/lib.rs"
 
+[features]
+default = ["kafka-static"]
+kafka-dynamic = ["rdkafka/dynamic-linking"]
+kafka-static = ["rdkafka/cmake-build"]
+
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 sqlx = { version = "0.9", features = ["postgres", "runtime-tokio", "json", "uuid", "chrono"] }
-rdkafka = { version = "0.39", features = ["cmake-build"] }
+rdkafka = "0.39"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 uuid = { version = "1", features = ["v4", "v7", "serde"] }

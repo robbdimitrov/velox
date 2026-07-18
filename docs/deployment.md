@@ -93,4 +93,6 @@ Frontend container builds use BuildKit's npm cache with `npm ci` against the
 committed lockfile in the builder stage and copy only the adapter-node build
 output into the Node runner image. Local Rust builds share a repository-level
 Cargo `target/` directory so repeated `seatservice` checks reuse artifacts
-instead of rebuilding under `apps/seatservice/target`.
+instead of rebuilding under `apps/seatservice/target`. Seatservice Docker
+builds use Alpine's `librdkafka` and a cached dependency layer; local Cargo
+defaults keep bundled Kafka C sources so tests do not need system packages.
