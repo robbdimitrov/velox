@@ -83,7 +83,7 @@ build:
 
 .PHONY: frontend
 frontend:
-	docker build -t $(IMAGE_PREFIX)-frontend:$(GIT_SHA) apps/frontend
+	DOCKER_BUILDKIT=1 docker build -t $(IMAGE_PREFIX)-frontend:$(GIT_SHA) apps/frontend
 	docker push $(IMAGE_PREFIX)-frontend:$(GIT_SHA)
 
 .PHONY: database

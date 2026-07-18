@@ -89,6 +89,8 @@ and finally apply app services. Workloads are annotated with checksums for the
 Secrets and ConfigMaps they consume, so data-only changes roll the affected pods
 without forcing unrelated services to restart.
 
-Frontend container builds use `npm ci` against the committed lockfile in the
-builder stage and copy only the adapter-node build output into the Node runner
-image.
+Frontend container builds use BuildKit's npm cache with `npm ci` against the
+committed lockfile in the builder stage and copy only the adapter-node build
+output into the Node runner image. Local Rust builds share a repository-level
+Cargo `target/` directory so repeated `seatservice` checks reuse artifacts
+instead of rebuilding under `apps/seatservice/target`.

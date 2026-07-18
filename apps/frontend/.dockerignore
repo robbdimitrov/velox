@@ -6,3 +6,7 @@ build
 npm-debug.log*
 .eslintcache
 *.tsbuildinfo
+*.test.ts
+**/*.test.ts
+AGENTS.md
+CLAUDE.md
