@@ -14,6 +14,7 @@ help:
 	@printf '  make format          Run available formatters\n'
 	@printf '  make lint            Run lightweight static checks\n'
 	@printf '  make test            Run service tests\n'
+	@printf '  make smoke           Run the local product smoke flow\n'
 	@printf '  make build           Run available local builds\n'
 	@printf '  make proto-check     Validate protobuf text shape\n'
 	@printf '  make db-check        Validate SQL files are present\n'
@@ -72,6 +73,10 @@ test:
 	@cargo test --manifest-path apps/seatservice/Cargo.toml
 	@echo "Testing frontend..."
 	@cd apps/frontend && npm run test
+
+.PHONY: smoke
+smoke:
+	@scripts/smoke.sh
 
 .PHONY: build
 build:

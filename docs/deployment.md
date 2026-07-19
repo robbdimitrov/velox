@@ -5,7 +5,7 @@ Kubernetes manifests, and a local deploy script.
 
 ## Protobuf
 
-The reservation MVP transport contract lives in `pkg/pb/velox.proto`. It covers:
+The reservation transport contract lives in `pkg/pb/velox.proto`. It covers:
 
 - reservation creation, reservation confirmation, and order lookup RPCs;
 - signed Kafka event envelopes with correlation, causation, aggregate version,
@@ -29,7 +29,8 @@ PostgreSQL schemas:
 `apps/database/seeds/999_demo_reservation_mvp.sql` adds demo reservation data
 for local smoke testing. The database image copies migrations and seeds into
 Postgres' `docker-entrypoint-initdb.d`, so a fresh volume initializes on first
-startup.
+startup. The smoke script creates its own users and temporary cookie jars rather
+than writing response artifacts into the repository root.
 
 ## Kubernetes
 
@@ -60,6 +61,7 @@ the script, or re-apply them after local development runs.
 make proto-check
 make db-check
 make k8s-check
+make smoke
 make deploy-dry-run
 make deploy
 ```
@@ -73,6 +75,11 @@ rollouts, and starts a frontend port-forward:
 
 Use `scripts/deploy.sh --dry-run` for client-side manifest validation and
 `scripts/deploy.sh --skip-build` when images are already available locally.
+After the frontend port-forward is up, run `scripts/smoke.sh` or `make smoke`
+to exercise health, buyer reservation/confirmation/wallet reads, organizer
+venue/event creation, announcements, and cancellation through the frontend
+`/api` proxy. Set `BASE_URL` for a non-default frontend URL or `API_BASE` to
+call a directly forwarded gateway.
 Override `KUBECTL` and `IMAGE_PREFIX` to match a non-default cluster or
 registry. By default, each image is tagged with a 12-character checksum of its
 own build context, so unchanged services keep stable image tags and avoid

@@ -1,6 +1,6 @@
 # Velox
 
-**Velox** is a Kubernetes-first event ticket marketplace MVP built for
+**Velox** is a Kubernetes-first event ticket marketplace built for
 flash-sale contention: many buyers competing for the same reserved seats while
 organizers watch live inventory and order state. It combines a SvelteKit SSR
 frontend with Go and Rust backend services, PostgreSQL-owned stores,
@@ -84,10 +84,15 @@ Architectural specs live in [`docs/`](docs/):
 
 | Doc                                         | Contents                                                                         |
 | ------------------------------------------- | -------------------------------------------------------------------------------- |
+| [api.md](docs/api.md)                       | Public, buyer, organizer, auth, and internal route contracts                     |
 | [architecture.md](docs/architecture.md)     | Service topology, event choreography, consistency model, and security boundaries |
+| [business-rules.md](docs/business-rules.md) | Roles, reservations, event lifecycle, checkout, wallet, and rate-limit rules     |
+| [data-model.md](docs/data-model.md)         | Logical schemas, table ownership, constraints, indexes, and model gaps           |
 | [deployment.md](docs/deployment.md)         | Kubernetes local runtime, generated secrets, port-forwarding, and smoke checks   |
+| [design-system.md](docs/design-system.md)   | Visual tokens, layout rules, seat states, and UI state patterns                  |
 | [frontend.md](docs/frontend.md)             | Buyer and organizer route map, UI behavior, live updates, and accessibility      |
 | [infrastructure.md](docs/infrastructure.md) | Kafka failure modes, reservation expiry, cache behavior, and backpressure        |
+| [security.md](docs/security.md)             | Session, request, token, event-signing, header, and logging controls             |
 
 ## Deploy
 
@@ -126,6 +131,7 @@ Run the local checks:
 make lint
 make test
 make build
+make smoke
 ```
 
 PostgreSQL integration tests are opt-in:

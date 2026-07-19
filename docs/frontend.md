@@ -100,7 +100,7 @@ Layout:
 Seat states:
 
 - Available: grey node.
-- Selected by current user: indigo node with outline.
+- Selected by current user: signal amber node with outline.
 - Held by another user: flashing crimson node until expiry.
 - Sold: solid carbon node, non-interactive.
 - Unknown or stale: outlined node with disabled click target.
@@ -170,6 +170,9 @@ Rules:
   server time offset, but backend expiry is authoritative.
 - On `SeatReservationExpired`, immediately clear checkout state and return the
   user to the seat map.
+- Current implementation still maps the reservation token from the reservation
+  ID. Phase 3 must replace that with a signed backend token before checkout is
+  considered showcase-complete.
 
 ## Secure Ticket Wallet and History Ledger
 

@@ -48,6 +48,10 @@ projections, audit, and replay.
 
 - Terminate HTTP/gRPC command ingress.
 - Validate JWTs, scopes, request size, rate limits, and public API schemas.
+- Expose canonical browser API routes without a gateway-native `/api` prefix.
+  The SvelteKit frontend owns the browser `/api/*` proxy and strips `/api`
+  before forwarding. Existing literal gateway `/api/organizer/*` routes are
+  compatibility aliases only.
 - Enforce role-specific route boundaries; organizer APIs require an
   authenticated `organizer` role before ownership checks run.
 - Map public HTTP errors safely and orchestrate bounded gRPC calls to backend

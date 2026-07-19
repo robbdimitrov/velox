@@ -1,0 +1,393 @@
+# API Contract
+
+Velox exposes one browser-facing JSON/SSE contract through `apigateway`.
+SvelteKit proxies browser calls from `/api/*` to the same gateway path without
+the `/api` prefix. Gateway-native routes below are canonical unless explicitly
+marked as a compatibility alias.
+
+## Common Rules
+
+- All non-SSE responses are JSON.
+- Error responses use `{"error":"stable_code"}`.
+- Gateway request bodies are capped at 1 MiB by `limitBody`.
+- Command endpoints require a session cookie unless noted otherwise.
+- Organizer endpoints require role `organizer` and then venue or event
+  ownership.
+- Discovery and announcement reads are cacheable. Per-user and command
+  endpoints are not shared-cacheable.
+- Collection pagination is not implemented yet. Until it is added, responses
+  are bounded by handler-specific caps where present.
+
+Current JSON unknown-field policy:
+
+| Endpoint family | Policy |
+| --- | --- |
+| `POST /reservations` | Strict; unknown fields and trailing JSON rejected. |
+| `POST /organizer/events/{eventId}/announcements` | Strict. |
+| `POST /organizer/events` | Strict. |
+| Internal orderservice `POST /orders` | Strict. |
+| Auth and venue create | Loose today; hardening should replace broad DTOs with request DTOs. |
+
+## Public Routes
+
+### `GET /healthz`
+
+Returns process liveness.
+
+```json
+{"status":"ok"}
+```
+
+### `GET /readyz`
+
+Checks required gateway dependencies. Store-backed mode pings PostgreSQL with a
+2 second timeout.
+
+- `200 {"status":"ok"}`
+- `503 {"status":"degraded"}` when a hard dependency is unavailable
+
+### `GET /events`
+
+Public discovery read. Query parameters:
+
+| Name | Rule |
+| --- | --- |
+| `q` | Trimmed and lowercased; capped to 120 characters. |
+| `city` | Exact case-insensitive city match; `all` disables the filter. |
+| `available` | Defaults to available-only. `false` includes sold-out events. |
+| `date` | `Today`, `This week`, `This month`, or any other value for no filter. |
+
+Response:
+
+```json
+{
+  "events": [
+    {
+      "id": "evt_neon_riot",
+      "venue_id": "ven_velox_arena",
+      "status": "PUBLISHED",
+      "name": "Neon Riot Live",
+      "category": "Concerts",
+      "description": "Arena-scale synth and alt-pop with synchronized fan drops.",
+      "image_key": "event-final-whistle",
+      "venue": "Velox Arena",
+      "city": "Chicago",
+      "starts_at": "2026-08-15T20:00:00Z",
+      "sale_starts_at": "2026-07-19T18:00:00Z",
+      "timezone": "America/Chicago",
+      "section_ids": ["A", "B"],
+      "seats_total": 80,
+      "seats_open": 80,
+      "demand_score": 94
+    }
+  ],
+  "projection_lag_ms": 12
+}
+```
+
+The gateway owns event metadata. The frontend maps `image_key` to bundled local
+assets and derives remaining buckets from `seats_open`.
+
+### `GET /events/{eventId}`
+
+Public event detail read.
+
+```json
+{"event": {"id":"evt_neon_riot","name":"Neon Riot Live"}, "projection_lag_ms": 0}
+```
+
+Event detail is the canonical event-page source. Discovery is only a fallback
+backfill if an older gateway omits a field the frontend can still derive.
+
+### `GET /events/{eventId}/sections/{sectionId}/seats`
+
+Public section seat snapshot read.
+
+```json
+{
+  "seats": [
+    {
+      "event_id": "evt_neon_riot",
+      "section_id": "A",
+      "seat_id": "A-01",
+      "row": "A",
+      "number": 1,
+      "x": 44,
+      "y": 42,
+      "accessibility": true,
+      "price_cents": 8650,
+      "status": "AVAILABLE",
+      "version": 0,
+      "expires_at_server_ms": 0
+    }
+  ],
+  "snapshot_age_ms": 4
+}
+```
+
+`projection.seat_snapshots` is the read source. Seatservice's event stream is
+the write authority. Store-backed responses include backend-owned geometry and
+accessibility; the frontend only derives fallback geometry for older or
+in-memory responses missing those fields.
+
+### `GET /events/{eventId}/stream`
+
+Public SSE feed for seat updates.
+
+Events:
+
+| Event | Payload |
+| --- | --- |
+| `heartbeat` | `{"event_id":"evt_neon_riot"}` |
+| `update` | Store notification payload, expected to include changed seat state. |
+
+Current implementation is event-scoped and ignores `section_id` query filters.
+
+### `GET /events/{eventId}/announcements`
+
+Public announcement feed, newest first, capped at 100 rows in store-backed mode.
+
+```json
+{"announcements":[{"id":"...","event_id":"evt","title":"Doors","body":"Open","severity":"INFO","created_at":"..."}]}
+```
+
+## Auth Routes
+
+### `POST /auth/register`
+
+Loose JSON body today:
+
+```json
+{"email":"buyer@example.test","password":"secret","role":"reserver"}
+```
+
+`role` may be empty or `reserver`, or `organizer`. Passwords are Argon2id-hashed
+in store-backed mode. Demo in-memory login also accepts seeded plaintext
+passwords.
+
+Response: `200 {"user":{"id":"...","email":"...","role":"reserver"}}` plus
+`velox_session` cookie.
+
+### `POST /auth/login`
+
+Body:
+
+```json
+{"email":"buyer@example.test","password":"secret"}
+```
+
+Invalid attempts are rate-limited per email and client IP after 5 failures for
+5 minutes. Response matches register.
+
+### `POST /auth/logout`
+
+Clears `velox_session`. Response is `204 No Content`.
+
+### `GET /auth/me`
+
+Requires cookie. Response: `{"user":...}` or `401 {"error":"authentication_required"}`.
+
+## Buyer Routes
+
+### `POST /reservations`
+
+Requires auth, `Idempotency-Key`, strict JSON, and 1 to 8 seats.
+
+Request:
+
+```json
+{"event_id":"evt_neon_riot","section_id":"A","seat_ids":["A-01","A-02"]}
+```
+
+Current response:
+
+```json
+{"order":{"id":"...","reservation_id":"res_...","event_id":"evt","section_id":"A","seat_ids":["A-01"],"status":"PENDING","total_cents":8650,"expires_at_server_ms":1760000000000}}
+```
+
+Target Phase 3 response adds signed `reservation_token`, `server_time_ms`,
+selected seat prices, fees, and an authoritative hold deadline.
+
+Stable errors include `missing_idempotency_key`, `invalid_json`,
+`invalid_seat_count`, `event_not_bookable`, `seat_not_available`,
+`section_not_found`, `seat_not_found`, `idempotency_key_conflict`, and
+`upstream_error`.
+
+### `POST /reservations/{reservationId}/confirm`
+
+Requires auth. Current gateway verifies ownership by resolving
+`reservationId -> orderId` and proxies to orderservice.
+
+Current response:
+
+```json
+{"order_id":"...","status":"CONFIRMED"}
+```
+
+Current gap: `Reservation-Token` and confirm/cancel idempotency are not enforced
+at the gateway yet. Phase 3 must require a signed reservation token and
+`Idempotency-Key`.
+
+### `POST /reservations/{reservationId}/cancel`
+
+Same ownership and proxy behavior as confirm. Current response:
+
+```json
+{"order_id":"...","status":"CANCELLED"}
+```
+
+### `GET /orders`
+
+Requires auth. Returns only the caller's orders:
+
+```json
+{"orders":[{"id":"...","status":"HELD"}]}
+```
+
+### `GET /orders/{orderId}`
+
+Requires auth and ownership. Returns `{"order":...}` or `404`.
+
+### `GET /wallet/tickets`
+
+Requires auth. Store-backed mode reads projection tickets and mints short-lived
+QR tokens.
+
+```json
+{"verification_state":"VERIFIED","tickets":[{"ticket_id":"...","status":"ISSUED","qr_token":"..."}]}
+```
+
+Current gap: ticket issuance can still be skipped by projection ordering; Phase
+4 must add durable buffering or retry.
+
+## Organizer Routes
+
+### `GET /organizer/events`
+
+Requires organizer role. Returns events owned by the organizer.
+
+### `POST /organizer/events`
+
+Requires organizer role and strict JSON. Request:
+
+```json
+{
+  "id": "evt_optional",
+  "venue_id": "ven_123",
+  "name": "Show",
+  "description": "Short public event copy.",
+  "category": "Concerts",
+  "starts_at": "2026-09-01T20:00:00Z",
+  "sale_starts_at": "2026-08-01T16:00:00Z",
+  "image_key": "event-midnight-array",
+  "timezone": "UTC"
+}
+```
+
+Store-backed mode verifies the organizer owns `venue_id`, inserts
+`catalog.events`, materializes `catalog.event_sections`, creates inventory
+streams, and seeds projection seat snapshots from `catalog.venue_seats`.
+
+`id`, `description`, `category`, `sale_starts_at`, `image_key`, and `timezone`
+may be omitted. Defaults are generated ID, empty description, `Concerts`, now,
+`event-midnight-array`, and `UTC`.
+
+Validation:
+
+- `name` is required and capped at 120 characters.
+- `description` is capped at 5000 characters.
+- `starts_at` is required and must be after `sale_starts_at`.
+- `category` must be `Concerts`, `Sports`, `Theatre`, or `Festivals`.
+- `image_key` must be `event-midnight-array`, `event-final-whistle`, or
+  `event-zero-hour`.
+- missing or unowned venues return `404 {"error":"venue_not_found"}`.
+
+Compatibility alias: `POST /api/organizer/events` remains gateway-native for
+older callers. Browser code should use `/api/organizer/events`, which the
+SvelteKit proxy forwards to canonical gateway `POST /organizer/events`.
+
+### `GET /organizer/events/{eventId}/orders`
+
+Requires event ownership. Returns `{"orders":[]}` from current in-memory order
+state.
+
+### `GET /organizer/events/{eventId}/inventory`
+
+Requires event ownership. Returns aggregate counts:
+
+```json
+{"inventory":{"AVAILABLE":40,"HELD":2,"SOLD":38},"active_holds":2}
+```
+
+### `GET /organizer/events/{eventId}/metrics/stream`
+
+Requires event ownership. SSE stream sends metrics JSON from projections in
+store-backed mode. Legacy `GET /organizer/metrics/stream` remains for the
+current organizer overview and chooses the first in-memory organizer event.
+
+### `POST /organizer/events/{eventId}/announcements`
+
+Requires event ownership and strict JSON:
+
+```json
+{"title":"Doors update","body":"Doors open on schedule.","severity":"INFO"}
+```
+
+`severity` defaults to `INFO` and must be `INFO`, `SCHEDULE_CHANGE`, or
+`CANCELLATION`.
+
+### `POST /organizer/events/{eventId}/cancel`
+
+Requires event ownership. Fails closed with `503 order_service_unavailable` if
+orderservice is not configured. On success, catalog event status becomes
+`CANCELLED`, orderservice bulk-cancels outstanding orders, and the response is:
+
+```json
+{"event_id":"evt","status":"CANCELLED","cancelled_orders":3}
+```
+
+### `GET /organizer/venues`
+
+Requires organizer role. Returns venues owned by the organizer.
+
+Compatibility alias: `GET /api/organizer/venues`.
+
+### `POST /organizer/venues`
+
+Requires organizer role. Current loose body:
+
+```json
+{"id":"ven_optional","name":"Velox Arena","city":"Chicago","address":"100 Arena Way","capacity":10000}
+```
+
+Store-backed mode inserts `catalog.venues` and owner row in
+`catalog.user_venues`, then creates a default A/B section template with 80
+seats total. The default template is transitional behavior until the organizer
+venue designer exists.
+
+Compatibility alias: `POST /api/organizer/venues`.
+
+### `GET /organizer/venues/{venueId}/staff`
+
+Requires organizer role and venue ownership. Returns users attached through
+`catalog.user_venues`.
+
+Compatibility alias: `GET /api/organizer/venues/{id}/staff`.
+
+### `POST /organizer/venues/{venueId}/staff`
+
+Planned, not implemented. Until staff assignment is real, active staff invite
+controls must not claim that membership changes persist.
+
+## Internal Orderservice Routes
+
+Gateway calls these over the cluster network:
+
+- `POST /orders`
+- `POST /orders/{id}/confirm`
+- `POST /orders/{id}/cancel`
+- `POST /events/{id}/cancel`
+
+These are not public browser routes. They enforce their own 1 MiB body cap,
+strict JSON for order creation, transactional idempotency for create, and safe
+error mapping.

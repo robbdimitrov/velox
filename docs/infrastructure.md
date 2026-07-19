@@ -165,6 +165,10 @@ Rules:
 - Reject lower aggregate versions.
 - Buffer or retry missing intermediate versions when strict sequence is
   required.
+- Wallet issuance must not depend on order-summary projection winning a race
+  against inventory confirmation. Add durable pending-ticket buffering,
+  command-side ticket identity, or bounded reconciliation before treating
+  wallet tickets as complete.
 - Never apply reservation confirmation, ticket issuance, or transfer effects
   from an unsigned event.
 
