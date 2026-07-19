@@ -26,11 +26,11 @@
   let hoveredSeat = $state<Seat | null>(null);
 
   const colors: Record<string, string> = {
-    AVAILABLE: '#94A3B8',
-    SELECTED: '#FACC15',
-    HELD: '#EF4444',
-    SOLD: '#0B0C10',
-    UNKNOWN: '#1F2937'
+    AVAILABLE: '#8FA3B8',
+    SELECTED: '#F2B84B',
+    HELD: '#FF5C5C',
+    SOLD: '#151D29',
+    UNKNOWN: '#273244'
   };
 
   let minX = $state(0),
@@ -154,12 +154,12 @@
         (!accessibleOnly || seat.accessibility)
       ) {
         ctx.shadowColor = 'rgba(255, 255, 255, 0.6)';
-        ctx.shadowBlur = 15 * scale;
+        ctx.shadowBlur = 10 * scale;
       } else if (selected || seat.status === 'HELD') {
         ctx.shadowColor = selected
-          ? 'rgba(250, 204, 21, 0.8)'
-          : 'rgba(239, 68, 68, 0.8)';
-        ctx.shadowBlur = 12 * scale;
+          ? 'rgba(242, 184, 75, 0.62)'
+          : 'rgba(255, 92, 92, 0.62)';
+        ctx.shadowBlur = 9 * scale;
       } else {
         ctx.shadowBlur = 0;
       }
@@ -263,7 +263,7 @@
 
 <div
   bind:this={container}
-  class="relative min-h-[420px] h-full rounded border border-white/10 bg-black/40 shadow-lg overflow-hidden backdrop-blur-md"
+  class="relative h-full min-h-[440px] overflow-hidden rounded-sm border border-line bg-panel shadow-lg"
 >
   {#if useCanvas}
     <canvas
@@ -323,22 +323,22 @@
   {/if}
 
   <div
-    class="absolute inset-0 pointer-events-none flex flex-col justify-between items-center py-6 z-0"
+    class="pointer-events-none absolute inset-0 z-0 flex flex-col items-center justify-between py-6"
   >
     <div class="flex flex-col items-center opacity-60">
-      <div class="h-1 w-32 bg-white/20 rounded-full mb-2"></div>
-      <span class="text-xs font-black uppercase tracking-[0.3em] text-white/60"
+      <div class="mb-2 h-1 w-32 rounded-full bg-ink/20"></div>
+      <span class="text-xs font-black uppercase tracking-[0.3em] text-inkMuted"
         >Section {sectionID}</span
       >
     </div>
 
-    <div class="flex flex-col items-center relative bottom-[-20px]">
+    <div class="relative bottom-[-20px] flex flex-col items-center">
       <span
-        class="text-xs font-black uppercase tracking-[0.6em] text-signal mb-2 drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]"
+        class="mb-2 text-xs font-black uppercase tracking-[0.6em] text-signal"
         >Stage</span
       >
       <div
-        class="w-80 h-16 border-t-[3px] border-signal/40 rounded-t-[100%] bg-gradient-to-t from-signal/20 to-transparent shadow-[0_-15px_30px_rgba(250,204,21,0.15)]"
+        class="h-16 w-80 rounded-t-[100%] border-t-[3px] border-signal/50 bg-[linear-gradient(0deg,rgba(242,184,75,0.18),transparent)]"
       ></div>
     </div>
   </div>

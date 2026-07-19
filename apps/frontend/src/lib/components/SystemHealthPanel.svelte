@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Activity, Server, Users, Database } from '@lucide/svelte';
+  import Panel from '$lib/components/Panel.svelte';
 
   let {
     cpu = 45,
@@ -7,62 +8,47 @@
     activeUsers = 120,
     requestsPerSecond = 850
   } = $props();
+
+  const metrics = $derived([
+    { icon: Server, label: 'CPU Usage', value: `${cpu}%`, progress: cpu },
+    { icon: Database, label: 'Memory', value: `${memory}%`, progress: memory },
+    { icon: Users, label: 'Active Users', value: activeUsers },
+    { icon: Activity, label: 'Req / Sec', value: requestsPerSecond }
+  ]);
 </script>
 
-<div class="glass-panel p-6">
-  <div class="flex items-center gap-2 mb-6 border-b border-white/10 pb-4">
+<Panel padding="lg">
+  <div class="mb-6 flex items-center gap-2 border-b border-line pb-4">
     <Activity class="text-signal" size={20} />
-    <h3 class="text-sm font-black uppercase tracking-wider text-white">
+    <h3 class="text-sm font-black uppercase tracking-wider text-ink">
       System Health
     </h3>
   </div>
 
   <div class="grid grid-cols-2 gap-4">
-    <div class="bg-black/40 rounded p-4 border border-white/5">
-      <div class="flex items-center gap-2 text-inkMuted mb-2">
-        <Server size={14} />
-        <span class="text-xs font-bold uppercase tracking-widest"
-          >CPU Usage</span
-        >
+    {#each metrics as metric}
+      {@const Icon = metric.icon}
+      <div class="rounded-sm border border-line bg-panelSoft/70 p-4">
+        <div class="mb-2 flex items-center gap-2 text-inkMuted">
+          <Icon size={14} />
+          <span class="text-xs font-bold uppercase tracking-widest">
+            {metric.label}
+          </span>
+        </div>
+        <div class="font-mono tabular-nums text-2xl text-ink">
+          {metric.value}
+        </div>
+        {#if metric.progress !== undefined}
+          <div
+            class="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-carbon/70"
+          >
+            <div
+              class="h-full rounded-full bg-signal"
+              style="width: {metric.progress}%"
+            ></div>
+          </div>
+        {/if}
       </div>
-      <div class="text-2xl font-mono text-white">{cpu}%</div>
-      <div class="w-full bg-black/60 h-1.5 rounded-full mt-3 overflow-hidden">
-        <div class="bg-signal h-full rounded-full" style="width: {cpu}%"></div>
-      </div>
-    </div>
-
-    <div class="bg-black/40 rounded p-4 border border-white/5">
-      <div class="flex items-center gap-2 text-inkMuted mb-2">
-        <Database size={14} />
-        <span class="text-xs font-bold uppercase tracking-widest">Memory</span>
-      </div>
-      <div class="text-2xl font-mono text-white">{memory}%</div>
-      <div class="w-full bg-black/60 h-1.5 rounded-full mt-3 overflow-hidden">
-        <div
-          class="bg-signal h-full rounded-full"
-          style="width: {memory}%"
-        ></div>
-      </div>
-    </div>
-
-    <div class="bg-black/40 rounded p-4 border border-white/5">
-      <div class="flex items-center gap-2 text-inkMuted mb-2">
-        <Users size={14} />
-        <span class="text-xs font-bold uppercase tracking-widest"
-          >Active Users</span
-        >
-      </div>
-      <div class="text-2xl font-mono text-white">{activeUsers}</div>
-    </div>
-
-    <div class="bg-black/40 rounded p-4 border border-white/5">
-      <div class="flex items-center gap-2 text-inkMuted mb-2">
-        <Activity size={14} />
-        <span class="text-xs font-bold uppercase tracking-widest"
-          >Req / Sec</span
-        >
-      </div>
-      <div class="text-2xl font-mono text-white">{requestsPerSecond}</div>
-    </div>
+    {/each}
   </div>
-</div>
+</Panel>

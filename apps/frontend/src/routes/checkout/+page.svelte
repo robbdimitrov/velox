@@ -15,6 +15,8 @@
     CheckCircle2,
     XCircle
   } from '@lucide/svelte';
+  import ActionLink from '$lib/components/ActionLink.svelte';
+  import Panel from '$lib/components/Panel.svelte';
   import PrimaryButton from '$lib/components/PrimaryButton.svelte';
 
   let termsAccepted = $state(false);
@@ -100,9 +102,9 @@
   }
 </script>
 
-<main class="app-screen-focused grid gap-6 lg:grid-cols-[1fr_360px]">
+<main class="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[1fr_360px]">
   {#if checkoutState.reservation}
-    <section class="glass-panel p-8 flex flex-col h-full">
+    <Panel padding="xl" flexColumn>
       <h1 class="text-3xl font-black uppercase tracking-tight text-white">
         Confirm Reservation
       </h1>
@@ -119,7 +121,7 @@
           Hold expires in
         </p>
         <p
-          class="mono-num font-mono text-5xl font-black text-urgency drop-shadow-[0_0_10px_rgba(239,68,68,0.8)] relative"
+          class="font-mono tabular-nums relative text-5xl font-black text-urgency drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]"
         >
           {formatCountdown(remaining)}
         </p>
@@ -134,7 +136,7 @@
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {#each checkoutState.reservation.seats as seat}
             <div
-              class="flex items-center justify-center rounded border border-white/5 bg-black/40 p-4 font-mono shadow-sm hover:border-signal/30 transition-colors"
+              class="flex items-center justify-center rounded-sm border border-line bg-panelSoft/70 p-4 font-mono tabular-nums shadow-sm transition-colors hover:border-signal/30"
             >
               <span class="text-xl font-bold text-ink">{seat.seat_id}</span>
             </div>
@@ -146,11 +148,13 @@
         class="mt-6 pt-6 border-t border-white/10 flex justify-between items-center text-xs text-ink/40"
       >
         <span class="uppercase tracking-widest">Reservation version</span>
-        <span class="font-mono">{checkoutState.reservation.version}</span>
+        <span class="font-mono tabular-nums"
+          >{checkoutState.reservation.version}</span
+        >
       </div>
-    </section>
+    </Panel>
 
-    <aside class="glass-panel h-max p-6 sticky top-28">
+    <Panel padding="lg" sticky hMax>
       <div class="flex items-center gap-3 border-b border-white/10 pb-4 mb-6">
         <div class="rounded bg-signal p-2 shadow-md shadow-signal/20">
           <CheckCircle2 class="text-carbon" size={20} />
@@ -199,24 +203,26 @@
         <XCircle size={18} />
         {cancelling ? 'Cancelling...' : 'Cancel Reservation'}
       </button>
-    </aside>
+    </Panel>
   {:else}
-    <section
-      class="glass-panel col-span-full mx-auto flex min-h-[400px] max-w-2xl flex-col items-center justify-center p-12 text-center"
-    >
-      <div class="mb-6 rounded bg-white/5 p-4 text-signal">
-        <AlertTriangle size={48} />
-      </div>
-      <h1 class="text-3xl font-black uppercase text-white mb-3">
-        No Active Reservation
-      </h1>
-      <p class="text-inkMuted text-lg max-w-md">
-        Your hold has expired or you haven't selected any seats yet. Return to
-        the seat map and secure your tickets.
-      </p>
-      <a class="btn btn-lg velox-action mt-8 rounded px-8" href="/"
-        >Find Events</a
-      >
-    </section>
+    <div class="col-span-full mx-auto w-full max-w-2xl">
+      <Panel padding="xl">
+        <div
+          class="flex min-h-[400px] flex-col items-center justify-center text-center"
+        >
+          <div class="mb-6 rounded bg-white/5 p-4 text-signal">
+            <AlertTriangle size={48} />
+          </div>
+          <h1 class="text-3xl font-black uppercase text-white mb-3">
+            No Active Reservation
+          </h1>
+          <p class="text-inkMuted text-lg max-w-md">
+            Your hold has expired or you haven't selected any seats yet. Return
+            to the seat map and secure your tickets.
+          </p>
+          <ActionLink href="/" size="lg">Find Events</ActionLink>
+        </div>
+      </Panel>
+    </div>
   {/if}
 </main>

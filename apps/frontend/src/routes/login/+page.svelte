@@ -1,5 +1,9 @@
 <script lang="ts">
   import { Mail, Lock, ArrowRight } from '@lucide/svelte';
+  import AuthCard from '$lib/components/AuthCard.svelte';
+  import PrimaryButton from '$lib/components/PrimaryButton.svelte';
+  import TextField from '$lib/components/TextField.svelte';
+
   let email = $state('');
   let password = $state('');
   let loading = $state(false);
@@ -36,84 +40,54 @@
 </svelte:head>
 
 <div class="flex min-h-[80vh] items-center justify-center">
-  <div class="glass-panel app-auth relative overflow-hidden p-8 shadow-glow">
-    <div
-      class="absolute inset-0 bg-gradient-to-br from-signal/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-    ></div>
-    <div class="relative z-10">
-      <h1 class="text-3xl font-black mb-2 tracking-tight uppercase">
-        Welcome Back
-      </h1>
-      <p class="text-inkMuted mb-8 text-sm">
-        Log in to access your tickets and reservations.
-      </p>
+  <AuthCard
+    title="Welcome Back"
+    description="Log in to access your tickets and reservations."
+  >
+    {#if error}
+      <div
+        class="mb-6 rounded-sm border border-urgency/50 bg-urgency/20 p-3 text-sm text-urgency backdrop-blur-sm"
+      >
+        {error}
+      </div>
+    {/if}
 
-      {#if error}
-        <div
-          class="bg-urgency/20 border border-urgency/50 text-urgency p-3 rounded mb-6 text-sm backdrop-blur-sm animate-pulse"
-        >
-          {error}
-        </div>
-      {/if}
+    <form onsubmit={handleSubmit} class="space-y-6">
+      <TextField
+        id="email"
+        label="Email"
+        type="email"
+        bind:value={email}
+        required
+        icon={Mail}
+        placeholder="you@example.com"
+      />
+      <TextField
+        id="password"
+        label="Password"
+        type="password"
+        bind:value={password}
+        required
+        icon={Lock}
+        placeholder="••••••••"
+      />
 
-      <form onsubmit={handleSubmit} class="space-y-6">
-        <div class="space-y-2">
-          <label
-            class="text-xs font-semibold uppercase tracking-wider text-inkMuted"
-            for="email">Email</label
-          >
-          <div class="relative flex items-center">
-            <Mail size={18} class="absolute left-3 text-inkMuted" />
-            <input
-              id="email"
-              type="email"
-              bind:value={email}
-              required
-              class="velox-field w-full py-3 pl-10 pr-4 shadow-inner placeholder:text-inkMuted/50"
-              placeholder="you@example.com"
-            />
-          </div>
-        </div>
+      <PrimaryButton type="submit" disabled={loading} flush>
+        {#if loading}
+          <span class="loading loading-spinner loading-sm"></span>
+        {:else}
+          Log In <ArrowRight size={18} />
+        {/if}
+      </PrimaryButton>
+    </form>
 
-        <div class="space-y-2">
-          <label
-            class="text-xs font-semibold uppercase tracking-wider text-inkMuted"
-            for="password">Password</label
-          >
-          <div class="relative flex items-center">
-            <Lock size={18} class="absolute left-3 text-inkMuted" />
-            <input
-              id="password"
-              type="password"
-              bind:value={password}
-              required
-              class="velox-field w-full py-3 pl-10 pr-4 shadow-inner placeholder:text-inkMuted/50"
-              placeholder="••••••••"
-            />
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          disabled={loading}
-          class="btn velox-action w-full rounded transition-all hover:scale-[1.02]"
-        >
-          {#if loading}
-            <span class="loading loading-spinner loading-sm"></span>
-          {:else}
-            Log In <ArrowRight size={18} />
-          {/if}
-        </button>
-      </form>
-
-      <p class="mt-6 text-center text-sm text-inkMuted">
-        Don't have an account?
-        <a
-          href="/register"
-          class="text-signal hover:text-signal/80 font-semibold transition-colors"
-          >Register here</a
-        >
-      </p>
-    </div>
-  </div>
+    <p class="mt-6 text-center text-sm text-inkMuted">
+      Don't have an account?
+      <a
+        href="/register"
+        class="font-semibold text-signal transition-colors hover:text-signal/80"
+        >Register here</a
+      >
+    </p>
+  </AuthCard>
 </div>

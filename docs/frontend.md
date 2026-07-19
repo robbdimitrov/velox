@@ -12,24 +12,42 @@
 
 ## Design Direction
 
-Velox uses a "Moon Landing" / aerospace aesthetic to handle live entertainment under extreme demand. The base surface is deep space carbon `#050505`; interface structure uses lunar silver lines, square geometry, dense grids, and high-contrast typography. State color must be functional, not decorative:
+Velox uses a crafted command-center aesthetic for live entertainment under
+extreme demand. The base surface is deep carbon `#07080B`; interface structure
+uses cool panel layers, square geometry, dense grids, and high-contrast
+typography. State color must be functional, not decorative:
 
-- `#FACC15` (Apollo Visor Gold): primary action, selected seats, active filters, glowing stage.
-- `#EF4444` (Control Panel Red): urgency, held seats by others, destructive warnings, checkout expiry.
-- `#F8FAFC` (Spacesuit White): readable foreground text.
-- `#1F2937` (Dusty Gray): inactive borders, map section outlines, disabled states.
-- `#94A3B8` (Lunar Silver): available seats, secondary elements.
+- `#F2B84B` (signal amber): primary action, selected seats, active filters, key operational highlights.
+- `#39D6C8` (electric teal): accent detail, secondary live-state emphasis, and contrast against amber.
+- `#FF5C5C` (urgency red): held seats by others, destructive warnings, checkout expiry, cancellation state.
+- `#F7F1E8` (warm ink): readable foreground text.
+- `#273244` (line blue): inactive borders, map section outlines, disabled states.
+- `#8FA3B8` (muted slate): secondary text and supporting metadata.
 
 Use sharp 0 to 4 px radii for core controls. Prefer `Space Grotesk` for UI text and `Space Mono` numerals for timers, counters, and seat identifiers. The interface should feel like a classic, high-reliability aerospace control center.
 
-Screen widths use a small set of shared tiers:
+Compose frontend styling with Tailwind utilities and DaisyUI components only.
+Do not add app-specific CSS classes or component rules to `app.css`; keep that
+file limited to Tailwind/DaisyUI setup and design tokens.
 
-- `app-shell` / `app-screen`: 80 rem max for discovery, seat maps, wallet, organizer dashboards, and other multi-panel workspaces.
-- `app-screen-focused`: 64 rem max for two-panel confirmation and review flows.
-- `app-screen-narrow` / `content-narrow`: 48 rem max for forms and single-column organizer setup flows; use `content-narrow` inside an existing `app-screen`.
-- `app-auth`: 28 rem max for login, registration, and compact modal-like entry screens.
+The global app frame in `+layout.svelte` owns the 80rem page width, horizontal
+viewport inset, top/bottom padding, and the nav-to-content `gap-6`. Routes
+inside it should use `w-full`, or a narrower `max-w-*` only when the flow itself
+is intentionally narrower.
 
-Use `velox-field` for standard text, select, and textarea controls and `velox-action` for primary actions. Keep secondary and destructive actions explicit with neutral or urgency tokens.
+Screen widths use a small set of Tailwind tiers:
+
+- `max-w-7xl`: discovery, seat maps, wallet, organizer dashboards, and other multi-panel workspaces.
+- `max-w-5xl`: two-panel confirmation and review flows.
+- `max-w-3xl`: forms and single-column organizer setup flows.
+- `max-w-md`: login, registration, and compact modal-like entry screens.
+
+Use the same 6-unit gap for major panel groups. Do not split nav-to-content
+spacing across header padding, wrapper padding, and page padding.
+
+Use DaisyUI form controls and button variants first, then Tailwind utilities
+when DaisyUI is not specific enough. Keep secondary and destructive actions
+explicit with neutral or urgency tokens.
 
 ## Landing and Event Discovery Page
 

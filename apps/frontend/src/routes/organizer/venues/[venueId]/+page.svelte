@@ -2,6 +2,7 @@
   import { page } from '$app/stores';
   import { Users, UserPlus, Shield, MoreHorizontal } from '@lucide/svelte';
   import InviteStaffModal from '$lib/components/InviteStaffModal.svelte';
+  import Panel from '$lib/components/Panel.svelte';
 
   let venueId = $derived($page.params.venueId);
   let showModal = $state(false);
@@ -34,23 +35,26 @@
 <div class="space-y-8">
   <div class="mb-8 flex justify-between items-end">
     <div>
-      <h1 class="text-3xl font-black uppercase text-white tracking-tight">
+      <h1 class="text-3xl font-black uppercase tracking-tight text-ink">
         Staff Management
       </h1>
       <p class="text-signal uppercase tracking-widest text-sm mt-1">
         Venue: {venueId}
       </p>
     </div>
-    <button class="btn velox-action rounded" onclick={() => (showModal = true)}>
+    <button
+      class="btn btn-primary rounded-sm text-primary-content shadow-[0_12px_30px_rgba(242,184,75,0.22)]"
+      onclick={() => (showModal = true)}
+    >
       <UserPlus size={18} />
       Invite Staff
     </button>
   </div>
 
-  <div class="glass-panel overflow-hidden">
-    <div class="flex items-center gap-3 p-6 border-b border-white/10">
+  <Panel padding="none" overflowHidden>
+    <div class="flex items-center gap-3 border-b border-line p-6">
       <Users class="text-signal" size={20} />
-      <h3 class="text-sm font-black uppercase tracking-wider text-white">
+      <h3 class="text-sm font-black uppercase tracking-wider text-ink">
         Team Members
       </h3>
     </div>
@@ -59,7 +63,7 @@
       <table class="table w-full">
         <thead>
           <tr
-            class="border-white/10 text-inkMuted text-xs uppercase tracking-widest bg-black/20"
+            class="border-line bg-panelSoft/70 text-xs uppercase tracking-widest text-inkMuted"
           >
             <th class="px-6 py-4 font-bold">Member</th>
             <th class="px-6 py-4 font-bold">Role</th>
@@ -67,9 +71,9 @@
             <th class="px-6 py-4 font-bold text-right">Actions</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-white/5">
+        <tbody class="divide-y divide-line">
           {#each staff as member}
-            <tr class="hover:bg-white/5 transition-colors">
+            <tr class="transition-colors hover:bg-panelSoft/60">
               <td class="px-6 py-4">
                 <div class="flex items-center gap-3">
                   <div
@@ -78,14 +82,14 @@
                     {member.name.charAt(0)}
                   </div>
                   <div>
-                    <div class="text-white font-medium">{member.name}</div>
+                    <div class="font-medium text-ink">{member.name}</div>
                     <div class="text-xs text-inkMuted">{member.email}</div>
                   </div>
                 </div>
               </td>
               <td class="px-6 py-4">
                 <div
-                  class="flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider text-inkMuted"
+                  class="flex items-center gap-1.5 font-mono text-xs font-bold uppercase tracking-wider text-inkMuted"
                 >
                   {#if member.role === 'ADMIN'}
                     <Shield size={14} class="text-signal" />
@@ -94,15 +98,23 @@
                 </div>
               </td>
               <td class="px-6 py-4">
-                <span
-                  class={`rounded border px-2 py-1 text-[10px] font-black uppercase tracking-widest ${member.status === 'ACTIVE' ? 'border-ok/30 text-ok bg-ok/10' : 'border-warn/30 text-warn bg-warn/10'}`}
-                >
-                  {member.status}
-                </span>
+                {#if member.status === 'ACTIVE'}
+                  <span
+                    class="rounded-sm border border-ok/30 bg-ok/10 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-ok"
+                  >
+                    {member.status}
+                  </span>
+                {:else}
+                  <span
+                    class="rounded-sm border border-warn/30 bg-warn/10 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-warn"
+                  >
+                    {member.status}
+                  </span>
+                {/if}
               </td>
               <td class="px-6 py-4 text-right">
                 <button
-                  class="btn btn-ghost btn-sm text-inkMuted hover:text-white p-2"
+                  class="btn btn-ghost btn-sm p-2 text-inkMuted hover:text-ink"
                 >
                   <MoreHorizontal size={16} />
                 </button>
@@ -112,7 +124,7 @@
         </tbody>
       </table>
     </div>
-  </div>
+  </Panel>
 </div>
 
 <InviteStaffModal bind:show={showModal} />

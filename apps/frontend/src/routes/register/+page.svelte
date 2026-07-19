@@ -1,11 +1,8 @@
 <script lang="ts">
-  import {
-    Mail,
-    Lock,
-    User as UserIcon,
-    ArrowRight,
-    BriefcaseBusiness
-  } from '@lucide/svelte';
+  import { Mail, Lock, User as UserIcon, ArrowRight } from '@lucide/svelte';
+  import AuthCard from '$lib/components/AuthCard.svelte';
+  import PrimaryButton from '$lib/components/PrimaryButton.svelte';
+  import TextField from '$lib/components/TextField.svelte';
   let email = $state('');
   let password = $state('');
   let name = $state('');
@@ -43,102 +40,62 @@
 </svelte:head>
 
 <div class="flex min-h-[80vh] items-center justify-center">
-  <div class="glass-panel app-auth relative overflow-hidden p-8 shadow-glow">
-    <div
-      class="absolute inset-0 bg-gradient-to-br from-signal/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-    ></div>
-    <div class="relative z-10">
-      <h1 class="text-3xl font-black mb-2 tracking-tight uppercase">
-        Join Velox
-      </h1>
-      <p class="text-inkMuted mb-8 text-sm">
-        Create an account to start reserving seats or hosting events.
-      </p>
+  <AuthCard
+    title="Join Velox"
+    description="Create an account to start reserving seats or hosting events."
+  >
+    {#if error}
+      <div
+        class="mb-6 rounded-sm border border-urgency/50 bg-urgency/20 p-3 text-sm text-urgency backdrop-blur-sm"
+      >
+        {error}
+      </div>
+    {/if}
 
-      {#if error}
-        <div
-          class="bg-urgency/20 border border-urgency/50 text-urgency p-3 rounded mb-6 text-sm backdrop-blur-sm animate-pulse"
-        >
-          {error}
-        </div>
-      {/if}
+    <form onsubmit={handleSubmit} class="space-y-5">
+      <TextField
+        id="name"
+        label="Full Name"
+        bind:value={name}
+        required
+        icon={UserIcon}
+        placeholder="John Doe"
+      />
+      <TextField
+        id="email"
+        label="Email"
+        type="email"
+        bind:value={email}
+        required
+        icon={Mail}
+        placeholder="you@example.com"
+      />
+      <TextField
+        id="password"
+        label="Password"
+        type="password"
+        bind:value={password}
+        required
+        icon={Lock}
+        placeholder="••••••••"
+      />
 
-      <form onsubmit={handleSubmit} class="space-y-5">
-        <div class="space-y-2">
-          <label
-            class="text-xs font-semibold uppercase tracking-wider text-inkMuted"
-            for="name">Full Name</label
-          >
-          <div class="relative flex items-center">
-            <UserIcon size={18} class="absolute left-3 text-inkMuted" />
-            <input
-              id="name"
-              type="text"
-              bind:value={name}
-              required
-              class="velox-field w-full py-3 pl-10 pr-4 shadow-inner placeholder:text-inkMuted/50"
-              placeholder="John Doe"
-            />
-          </div>
-        </div>
+      <PrimaryButton type="submit" disabled={loading}>
+        {#if loading}
+          <span class="loading loading-spinner loading-sm"></span>
+        {:else}
+          Create Account <ArrowRight size={18} />
+        {/if}
+      </PrimaryButton>
+    </form>
 
-        <div class="space-y-2">
-          <label
-            class="text-xs font-semibold uppercase tracking-wider text-inkMuted"
-            for="email">Email</label
-          >
-          <div class="relative flex items-center">
-            <Mail size={18} class="absolute left-3 text-inkMuted" />
-            <input
-              id="email"
-              type="email"
-              bind:value={email}
-              required
-              class="velox-field w-full py-3 pl-10 pr-4 shadow-inner placeholder:text-inkMuted/50"
-              placeholder="you@example.com"
-            />
-          </div>
-        </div>
-
-        <div class="space-y-2">
-          <label
-            class="text-xs font-semibold uppercase tracking-wider text-inkMuted"
-            for="password">Password</label
-          >
-          <div class="relative flex items-center">
-            <Lock size={18} class="absolute left-3 text-inkMuted" />
-            <input
-              id="password"
-              type="password"
-              bind:value={password}
-              required
-              class="velox-field w-full py-3 pl-10 pr-4 shadow-inner placeholder:text-inkMuted/50"
-              placeholder="••••••••"
-            />
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          disabled={loading}
-          class="btn velox-action mt-4 w-full rounded transition-all hover:scale-[1.02]"
-        >
-          {#if loading}
-            <span class="loading loading-spinner loading-sm"></span>
-          {:else}
-            Create Account <ArrowRight size={18} />
-          {/if}
-        </button>
-      </form>
-
-      <p class="mt-6 text-center text-sm text-inkMuted">
-        Already have an account?
-        <a
-          href="/login"
-          class="text-signal hover:text-signal/80 font-semibold transition-colors"
-          >Log in</a
-        >
-      </p>
-    </div>
-  </div>
+    <p class="mt-6 text-center text-sm text-inkMuted">
+      Already have an account?
+      <a
+        href="/login"
+        class="font-semibold text-signal transition-colors hover:text-signal/80"
+        >Log in</a
+      >
+    </p>
+  </AuthCard>
 </div>

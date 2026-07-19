@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { createIdempotencyKey, createGatewayClient } from '$lib/api/client';
   import type { SeatDelta } from '$lib/api/types';
+  import AnnouncementCard from '$lib/components/AnnouncementCard.svelte';
   import SeatCanvas from '$lib/components/SeatCanvas.svelte';
   import VirtualWaitingRoom from '$lib/components/VirtualWaitingRoom.svelte';
   import { checkoutState } from '$lib/state/checkout-state.svelte';
@@ -16,6 +17,7 @@
     TicketCheck,
     Layers
   } from '@lucide/svelte';
+  import Panel from '$lib/components/Panel.svelte';
   import PrimaryButton from '$lib/components/PrimaryButton.svelte';
   import { onMount } from 'svelte';
   import { slide } from 'svelte/transition';
@@ -41,42 +43,6 @@
   let hiddenAnnouncementCount = $derived(
     data.announcements.length - ANNOUNCEMENT_PREVIEW_COUNT
   );
-
-  const severityStyles: Record<
-    string,
-    { border: string; bg: string; text: string }
-  > = {
-    CANCELLATION: {
-      border: 'border-urgency/50',
-      bg: 'bg-urgency/10',
-      text: 'text-urgency'
-    },
-    SCHEDULE_CHANGE: {
-      border: 'border-warning/30',
-      bg: 'bg-warning/10',
-      text: 'text-warning'
-    },
-    INFO: {
-      border: 'border-white/10',
-      bg: 'bg-black/40',
-      text: 'text-ink'
-    }
-  };
-
-  function severityStyle(severity: string) {
-    return severityStyles[severity] ?? severityStyles.INFO;
-  }
-
-  function formatUpdateTime(isoTimestamp: string) {
-    const parsed = new Date(isoTimestamp);
-    if (Number.isNaN(parsed.getTime())) return isoTimestamp;
-    return parsed.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit'
-    });
-  }
 
   $effect(() => {
     if (data.isRateLimited) return;
@@ -147,7 +113,7 @@
 {#if data.isRateLimited}
   <VirtualWaitingRoom />
 {:else}
-  <main class="app-screen grid gap-6 lg:grid-cols-[260px_1fr_320px]">
+  <main class="grid w-full gap-6 lg:grid-cols-[260px_1fr_320px]">
     {#if isCancelled}
       <div
         class="lg:col-span-3 flex items-center gap-3 rounded border border-urgency/50 bg-urgency/10 p-4 text-urgency"
@@ -160,12 +126,12 @@
       </div>
     {/if}
 
-    <aside class="glass-panel h-max p-6 sticky top-28">
-      <div class="flex items-center gap-3 border-b border-white/10 pb-4 mb-6">
+    <Panel padding="lg" sticky hMax>
+      <div class="mb-6 flex items-center gap-3 border-b border-line pb-4">
         <div class="rounded bg-signal p-2 shadow-md shadow-signal/20">
           <Layers class="text-carbon" size={18} />
         </div>
-        <h2 class="text-sm font-black uppercase tracking-wider text-white">
+        <h2 class="text-sm font-black uppercase tracking-wider text-ink">
           Section Tools
         </h2>
       </div>
@@ -175,7 +141,7 @@
         <select
           bind:value={sectionID}
           onchange={() => goto(`?section_id=${sectionID}`)}
-          class="select select-bordered select-sm velox-field w-full text-ink"
+          class="select select-bordered select-sm w-full rounded-sm border-line bg-carbon/60 text-ink focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal/50"
         >
           <option>A</option>
           <option>B</option>
@@ -183,21 +149,21 @@
         </select>
       </label>
 
-      <div class="grid grid-cols-2 gap-3 mb-6">
+      <div class="mb-6 grid grid-cols-2 gap-3">
         <button
-          class="btn btn-sm border-white/10 bg-black/40 text-ink hover:bg-black/60 rounded shadow-inner"
+          class="btn btn-sm rounded-sm border-line bg-panelSoft text-ink shadow-inner hover:bg-panel"
           onclick={() => (zoomLevel = Math.min(3, zoomLevel * 1.2))}
           ><Plus size={16} /> Zoom</button
         >
         <button
-          class="btn btn-sm border-white/10 bg-black/40 text-ink hover:bg-black/60 rounded shadow-inner"
+          class="btn btn-sm rounded-sm border-line bg-panelSoft text-ink shadow-inner hover:bg-panel"
           onclick={() => (zoomLevel = Math.max(0.5, zoomLevel / 1.2))}
           ><Minus size={16} /> Zoom</button
         >
       </div>
 
       <label
-        class="flex items-center gap-3 text-sm cursor-pointer hover:text-white transition-colors group bg-black/20 p-3 rounded border border-white/5 mb-6"
+        class="group mb-6 flex cursor-pointer items-center gap-3 rounded-sm border border-line bg-panelSoft/60 p-3 text-sm transition-colors hover:text-ink"
       >
         <input
           bind:checked={accessibleOnly}
@@ -211,7 +177,7 @@
       </label>
 
       <div
-        class="space-y-3 border-t border-white/10 pt-6 text-xs uppercase font-bold tracking-wider text-inkMuted"
+        class="space-y-3 border-t border-line pt-6 text-xs font-bold uppercase tracking-wider text-inkMuted"
       >
         <p class="flex items-center gap-3">
           <span class="inline-block h-3 w-3 rounded-full bg-inkMuted"></span> Available
@@ -232,40 +198,46 @@
           ></span> Sold
         </p>
       </div>
-    </aside>
+    </Panel>
 
     <section class="min-w-0 flex flex-col gap-4">
-      <div
-        class="glass-panel p-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4"
-      >
-        <div>
-          <h1
-            class="text-3xl font-black uppercase tracking-tight text-white drop-shadow-md"
-          >
-            {data.event?.title}
-          </h1>
-          <p
-            class="text-sm font-medium text-signal mt-1 uppercase tracking-wide"
-          >
-            {data.event?.venue} <span class="text-inkMuted mx-2">|</span>
-            Section {sectionID}
-          </p>
-        </div>
+      <Panel padding="lg">
         <div
-          class="flex flex-col items-end rounded border border-white/5 bg-black/40 px-3 py-1.5"
+          class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"
         >
-          <p class="font-mono text-xs text-ink/60 uppercase tracking-widest">
-            Snapshot <span class="text-white"
-              >{data.snapshot.snapshot_age_ms}ms</span
+          <div>
+            <h1
+              class="text-3xl font-black uppercase tracking-tight text-ink drop-shadow-md"
             >
-          </p>
-          <p
-            class="font-mono text-xs text-ink/60 uppercase tracking-widest mt-0.5"
+              {data.event?.title}
+            </h1>
+            <p
+              class="text-sm font-medium text-signal mt-1 uppercase tracking-wide"
+            >
+              {data.event?.venue} <span class="text-inkMuted mx-2">|</span>
+              Section {sectionID}
+            </p>
+          </div>
+          <div
+            class="flex flex-col items-end rounded-sm border border-line bg-panelSoft/70 px-3 py-1.5"
           >
-            Lag <span class="text-ok">{data.snapshot.projection_lag_ms}ms</span>
-          </p>
+            <p
+              class="font-mono tabular-nums text-xs uppercase tracking-widest text-ink/60"
+            >
+              Snapshot <span class="text-ink"
+                >{data.snapshot.snapshot_age_ms}ms</span
+              >
+            </p>
+            <p
+              class="font-mono tabular-nums mt-0.5 text-xs uppercase tracking-widest text-ink/60"
+            >
+              Lag <span class="text-ok"
+                >{data.snapshot.projection_lag_ms}ms</span
+              >
+            </p>
+          </div>
         </div>
-      </div>
+      </Panel>
 
       <SeatCanvas
         seats={seatState.seats}
@@ -276,54 +248,41 @@
         {accessibleOnly}
       />
 
-      <div class="glass-panel h-32 overflow-hidden p-4 relative">
-        <p
-          class="mb-3 text-xs font-black uppercase tracking-widest text-inkMuted border-b border-white/10 pb-2"
-        >
-          Live inventory log
-        </p>
-        <div class="space-y-1.5">
-          {#each eventLog as item, index (item)}
-            <p
-              class="font-mono text-xs text-ink/80 truncate hover:text-white transition-colors"
-              in:slide={{ duration: 200 }}
-            >
-              <span class="text-signal mr-2">›</span>{item}
-            </p>
-          {/each}
+      <Panel padding="sm" overflowHidden>
+        <div class="h-24">
+          <p
+            class="mb-3 border-b border-line pb-2 text-xs font-black uppercase tracking-widest text-inkMuted"
+          >
+            Live inventory log
+          </p>
+          <div class="space-y-1.5">
+            {#each eventLog as item, index (item)}
+              <p
+                class="font-mono tabular-nums truncate text-xs text-ink/80 transition-colors hover:text-ink"
+                in:slide={{ duration: 200 }}
+              >
+                <span class="text-signal mr-2">›</span>{item}
+              </p>
+            {/each}
+          </div>
         </div>
-      </div>
+      </Panel>
 
-      <div class="glass-panel p-4">
+      <Panel padding="sm">
         <p
-          class="mb-3 text-xs font-black uppercase tracking-widest text-inkMuted border-b border-white/10 pb-2 flex items-center gap-2"
+          class="mb-3 flex items-center gap-2 border-b border-line pb-2 text-xs font-black uppercase tracking-widest text-inkMuted"
         >
           <Megaphone size={14} /> Event Updates
         </p>
         {#if data.announcements.length}
           <div class="space-y-3">
             {#each visibleAnnouncements as announcement (announcement.id)}
-              {@const style = severityStyle(announcement.severity)}
-              <div class={`rounded border p-3 ${style.border} ${style.bg}`}>
-                <div class="flex items-center justify-between gap-3">
-                  <h3 class={`text-sm font-bold ${style.text}`}>
-                    {announcement.title}
-                  </h3>
-                  <span
-                    class="shrink-0 font-mono text-[10px] uppercase tracking-widest text-inkMuted"
-                  >
-                    {formatUpdateTime(announcement.created_at)}
-                  </span>
-                </div>
-                <p class="mt-1 text-xs text-ink/80 leading-relaxed">
-                  {announcement.body}
-                </p>
-              </div>
+              <AnnouncementCard {announcement} />
             {/each}
           </div>
           {#if !showAllAnnouncements && hiddenAnnouncementCount > 0}
             <button
-              class="btn btn-sm btn-block border-white/10 bg-black/40 text-ink hover:bg-black/60 rounded shadow-inner mt-3"
+              class="btn btn-sm btn-block mt-3 rounded-sm border-line bg-panelSoft text-ink shadow-inner hover:bg-panel"
               onclick={() => (showAllAnnouncements = true)}
             >
               Show {hiddenAnnouncementCount} more update{hiddenAnnouncementCount ===
@@ -335,21 +294,19 @@
         {:else}
           <p class="text-xs text-inkMuted p-2">No updates yet.</p>
         {/if}
-      </div>
+      </Panel>
     </section>
 
-    <aside
-      class="glass-panel h-max p-6 sticky top-28 flex flex-col justify-between"
-    >
+    <Panel padding="lg" sticky hMax flexColumn>
       <div>
         <div
-          class="flex items-center justify-between border-b border-white/10 pb-4 mb-6"
+          class="mb-6 flex items-center justify-between border-b border-line pb-4"
         >
-          <h2 class="text-sm font-black uppercase tracking-wider text-white">
+          <h2 class="text-sm font-black uppercase tracking-wider text-ink">
             Selected Seats
           </h2>
           <button
-            class="btn btn-ghost btn-xs flex h-8 w-8 items-center justify-center rounded bg-black/20 p-0 transition-all hover:bg-signal hover:text-carbon"
+            class="btn btn-ghost btn-xs flex h-8 w-8 items-center justify-center rounded-sm bg-panelSoft p-0 transition-all hover:bg-signal hover:text-carbon"
             onclick={() =>
               seatState.load(data.snapshot.seats, data.snapshot.server_time_ms)}
           >
@@ -362,16 +319,16 @@
             <div class="grid grid-cols-2 gap-3">
               {#each seatState.selectedSeats as seat}
                 <div
-                  class="flex items-center justify-center rounded border border-white/5 bg-black/40 p-3 font-mono text-sm shadow-sm"
+                  class="flex items-center justify-center rounded-sm border border-line bg-panelSoft/70 p-3 font-mono text-sm tabular-nums shadow-sm"
                   in:slide
                 >
-                  <span class="text-white font-bold">{seat.seat_id}</span>
+                  <span class="font-bold text-ink">{seat.seat_id}</span>
                 </div>
               {/each}
             </div>
           {:else}
             <div
-              class="h-full flex items-center justify-center border-2 border-dashed border-white/5 rounded p-4"
+              class="flex h-full items-center justify-center rounded-sm border-2 border-dashed border-line p-4"
             >
               <p class="text-sm text-inkMuted text-center">
                 Choose available seats<br />from the map.
@@ -381,8 +338,8 @@
         </div>
       </div>
 
-      <div class="mt-6 border-t border-white/10 pt-6">
-        <div class="flex justify-between items-center font-mono">
+      <div class="mt-6 border-t border-line pt-6">
+        <div class="font-mono tabular-nums flex items-center justify-between">
           <span class="text-inkMuted uppercase tracking-widest text-xs"
             >Total Tickets</span
           >
@@ -408,6 +365,6 @@
           {reserving ? reservingStatus : 'Confirm Reservation'}
         </PrimaryButton>
       </div>
-    </aside>
+    </Panel>
   </main>
 {/if}

@@ -1,5 +1,9 @@
 <script lang="ts">
   import { Calendar, Plus, ExternalLink } from '@lucide/svelte';
+  import ActionLink from '$lib/components/ActionLink.svelte';
+  import EmptyState from '$lib/components/EmptyState.svelte';
+  import Panel from '$lib/components/Panel.svelte';
+
   let { data } = $props();
 </script>
 
@@ -14,35 +18,25 @@
       Manage your upcoming and past events.
     </p>
   </div>
-  <a href="/organizer/events/new" class="btn btn-sm velox-action rounded">
+  <ActionLink href="/organizer/events/new">
     <Plus size={16} /> Create Event
-  </a>
+  </ActionLink>
 </div>
 
 {#if data.events.length === 0}
-  <div
-    class="glass-panel p-12 rounded flex flex-col items-center justify-center text-center shadow-glow"
+  <EmptyState
+    icon={Calendar}
+    title="No Events Found"
+    description="You haven't created any events yet. Create an event to start selling tickets."
   >
-    <div
-      class="mb-4 flex h-16 w-16 items-center justify-center rounded bg-signal/10 text-signal shadow-inner"
-    >
-      <Calendar size={32} />
-    </div>
-    <h3 class="text-xl font-bold mb-2">No Events Found</h3>
-    <p class="text-inkMuted max-w-md mb-6">
-      You haven't created any events yet. Create an event to start selling
-      tickets!
-    </p>
-    <a href="/organizer/events/new" class="btn btn-sm velox-action rounded">
+    <ActionLink href="/organizer/events/new">
       <Plus size={16} /> Create Your First Event
-    </a>
-  </div>
+    </ActionLink>
+  </EmptyState>
 {:else}
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     {#each data.events as event}
-      <div
-        class="glass-panel p-6 rounded shadow-glow relative overflow-hidden group hover:-translate-y-1 transition-all duration-300 flex flex-col"
-      >
+      <Panel padding="lg" overflowHidden flexColumn>
         <div
           class="absolute inset-0 bg-gradient-to-br from-signal/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"
         ></div>
@@ -75,7 +69,7 @@
             </a>
           </div>
         </div>
-      </div>
+      </Panel>
     {/each}
   </div>
 {/if}

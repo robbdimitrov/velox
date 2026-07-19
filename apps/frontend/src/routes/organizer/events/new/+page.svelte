@@ -6,6 +6,11 @@
     ArrowRight,
     ArrowLeft
   } from '@lucide/svelte';
+  import ActionButton from '$lib/components/ActionButton.svelte';
+  import Panel from '$lib/components/Panel.svelte';
+  import TextAreaField from '$lib/components/TextAreaField.svelte';
+  import TextField from '$lib/components/TextField.svelte';
+
   let { data } = $props();
 
   let currentStep = $state(1);
@@ -57,7 +62,7 @@
   <title>Create Event - Velox Organizer</title>
 </svelte:head>
 
-<div class="content-narrow mt-4">
+<div class="mx-auto w-full max-w-3xl">
   <div class="mb-8">
     <h1 class="text-3xl font-black uppercase tracking-tight">Create Event</h1>
     <p class="text-inkMuted text-sm mt-1">
@@ -80,9 +85,7 @@
     {/each}
   </ul>
 
-  <div
-    class="glass-panel p-8 rounded shadow-glow min-h-[400px] flex flex-col relative overflow-hidden"
-  >
+  <Panel padding="xl" overflowHidden flexColumn>
     {#if error}
       <div
         class="bg-urgency/20 border border-urgency/50 text-urgency p-3 rounded mb-6 text-sm backdrop-blur-sm animate-pulse"
@@ -109,10 +112,10 @@
               <button
                 type="button"
                 onclick={() => (selectedVenue = venue.id)}
-                class="text-left p-4 rounded border transition-all duration-300 {selectedVenue ===
+                class="text-left p-4 rounded-sm border transition-all duration-300 {selectedVenue ===
                 venue.id
                   ? 'bg-signal/20 border-signal shadow-inner shadow-signal/20'
-                  : 'bg-black/40 border-white/10 hover:border-white/30'}"
+                  : 'bg-panelSoft/70 border-line hover:border-signal/50'}"
               >
                 <div class="font-bold">{venue.name}</div>
                 <div class="text-xs text-inkMuted mt-1">
@@ -131,45 +134,24 @@
       >
         <h2 class="text-xl font-bold mb-6">Event Details</h2>
 
-        <div class="space-y-2">
-          <label
-            class="text-xs font-semibold uppercase tracking-wider text-inkMuted"
-            for="name">Event Name</label
-          >
-          <input
-            id="name"
-            type="text"
-            bind:value={eventName}
-            class="velox-field w-full px-4 py-3 placeholder:text-inkMuted/50"
-            placeholder="e.g. Summer Music Festival"
-          />
-        </div>
-
-        <div class="space-y-2">
-          <label
-            class="text-xs font-semibold uppercase tracking-wider text-inkMuted"
-            for="desc">Description</label
-          >
-          <textarea
-            id="desc"
-            bind:value={eventDescription}
-            rows="3"
-            class="velox-field w-full resize-none px-4 py-3 placeholder:text-inkMuted/50"
-            placeholder="Tell attendees what to expect..."></textarea>
-        </div>
-
-        <div class="space-y-2">
-          <label
-            class="text-xs font-semibold uppercase tracking-wider text-inkMuted"
-            for="date">Date & Time</label
-          >
-          <input
-            id="date"
-            type="datetime-local"
-            bind:value={eventDate}
-            class="velox-field w-full px-4 py-3 placeholder:text-inkMuted/50"
-          />
-        </div>
+        <TextField
+          id="name"
+          label="Event Name"
+          bind:value={eventName}
+          placeholder="e.g. Summer Music Festival"
+        />
+        <TextAreaField
+          id="desc"
+          label="Description"
+          bind:value={eventDescription}
+          placeholder="Tell attendees what to expect..."
+        />
+        <TextField
+          id="date"
+          label="Date & Time"
+          type="datetime-local"
+          bind:value={eventDate}
+        />
       </div>
     {/if}
 
@@ -177,7 +159,9 @@
       <div class="flex-1 animate-in slide-in-from-right fade-in duration-300">
         <h2 class="text-xl font-bold mb-6">Review & Publish</h2>
 
-        <div class="bg-black/40 border border-white/10 rounded p-6 space-y-4">
+        <div
+          class="space-y-4 rounded-sm border border-line bg-panelSoft/70 p-6"
+        >
           <div>
             <div class="text-xs text-inkMuted uppercase font-semibold">
               Event Name
@@ -208,7 +192,7 @@
       </div>
     {/if}
 
-    <div class="mt-8 pt-6 border-t border-white/10 flex justify-between">
+    <div class="mt-8 flex justify-between border-t border-line pt-6">
       <button
         type="button"
         class="btn btn-sm btn-ghost text-ink {currentStep === 1
@@ -220,29 +204,22 @@
       </button>
 
       {#if currentStep < 3}
-        <button
-          type="button"
-          class="btn btn-sm velox-action rounded"
+        <ActionButton
           onclick={() => currentStep++}
           disabled={(currentStep === 1 && !selectedVenue) ||
             (currentStep === 2 && (!eventName || !eventDate))}
         >
           Next <ArrowRight size={16} />
-        </button>
+        </ActionButton>
       {:else}
-        <button
-          type="button"
-          class="btn btn-sm velox-action rounded transition-all hover:scale-105"
-          onclick={submitEvent}
-          disabled={loading}
-        >
+        <ActionButton onclick={submitEvent} disabled={loading}>
           {#if loading}
             <span class="loading loading-spinner loading-sm"></span>
           {:else}
             Publish Event <CheckCircle size={16} />
           {/if}
-        </button>
+        </ActionButton>
       {/if}
     </div>
-  </div>
+  </Panel>
 </div>

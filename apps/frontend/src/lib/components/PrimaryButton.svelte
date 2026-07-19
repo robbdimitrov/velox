@@ -4,16 +4,22 @@
   let {
     disabled = false,
     onclick,
+    type = 'button',
+    flush = false,
     children
   } = $props<{
     disabled?: boolean;
     onclick?: () => void;
+    type?: 'button' | 'submit' | 'reset';
+    flush?: boolean;
     children?: Snippet;
   }>();
 </script>
 
 <button
-  class="btn velox-action mt-6 w-full rounded text-lg transition-all hover:scale-[1.02] disabled:bg-inkMuted/30 disabled:text-white/40 disabled:hover:scale-100 disabled:shadow-none"
+  class="btn btn-primary w-full rounded-sm text-lg text-primary-content shadow-[0_12px_30px_rgba(242,184,75,0.22)] transition-all hover:scale-[1.02] disabled:bg-inkMuted/30 disabled:text-ink/40 disabled:shadow-none disabled:hover:scale-100"
+  class:mt-6={!flush}
+  {type}
   {disabled}
   {onclick}
 >

@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Activity, RadioTower, Ticket, Users } from '@lucide/svelte';
+  import Panel from '$lib/components/Panel.svelte';
+  import SurfaceStat from '$lib/components/SurfaceStat.svelte';
 
   let { data } = $props();
 
@@ -18,6 +20,30 @@
       Balcony: 38
     } as Record<string, number>
   });
+
+  let summaryCards = $derived([
+    {
+      label: 'Total Reservations',
+      value: metrics.totalReservations,
+      detail: 'Total confirmed reservations',
+      icon: Ticket,
+      tone: 'signal'
+    },
+    {
+      label: 'Active Holds',
+      value: metrics.activeHolds,
+      detail: 'Currently in checkout flow',
+      icon: Users,
+      tone: 'signal'
+    },
+    {
+      label: 'Seats Remaining',
+      value: metrics.seatsRemaining,
+      detail: 'Available for purchase',
+      icon: Ticket,
+      tone: 'ok'
+    }
+  ] as const);
 
   onMount(() => {
     if (typeof EventSource === 'undefined') return;
@@ -71,12 +97,12 @@
 </script>
 
 <main>
-  <section class="glass-panel p-6">
+  <Panel padding="lg">
     <div
-      class="border-b border-white/10 pb-6 flex flex-col sm:flex-row justify-between sm:items-end gap-4"
+      class="flex flex-col justify-between gap-4 border-b border-line pb-6 sm:flex-row sm:items-end"
     >
       <div>
-        <h1 class="text-3xl font-black uppercase tracking-tight text-white">
+        <h1 class="text-3xl font-black uppercase tracking-tight text-ink">
           Organizer Analytics
         </h1>
         <p class="text-sm text-inkMuted mt-1">
@@ -85,7 +111,7 @@
         </p>
       </div>
       <div
-        class="flex items-center gap-3 rounded border border-white/5 bg-black/40 px-4 py-2"
+        class="flex items-center gap-3 rounded-sm border border-line bg-panelSoft/70 px-4 py-2"
       >
         <span class="relative flex h-3 w-3">
           <span
@@ -95,76 +121,25 @@
           ></span>
         </span>
         <span
-          class="text-xs font-bold font-mono uppercase tracking-widest text-signal"
+          class="font-mono text-xs font-bold uppercase tracking-widest text-signal"
           >Live Updates</span
         >
       </div>
     </div>
 
-    <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div class="glass-panel p-6 border-l-4 border-l-signal">
-        <div class="flex items-start justify-between">
-          <div>
-            <p
-              class="text-xs font-bold uppercase tracking-widest text-inkMuted mb-1"
-            >
-              Total Reservations
-            </p>
-            <p class="text-3xl font-black text-white">
-              {metrics.totalReservations}
-            </p>
-            <p class="text-xs text-ink/40 mt-2">Total confirmed reservations</p>
-          </div>
-          <div class="p-3 bg-signal/20 rounded text-signal shadow-inner">
-            <Ticket size={28} />
-          </div>
-        </div>
-      </div>
-
-      <div class="glass-panel p-6 border-l-4 border-l-signal">
-        <div class="flex items-start justify-between">
-          <div>
-            <p
-              class="text-xs font-bold uppercase tracking-widest text-inkMuted mb-1"
-            >
-              Active Holds
-            </p>
-            <p class="text-3xl font-black text-white">{metrics.activeHolds}</p>
-            <p class="text-xs text-ink/40 mt-2">Currently in checkout flow</p>
-          </div>
-          <div class="rounded bg-signal/20 p-3 text-signal shadow-inner">
-            <Users size={28} />
-          </div>
-        </div>
-      </div>
-
-      <div class="glass-panel p-6 border-l-4 border-l-ok">
-        <div class="flex items-start justify-between">
-          <div>
-            <p
-              class="text-xs font-bold uppercase tracking-widest text-inkMuted mb-1"
-            >
-              Seats Remaining
-            </p>
-            <p class="text-3xl font-black text-white">
-              {metrics.seatsRemaining}
-            </p>
-            <p class="text-xs text-ink/40 mt-2">Available for purchase</p>
-          </div>
-          <div class="p-3 bg-ok/20 rounded text-ok shadow-inner">
-            <Ticket size={28} />
-          </div>
-        </div>
-      </div>
+    <div class="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+      {#each summaryCards as card}
+        <SurfaceStat {...card} />
+      {/each}
     </div>
 
     <div class="mt-8 grid gap-6 lg:grid-cols-[1fr_400px]">
-      <div class="glass-panel p-6">
+      <Panel padding="lg">
         <div
-          class="flex justify-between items-center mb-6 border-b border-white/10 pb-4"
+          class="mb-6 flex items-center justify-between border-b border-line pb-4"
         >
           <h2
-            class="text-sm font-black uppercase tracking-wider text-white flex items-center gap-2"
+            class="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-ink"
           >
             <Activity size={18} class="text-signal" /> Section Availability
           </h2>
@@ -172,30 +147,33 @@
         <div class="space-y-4">
           {#each Object.entries(metrics.sectionAvailability) as [section, percentage]}
             <div
-              class="grid grid-cols-[90px_1fr_80px] items-center gap-4 py-3 px-4 rounded bg-black/20 border border-white/5 hover:bg-black/40 hover:border-white/10 transition-colors"
+              class="grid grid-cols-[90px_1fr_80px] items-center gap-4 rounded-sm border border-line bg-panelSoft/70 px-4 py-3 transition-colors hover:border-signal/40"
             >
-              <span class="font-mono text-sm font-bold text-white"
+              <span class="font-mono text-sm font-bold text-ink"
                 >SEC {section}</span
               >
               <progress
-                class={`progress w-full h-2.5 bg-black/50 ${percentage < 40 ? 'progress-error drop-shadow-[0_0_5px_rgba(239,68,68,0.8)]' : percentage < 70 ? 'progress-warning drop-shadow-[0_0_5px_rgba(245,158,11,0.8)]' : 'progress-success drop-shadow-[0_0_5px_rgba(16,185,129,0.8)]'}`}
+                class="progress h-2.5 w-full bg-black/50"
+                class:progress-error={percentage < 40}
+                class:progress-warning={percentage >= 40 && percentage < 70}
+                class:progress-success={percentage >= 70}
                 value={percentage}
                 max="100"
               ></progress>
-              <span class="text-right font-mono text-sm font-black text-white"
+              <span class="text-right font-mono text-sm font-black text-ink"
                 >{percentage}%</span
               >
             </div>
           {/each}
         </div>
-      </div>
+      </Panel>
 
-      <div class="glass-panel p-6 flex flex-col">
+      <Panel padding="lg" flexColumn>
         <div
-          class="flex justify-between items-center mb-6 border-b border-white/10 pb-4"
+          class="mb-6 flex items-center justify-between border-b border-line pb-4"
         >
           <h2
-            class="text-sm font-black uppercase tracking-wider text-white flex items-center gap-2"
+            class="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-ink"
           >
             <RadioTower size={18} class="text-signal" /> System Health
           </h2>
@@ -203,7 +181,7 @@
 
         <div class="grid grid-cols-2 gap-4 mb-8">
           <div
-            class="bg-black/30 p-4 rounded border border-white/5 shadow-inner"
+            class="rounded-sm border border-line bg-panelSoft/70 p-4 shadow-inner"
           >
             <p
               class="text-[10px] uppercase font-bold tracking-widest text-inkMuted mb-1"
@@ -215,7 +193,7 @@
             </p>
           </div>
           <div
-            class="bg-black/30 p-4 rounded border border-white/5 shadow-inner"
+            class="rounded-sm border border-line bg-panelSoft/70 p-4 shadow-inner"
           >
             <p
               class="text-[10px] uppercase font-bold tracking-widest text-inkMuted mb-1"
@@ -232,7 +210,7 @@
           <div class="flex items-start gap-3 border-l-2 border-ok pl-4 py-1">
             <span class="text-ok mt-0.5 animate-pulse">●</span>
             <div>
-              <p class="text-white font-bold">CDN Cache Status</p>
+              <p class="font-bold text-ink">CDN Cache Status</p>
               <p class="text-ink/60 text-xs mt-0.5">stale-while-revalidate</p>
             </div>
           </div>
@@ -250,7 +228,7 @@
           >
             <span class="text-ink/40 mt-0.5">●</span>
             <div>
-              <p class="text-white font-bold">DLQ Rate</p>
+              <p class="font-bold text-ink">DLQ Rate</p>
               <p class="text-ink/60 text-xs mt-0.5">0 payloads/min</p>
             </div>
           </div>
@@ -259,12 +237,12 @@
           >
             <span class="text-ink/40 mt-0.5">●</span>
             <div>
-              <p class="text-white font-bold">Reservation 429 Rate</p>
+              <p class="font-bold text-ink">Reservation 429 Rate</p>
               <p class="text-ink/60 text-xs mt-0.5">0.7% throttled</p>
             </div>
           </div>
         </div>
-      </div>
+      </Panel>
     </div>
-  </section>
+  </Panel>
 </main>

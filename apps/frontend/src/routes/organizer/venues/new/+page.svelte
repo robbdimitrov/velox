@@ -1,5 +1,8 @@
 <script lang="ts">
   import { MapPin, CheckCircle, ArrowLeft } from '@lucide/svelte';
+  import ActionButton from '$lib/components/ActionButton.svelte';
+  import Panel from '$lib/components/Panel.svelte';
+  import TextField from '$lib/components/TextField.svelte';
 
   let loading = $state(false);
   let error = $state('');
@@ -43,7 +46,7 @@
   <title>Create Venue - Velox Organizer</title>
 </svelte:head>
 
-<div class="content-narrow mt-4">
+<div class="mx-auto w-full max-w-3xl">
   <div class="mb-8">
     <div class="flex items-center gap-2">
       <a
@@ -63,9 +66,7 @@
     </div>
   </div>
 
-  <div
-    class="glass-panel p-8 rounded shadow-glow min-h-[400px] flex flex-col relative overflow-hidden"
-  >
+  <Panel padding="xl" overflowHidden flexColumn>
     {#if error}
       <div
         class="bg-urgency/20 border border-urgency/50 text-urgency p-3 rounded mb-6 text-sm backdrop-blur-sm animate-pulse"
@@ -82,68 +83,36 @@
         Venue Details
       </h2>
 
-      <div class="space-y-2">
-        <label
-          class="text-xs font-semibold uppercase tracking-wider text-inkMuted"
-          for="name">Venue Name</label
-        >
-        <input
-          id="name"
-          type="text"
-          bind:value={venueName}
-          class="velox-field w-full px-4 py-3 placeholder:text-inkMuted/50"
-          placeholder="e.g. Velox Arena"
-        />
-      </div>
-
-      <div class="space-y-2">
-        <label
-          class="text-xs font-semibold uppercase tracking-wider text-inkMuted"
-          for="city">City</label
-        >
-        <input
-          id="city"
-          type="text"
-          bind:value={venueCity}
-          class="velox-field w-full px-4 py-3 placeholder:text-inkMuted/50"
-          placeholder="e.g. Chicago"
-        />
-      </div>
-
-      <div class="space-y-2">
-        <label
-          class="text-xs font-semibold uppercase tracking-wider text-inkMuted"
-          for="address">Address</label
-        >
-        <input
-          id="address"
-          type="text"
-          bind:value={venueAddress}
-          class="velox-field w-full px-4 py-3 placeholder:text-inkMuted/50"
-          placeholder="e.g. 123 Main St"
-        />
-      </div>
-
-      <div class="space-y-2">
-        <label
-          class="text-xs font-semibold uppercase tracking-wider text-inkMuted"
-          for="capacity">Capacity</label
-        >
-        <input
-          id="capacity"
-          type="number"
-          bind:value={venueCapacity}
-          min="1"
-          class="velox-field w-full px-4 py-3 placeholder:text-inkMuted/50"
-          placeholder="e.g. 5000"
-        />
-      </div>
+      <TextField
+        id="name"
+        label="Venue Name"
+        bind:value={venueName}
+        placeholder="e.g. Velox Arena"
+      />
+      <TextField
+        id="city"
+        label="City"
+        bind:value={venueCity}
+        placeholder="e.g. Chicago"
+      />
+      <TextField
+        id="address"
+        label="Address"
+        bind:value={venueAddress}
+        placeholder="e.g. 123 Main St"
+      />
+      <TextField
+        id="capacity"
+        label="Capacity"
+        type="number"
+        min="1"
+        bind:value={venueCapacity}
+        placeholder="e.g. 5000"
+      />
     </div>
 
-    <div class="mt-8 pt-6 border-t border-white/10 flex justify-end">
-      <button
-        type="button"
-        class="btn btn-sm velox-action rounded transition-all hover:scale-105"
+    <div class="mt-8 flex justify-end border-t border-line pt-6">
+      <ActionButton
         onclick={submitVenue}
         disabled={loading ||
           !venueName ||
@@ -156,7 +125,7 @@
         {:else}
           Create Venue <CheckCircle size={16} />
         {/if}
-      </button>
+      </ActionButton>
     </div>
-  </div>
+  </Panel>
 </div>
