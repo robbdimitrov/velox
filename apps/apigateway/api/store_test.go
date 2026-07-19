@@ -36,6 +36,139 @@ func TestGetEventAnnouncementsCapsResultSet(t *testing.T) {
 	}
 }
 
+func TestCreateEventCopiesGeometryToInventoryAndProjectionRows(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer db.Close()
+
+	startsAt := time.Now().Add(48 * time.Hour).UTC().Truncate(time.Second)
+	saleStartsAt := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
+	event := Event{
+		ID:           "evt_geometry",
+		VenueID:      "ven_geometry",
+		Name:         "Geometry Event",
+		Description:  "Geometry-backed seats",
+		Category:     "Theatre",
+		ImageKey:     "event-zero-hour",
+		StartsAt:     startsAt,
+		SaleStartsAt: saleStartsAt,
+		Timezone:     "America/New_York",
+		Status:       EventStatusPublished,
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`(?s)INSERT INTO catalog\.events .*VALUES`).
+		WithArgs(event.ID, event.VenueID, event.Name, event.Description, event.Category, event.StartsAt, event.SaleStartsAt, event.ImageKey, event.Timezone, event.Status).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`(?s)INSERT INTO catalog\.event_sections .*FROM catalog\.venue_sections`).
+		WithArgs(event.ID, event.VenueID).
+		WillReturnResult(sqlmock.NewResult(0, 2))
+	mock.ExpectQuery(`(?s)SELECT vs\.section_id, vs\.seat_id, vs\.row_label, vs\.seat_number, vs\.x, vs\.y,\s+vs\.accessibility, COALESCE\(es\.price_amount_minor, 5000\).*FROM catalog\.venue_seats vs`).
+		WithArgs(event.VenueID, event.ID).
+		WillReturnRows(sqlmock.NewRows([]string{"section_id", "seat_id", "row_label", "seat_number", "x", "y", "accessibility", "price_amount_minor"}).
+			AddRow("A", "A-01", "A", 1, 44, 42, true, 8650).
+			AddRow("A", "A-02", "A", 2, 86, 42, false, 8650))
+	mock.ExpectExec(`INSERT INTO inventory\.event_streams`).
+		WithArgs("seat:evt_geometry:A:A-01", event.ID, "A", "A-01").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`(?s)INSERT INTO projection\.seat_snapshots .*VALUES`).
+		WithArgs(event.ID, "A", "A-01", 8650, "A", 1, 44, 42, true).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`INSERT INTO inventory\.event_streams`).
+		WithArgs("seat:evt_geometry:A:A-02", event.ID, "A", "A-02").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`(?s)INSERT INTO projection\.seat_snapshots .*VALUES`).
+		WithArgs(event.ID, "A", "A-02", 8650, "A", 2, 86, 42, false).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	store := &DatabaseStore{db: db}
+	if err := store.CreateEvent(context.Background(), event); err != nil {
+		t.Fatalf("CreateEvent: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sqlmock expectations: %v", err)
+	}
+}
+
+func TestCreateVenueCreatesDefaultSeatTemplate(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer db.Close()
+
+	venue := Venue{
+		ID:       "ven_template",
+		Name:     "Template Hall",
+		City:     "Chicago",
+		Address:  "1 Template Way",
+		Capacity: 80,
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`INSERT INTO catalog\.venues`).
+		WithArgs(venue.ID, venue.Name, venue.City, venue.Address, venue.Capacity).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`INSERT INTO catalog\.user_venues`).
+		WithArgs("usr_organizer", venue.ID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`(?s)INSERT INTO catalog\.venue_sections .*VALUES \('A', 1\), \('B', 2\)`).
+		WithArgs(venue.ID).
+		WillReturnResult(sqlmock.NewResult(0, 2))
+	mock.ExpectExec(`(?s)WITH generated_seats AS .*generate_series\(1, 10\).*INSERT INTO catalog\.venue_seats`).
+		WithArgs(venue.ID).
+		WillReturnResult(sqlmock.NewResult(0, 80))
+	mock.ExpectCommit()
+
+	store := &DatabaseStore{db: db}
+	created, err := store.CreateVenue(context.Background(), "usr_organizer", venue)
+	if err != nil {
+		t.Fatalf("CreateVenue: %v", err)
+	}
+	if created.ID != venue.ID {
+		t.Fatalf("created venue = %+v, want %+v", created, venue)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sqlmock expectations: %v", err)
+	}
+}
+
+func TestListSeatsReturnsProjectionGeometry(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer db.Close()
+
+	mock.ExpectQuery(`(?s)SELECT seat_id, row_label, seat_number, x, y, accessibility, status, aggregate_version,.*FROM projection\.seat_snapshots\s+WHERE event_id = \$1 AND section_id = \$2`).
+		WithArgs("evt_geometry", "A").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"seat_id", "row_label", "seat_number", "x", "y", "accessibility",
+			"status", "aggregate_version", "expires_at_server_ms", "price_amount_minor", "age_ms",
+		}).AddRow("A-01", "A", 1, 44, 42, true, StatusAvailable, 0, int64(0), 8650, int64(4)))
+
+	store := &DatabaseStore{db: db}
+	seats, snapshotAgeMS, err := store.ListSeats(context.Background(), "evt_geometry", "A")
+	if err != nil {
+		t.Fatalf("ListSeats: %v", err)
+	}
+	if len(seats) != 1 {
+		t.Fatalf("len(seats) = %d, want 1", len(seats))
+	}
+	if seats[0].X != 44 || seats[0].Y != 42 || !seats[0].Accessibility {
+		t.Fatalf("seat geometry not loaded from projection: %+v", seats[0])
+	}
+	if snapshotAgeMS != 4 {
+		t.Fatalf("snapshotAgeMS = %d, want 4", snapshotAgeMS)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sqlmock expectations: %v", err)
+	}
+}
+
 // TestGetTicketLedgerQueriesByStreamKeyNotCorrelationID ensures event-wide
 // cancellation entries stay visible even though their correlation_id is event-scoped.
 func TestGetTicketLedgerQueriesByStreamKeyNotCorrelationID(t *testing.T) {

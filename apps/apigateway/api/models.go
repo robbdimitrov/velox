@@ -42,9 +42,34 @@ type Venue struct {
 }
 
 type VenueSeat struct {
-	VenueID   string `json:"venue_id"`
-	SectionID string `json:"section_id"`
-	SeatID    string `json:"seat_id"`
+	VenueID       string `json:"venue_id"`
+	SectionID     string `json:"section_id"`
+	SeatID        string `json:"seat_id"`
+	Row           string `json:"row"`
+	Number        int    `json:"number"`
+	X             int    `json:"x"`
+	Y             int    `json:"y"`
+	Accessibility bool   `json:"accessibility"`
+}
+
+type VenueSection struct {
+	VenueID      string `json:"venue_id"`
+	SectionID    string `json:"section_id"`
+	Name         string `json:"name"`
+	DisplayOrder int    `json:"display_order"`
+	Width        int    `json:"width"`
+	Height       int    `json:"height"`
+	PriceCents   int    `json:"price_cents"`
+}
+
+type EventSection struct {
+	EventID      string `json:"event_id"`
+	SectionID    string `json:"section_id"`
+	Name         string `json:"name"`
+	DisplayOrder int    `json:"display_order"`
+	Width        int    `json:"width"`
+	Height       int    `json:"height"`
+	PriceCents   int    `json:"price_cents"`
 }
 
 type UserVenue struct {
@@ -54,19 +79,23 @@ type UserVenue struct {
 }
 
 type Event struct {
-	ID          string    `json:"id"`
-	VenueID     string    `json:"venue_id,omitempty"`
-	Status      string    `json:"status,omitempty"`
-	OrganizerID string    `json:"organizer_id,omitempty"`
-	Name        string    `json:"name"`
-	Category    string    `json:"category,omitempty"`
-	Venue       string    `json:"venue,omitempty"`
-	City        string    `json:"city,omitempty"`
-	StartsAt    time.Time `json:"starts_at"`
-	SectionIDs  []string  `json:"section_ids,omitempty"`
-	SeatsTotal  int       `json:"seats_total,omitempty"`
-	SeatsOpen   int       `json:"seats_open"`
-	DemandScore int       `json:"demand_score,omitempty"`
+	ID           string    `json:"id"`
+	VenueID      string    `json:"venue_id,omitempty"`
+	Status       string    `json:"status,omitempty"`
+	OrganizerID  string    `json:"organizer_id,omitempty"`
+	Name         string    `json:"name"`
+	Category     string    `json:"category,omitempty"`
+	Description  string    `json:"description,omitempty"`
+	ImageKey     string    `json:"image_key,omitempty"`
+	Venue        string    `json:"venue,omitempty"`
+	City         string    `json:"city,omitempty"`
+	StartsAt     time.Time `json:"starts_at"`
+	SaleStartsAt time.Time `json:"sale_starts_at"`
+	Timezone     string    `json:"timezone,omitempty"`
+	SectionIDs   []string  `json:"section_ids,omitempty"`
+	SeatsTotal   int       `json:"seats_total,omitempty"`
+	SeatsOpen    int       `json:"seats_open"`
+	DemandScore  int       `json:"demand_score,omitempty"`
 }
 
 type EventAnnouncement struct {
@@ -84,6 +113,9 @@ type Seat struct {
 	ID                string `json:"seat_id"`
 	Row               string `json:"row"`
 	Number            int    `json:"number"`
+	X                 int    `json:"x"`
+	Y                 int    `json:"y"`
+	Accessibility     bool   `json:"accessibility"`
 	PriceCents        int    `json:"price_cents"`
 	Status            string `json:"status"`
 	Version           int64  `json:"version"`

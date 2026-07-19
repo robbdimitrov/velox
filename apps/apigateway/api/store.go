@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -94,11 +95,12 @@ func (s *DatabaseStore) GetOrder(ctx context.Context, user User, orderID string)
 // (docs/infrastructure.md's snapshot_age_ms) instead of a hardcoded value.
 func (s *DatabaseStore) ListSeats(ctx context.Context, eventID, sectionID string) ([]Seat, int64, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT seat_id, status, aggregate_version, COALESCE(extract(epoch from expires_at) * 1000, 0)::bigint, price_amount_minor,
+		SELECT seat_id, row_label, seat_number, x, y, accessibility, status, aggregate_version,
+			COALESCE(extract(epoch from expires_at) * 1000, 0)::bigint, price_amount_minor,
 			COALESCE(extract(epoch from (now() - updated_at)) * 1000, 0)::bigint
 		FROM projection.seat_snapshots
 		WHERE event_id = $1 AND section_id = $2
-		ORDER BY seat_id
+		ORDER BY row_label, seat_number, seat_id
 	`, eventID, sectionID)
 	if err != nil {
 		return nil, 0, err
@@ -111,10 +113,12 @@ func (s *DatabaseStore) ListSeats(ctx context.Context, eventID, sectionID string
 		var ageMS int64
 		seat.EventID = eventID
 		seat.SectionID = sectionID
-		if err := rows.Scan(&seat.ID, &seat.Status, &seat.Version, &seat.ExpiresAtServerMS, &seat.PriceCents, &ageMS); err != nil {
+		if err := rows.Scan(&seat.ID, &seat.Row, &seat.Number, &seat.X, &seat.Y, &seat.Accessibility, &seat.Status, &seat.Version, &seat.ExpiresAtServerMS, &seat.PriceCents, &ageMS); err != nil {
 			return nil, 0, err
 		}
-		seat.Row, seat.Number = splitSeatLabel(seat.ID)
+		if seat.Row == "" || seat.Number == 0 {
+			seat.Row, seat.Number = splitSeatLabel(seat.ID)
+		}
 		seats = append(seats, seat)
 		if ageMS > snapshotAgeMS {
 			snapshotAgeMS = ageMS
@@ -337,6 +341,21 @@ func splitSeatLabel(seatID string) (string, int) {
 	return row, number
 }
 
+func splitCSV(value string) []string {
+	if value == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
 func (s *DatabaseStore) ListenSeatUpdates(ctx context.Context, handler func(payload string)) error {
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
@@ -490,10 +509,54 @@ func (s *DatabaseStore) CreateVenue(ctx context.Context, userID string, venue Ve
 		return Venue{}, err
 	}
 
+	if err := createDefaultVenueTemplateTx(ctx, tx, venue.ID); err != nil {
+		return Venue{}, err
+	}
+
 	if err := tx.Commit(); err != nil {
 		return Venue{}, err
 	}
 	return venue, nil
+}
+
+func createDefaultVenueTemplateTx(ctx context.Context, tx *sql.Tx, venueID string) error {
+	_, err := tx.ExecContext(ctx, `
+		INSERT INTO catalog.venue_sections (
+			venue_id, section_id, name, display_order, width, height,
+			default_price_amount_minor
+		)
+		SELECT $1, section_id, section_id || ' Section', display_order, 464, 204, 8500
+		FROM (VALUES ('A', 1), ('B', 2)) AS sections(section_id, display_order)
+		ON CONFLICT (venue_id, section_id) DO NOTHING
+	`, venueID)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.ExecContext(ctx, `
+		WITH generated_seats AS (
+			SELECT
+				section_id,
+				row_label,
+				seat_number,
+				row_label || '-' || lpad(seat_number::text, 2, '0') AS seat_id,
+				44 + (seat_number - 1) * 42 AS x,
+				42 + (ascii(row_label) - ascii('A')) * 42 AS y,
+				seat_number IN (1, 10) AS accessibility
+			FROM (VALUES ('A'), ('B')) AS sections(section_id)
+			CROSS JOIN unnest(ARRAY['A', 'B', 'C', 'D']) AS row_label
+			CROSS JOIN generate_series(1, 10) AS seat_number
+		)
+		INSERT INTO catalog.venue_seats (
+			venue_id, section_id, seat_id, row_label, seat_number, x, y,
+			accessibility
+		)
+		SELECT $1, section_id, seat_id, row_label, seat_number, x, y,
+		       accessibility
+		FROM generated_seats
+		ON CONFLICT (venue_id, section_id, seat_id) DO NOTHING
+	`, venueID)
+	return err
 }
 
 func (s *DatabaseStore) GetOrganizerVenues(ctx context.Context, userID string) ([]Venue, error) {
@@ -548,25 +611,66 @@ func (s *DatabaseStore) CreateEvent(ctx context.Context, event Event) error {
 	defer rollback(tx)
 
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO catalog.events (id, venue_id, name, starts_at, status)
-		VALUES ($1, $2, $3, $4, $5)
-	`, event.ID, event.VenueID, event.Name, event.StartsAt, event.Status)
+		INSERT INTO catalog.events (
+			id, venue_id, name, description, category, starts_at, sale_starts_at,
+			image_key, timezone, status
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	`, event.ID, event.VenueID, event.Name, event.Description, event.Category, event.StartsAt, event.SaleStartsAt, event.ImageKey, event.Timezone, event.Status)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO catalog.event_sections (
+			event_id, section_id, name, display_order, width, height,
+			price_amount_minor
+		)
+		SELECT $1, section_id, name, display_order, width, height,
+		       default_price_amount_minor
+		FROM catalog.venue_sections
+		WHERE venue_id = $2
+	`, event.ID, event.VenueID)
 	if err != nil {
 		return err
 	}
 
 	rows, err := tx.QueryContext(ctx, `
-		SELECT section_id, seat_id FROM catalog.venue_seats WHERE venue_id = $1
-	`, event.VenueID)
+		SELECT vs.section_id, vs.seat_id, vs.row_label, vs.seat_number, vs.x, vs.y,
+		       vs.accessibility, COALESCE(es.price_amount_minor, 5000)
+		FROM catalog.venue_seats vs
+		LEFT JOIN catalog.event_sections es
+			ON es.event_id = $2 AND es.section_id = vs.section_id
+		WHERE vs.venue_id = $1
+		ORDER BY vs.section_id, vs.row_label, vs.seat_number, vs.seat_id
+	`, event.VenueID, event.ID)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 
-	var seats []struct{ SectionID, SeatID string }
+	var seats []struct {
+		SectionID     string
+		SeatID        string
+		Row           string
+		Number        int
+		X             int
+		Y             int
+		Accessibility bool
+		PriceCents    int
+	}
 	for rows.Next() {
-		var st struct{ SectionID, SeatID string }
-		if err := rows.Scan(&st.SectionID, &st.SeatID); err != nil {
+		var st struct {
+			SectionID     string
+			SeatID        string
+			Row           string
+			Number        int
+			X             int
+			Y             int
+			Accessibility bool
+			PriceCents    int
+		}
+		if err := rows.Scan(&st.SectionID, &st.SeatID, &st.Row, &st.Number, &st.X, &st.Y, &st.Accessibility, &st.PriceCents); err != nil {
 			return err
 		}
 		seats = append(seats, st)
@@ -588,9 +692,12 @@ func (s *DatabaseStore) CreateEvent(ctx context.Context, event Event) error {
 		}
 
 		_, err = tx.ExecContext(ctx, `
-			INSERT INTO projection.seat_snapshots (event_id, section_id, seat_id, status, aggregate_version, price_amount_minor)
-			VALUES ($1, $2, $3, 'AVAILABLE', 0, 5000)
-		`, event.ID, st.SectionID, st.SeatID)
+			INSERT INTO projection.seat_snapshots (
+				event_id, section_id, seat_id, status, aggregate_version,
+				price_amount_minor, row_label, seat_number, x, y, accessibility
+			)
+			VALUES ($1, $2, $3, 'AVAILABLE', 0, $4, $5, $6, $7, $8, $9)
+		`, event.ID, st.SectionID, st.SeatID, st.PriceCents, st.Row, st.Number, st.X, st.Y, st.Accessibility)
 		if err != nil {
 			return err
 		}
@@ -601,10 +708,17 @@ func (s *DatabaseStore) CreateEvent(ctx context.Context, event Event) error {
 
 func (s *DatabaseStore) GetEvents(ctx context.Context) ([]Event, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT e.id, e.venue_id, e.name, e.starts_at, e.status, v.name, v.city,
+		SELECT e.id, e.venue_id, e.name, e.description, e.category, e.image_key,
+		       e.starts_at, e.sale_starts_at, e.timezone, e.status, v.name, v.city,
+		       COALESCE(sec.section_ids, ''),
 		       COALESCE(inv.available, 0), COALESCE(inv.held, 0), COALESCE(inv.sold, 0)
 		FROM catalog.events e
 		JOIN catalog.venues v ON v.id = e.venue_id
+		LEFT JOIN (
+			SELECT event_id, string_agg(section_id, ',' ORDER BY display_order, section_id) AS section_ids
+			FROM catalog.event_sections
+			GROUP BY event_id
+		) sec ON sec.event_id = e.id
 		LEFT JOIN (
 			SELECT event_id,
 			       COUNT(*) FILTER (WHERE status = 'AVAILABLE') AS available,
@@ -622,10 +736,12 @@ func (s *DatabaseStore) GetEvents(ctx context.Context) ([]Event, error) {
 	var events []Event
 	for rows.Next() {
 		var e Event
+		var sectionIDs string
 		var held, sold int
-		if err := rows.Scan(&e.ID, &e.VenueID, &e.Name, &e.StartsAt, &e.Status, &e.Venue, &e.City, &e.SeatsOpen, &held, &sold); err != nil {
+		if err := rows.Scan(&e.ID, &e.VenueID, &e.Name, &e.Description, &e.Category, &e.ImageKey, &e.StartsAt, &e.SaleStartsAt, &e.Timezone, &e.Status, &e.Venue, &e.City, &sectionIDs, &e.SeatsOpen, &held, &sold); err != nil {
 			return nil, err
 		}
+		e.SectionIDs = splitCSV(sectionIDs)
 		e.SeatsTotal = e.SeatsOpen + held + sold
 
 		events = append(events, e)
@@ -637,12 +753,21 @@ func (s *DatabaseStore) GetEvents(ctx context.Context) ([]Event, error) {
 // and ownership checks do not silently diverge.
 func (s *DatabaseStore) GetEvent(ctx context.Context, id string) (Event, error) {
 	var e Event
+	var sectionIDs string
 	var held, sold int
 	err := s.db.QueryRowContext(ctx, `
-		SELECT e.id, e.venue_id, e.name, e.starts_at, e.status, v.name, v.city,
+		SELECT e.id, e.venue_id, e.name, e.description, e.category, e.image_key,
+		       e.starts_at, e.sale_starts_at, e.timezone, e.status, v.name, v.city,
+		       COALESCE(sec.section_ids, ''),
 		       COALESCE(inv.available, 0), COALESCE(inv.held, 0), COALESCE(inv.sold, 0)
 		FROM catalog.events e
 		JOIN catalog.venues v ON v.id = e.venue_id
+		LEFT JOIN (
+			SELECT event_id, string_agg(section_id, ',' ORDER BY display_order, section_id) AS section_ids
+			FROM catalog.event_sections
+			WHERE event_id = $1
+			GROUP BY event_id
+		) sec ON sec.event_id = e.id
 		LEFT JOIN (
 			SELECT event_id,
 			       COUNT(*) FILTER (WHERE status = 'AVAILABLE') AS available,
@@ -653,13 +778,14 @@ func (s *DatabaseStore) GetEvent(ctx context.Context, id string) (Event, error) 
 			GROUP BY event_id
 		) inv ON inv.event_id = e.id
 		WHERE e.id = $1
-	`, id).Scan(&e.ID, &e.VenueID, &e.Name, &e.StartsAt, &e.Status, &e.Venue, &e.City, &e.SeatsOpen, &held, &sold)
+	`, id).Scan(&e.ID, &e.VenueID, &e.Name, &e.Description, &e.Category, &e.ImageKey, &e.StartsAt, &e.SaleStartsAt, &e.Timezone, &e.Status, &e.Venue, &e.City, &sectionIDs, &e.SeatsOpen, &held, &sold)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Event{}, ErrStoreNotFound
 	}
 	if err != nil {
 		return Event{}, err
 	}
+	e.SectionIDs = splitCSV(sectionIDs)
 	e.SeatsTotal = e.SeatsOpen + held + sold
 	return e, nil
 }

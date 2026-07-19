@@ -5,8 +5,42 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 )
+
+const (
+	eventNameMaxLength        = 120
+	eventDescriptionMaxLength = 5000
+	defaultEventCategory      = "Concerts"
+	defaultEventImageKey      = "event-midnight-array"
+	defaultEventTimezone      = "UTC"
+)
+
+var allowedEventCategories = map[string]struct{}{
+	"Concerts":  {},
+	"Sports":    {},
+	"Theatre":   {},
+	"Festivals": {},
+}
+
+var allowedEventImageKeys = map[string]struct{}{
+	"event-midnight-array": {},
+	"event-final-whistle":  {},
+	"event-zero-hour":      {},
+}
+
+type createEventRequest struct {
+	ID           string    `json:"id"`
+	VenueID      string    `json:"venue_id"`
+	Name         string    `json:"name"`
+	Description  string    `json:"description"`
+	Category     string    `json:"category"`
+	StartsAt     time.Time `json:"starts_at"`
+	SaleStartsAt time.Time `json:"sale_starts_at"`
+	ImageKey     string    `json:"image_key"`
+	Timezone     string    `json:"timezone"`
+}
 
 func (s *Server) handleOrganizerEvents(w http.ResponseWriter, r *http.Request, user User) {
 	s.mu.Lock()
@@ -90,17 +124,22 @@ func (s *Server) handleOrganizerMetricsStream(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// The frontend connects without an event ID, so stream the organizer's first event.
-
-	s.mu.Lock()
-	var eventID string
-	for _, event := range s.events {
-		if event.OrganizerID == user.OrganizerID {
-			eventID = event.ID
-			break
+	eventID := r.PathValue("eventId")
+	if eventID != "" {
+		if !s.organizerOwnsEvent(r.Context(), eventID, user) {
+			writeError(w, http.StatusNotFound, "event_not_found")
+			return
 		}
+	} else {
+		s.mu.Lock()
+		for _, event := range s.events {
+			if event.OrganizerID == user.OrganizerID {
+				eventID = event.ID
+				break
+			}
+		}
+		s.mu.Unlock()
 	}
-	s.mu.Unlock()
 
 	if eventID == "" {
 		writeError(w, http.StatusNotFound, "event_not_found")
@@ -190,7 +229,10 @@ func (s *Server) handleListVenues(w http.ResponseWriter, r *http.Request, user U
 }
 
 func (s *Server) handleListVenueStaff(w http.ResponseWriter, r *http.Request, user User) {
-	venueID := r.PathValue("id")
+	venueID := r.PathValue("venueId")
+	if venueID == "" {
+		venueID = r.PathValue("id")
+	}
 	if s.store == nil {
 		writeJSON(w, http.StatusOK, map[string]any{"staff": []User{}})
 		return
@@ -283,14 +325,14 @@ func (s *Server) handleCancelEvent(w http.ResponseWriter, r *http.Request, user 
 }
 
 func (s *Server) handleCreateEvent(w http.ResponseWriter, r *http.Request, user User) {
-	var req Event
-	if !decodeJSON(w, r, &req) {
+	var req createEventRequest
+	if _, ok := decodeJSONStrict(w, r, &req); !ok {
 		return
 	}
 
-	req.Status = EventStatusPublished
-	if req.ID == "" {
-		req.ID = "evt_" + time.Now().Format("20060102150405")
+	event, ok := s.normalizeCreateEventRequest(w, req, user)
+	if !ok {
+		return
 	}
 
 	if s.store != nil {
@@ -301,25 +343,93 @@ func (s *Server) handleCreateEvent(w http.ResponseWriter, r *http.Request, user 
 		}
 		ownsVenue := false
 		for _, v := range venues {
-			if v.ID == req.VenueID {
+			if v.ID == event.VenueID {
 				ownsVenue = true
 				break
 			}
 		}
 		if !ownsVenue {
-			writeError(w, http.StatusForbidden, "not_venue_owner")
+			writeError(w, http.StatusNotFound, "venue_not_found")
 			return
 		}
 
-		if err := s.store.CreateEvent(r.Context(), req); err != nil {
+		if err := s.store.CreateEvent(r.Context(), event); err != nil {
 			writeError(w, http.StatusInternalServerError, "internal_error")
 			return
 		}
 	} else {
 		s.mu.Lock()
-		s.events[req.ID] = req
+		s.events[event.ID] = event
 		s.mu.Unlock()
 	}
 
-	writeJSON(w, http.StatusCreated, req)
+	writeJSON(w, http.StatusCreated, event)
+}
+
+func (s *Server) normalizeCreateEventRequest(w http.ResponseWriter, req createEventRequest, user User) (Event, bool) {
+	name := strings.TrimSpace(req.Name)
+	if name == "" || len(name) > eventNameMaxLength {
+		writeError(w, http.StatusBadRequest, "invalid_event_name")
+		return Event{}, false
+	}
+	description := strings.TrimSpace(req.Description)
+	if len(description) > eventDescriptionMaxLength {
+		writeError(w, http.StatusBadRequest, "invalid_event_description")
+		return Event{}, false
+	}
+	venueID := strings.TrimSpace(req.VenueID)
+	if venueID == "" {
+		writeError(w, http.StatusBadRequest, "invalid_venue")
+		return Event{}, false
+	}
+	if req.StartsAt.IsZero() {
+		writeError(w, http.StatusBadRequest, "invalid_starts_at")
+		return Event{}, false
+	}
+	saleStartsAt := req.SaleStartsAt
+	if saleStartsAt.IsZero() {
+		saleStartsAt = s.now()
+	}
+	if !req.StartsAt.After(saleStartsAt) {
+		writeError(w, http.StatusBadRequest, "invalid_event_dates")
+		return Event{}, false
+	}
+	category := strings.TrimSpace(req.Category)
+	if category == "" {
+		category = defaultEventCategory
+	}
+	if _, ok := allowedEventCategories[category]; !ok {
+		writeError(w, http.StatusBadRequest, "invalid_event_category")
+		return Event{}, false
+	}
+	imageKey := strings.TrimSpace(req.ImageKey)
+	if imageKey == "" {
+		imageKey = defaultEventImageKey
+	}
+	if _, ok := allowedEventImageKeys[imageKey]; !ok {
+		writeError(w, http.StatusBadRequest, "invalid_event_image")
+		return Event{}, false
+	}
+	timezone := strings.TrimSpace(req.Timezone)
+	if timezone == "" {
+		timezone = defaultEventTimezone
+	}
+	eventID := strings.TrimSpace(req.ID)
+	if eventID == "" {
+		eventID = "evt_" + time.Now().Format("20060102150405")
+	}
+
+	return Event{
+		ID:           eventID,
+		VenueID:      venueID,
+		Status:       EventStatusPublished,
+		OrganizerID:  user.OrganizerID,
+		Name:         name,
+		Category:     category,
+		Description:  description,
+		ImageKey:     imageKey,
+		StartsAt:     req.StartsAt,
+		SaleStartsAt: saleStartsAt,
+		Timezone:     timezone,
+	}, true
 }
