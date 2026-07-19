@@ -38,6 +38,12 @@
   const standardCategories = ['Concerts', 'Sports', 'Theatre', 'Festivals'];
 
   const dateWindows = ['Any date', 'Today', 'This week', 'This month'];
+  const saleTimeFormatter = new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
   const MAX_QUERY_LENGTH = 120;
   let hydratedSearch = page.url.search;
   hydrateFilterStateFromURL(page.url.searchParams);
@@ -238,16 +244,21 @@
   }
 
   function formatSaleTime(value: string) {
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(new Date(value));
+    const timestamp = new Date(value).getTime();
+    if (!Number.isFinite(timestamp)) return 'Sale TBA';
+    return saleTimeFormatter.format(new Date(timestamp));
   }
 </script>
 
 <main class="w-full space-y-6">
+  {#if data.loadError}
+    <div
+      class="rounded-sm border border-urgency/50 bg-urgency/10 p-4 text-sm font-semibold text-urgency"
+    >
+      {data.loadError}
+    </div>
+  {/if}
+
   <section
     class="overflow-hidden rounded-sm border border-line bg-panel/90 shadow-xl"
   >

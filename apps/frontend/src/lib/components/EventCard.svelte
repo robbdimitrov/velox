@@ -4,14 +4,19 @@
 
   let { event }: { event: EventSummary } = $props();
 
-  const saleTime = $derived(
-    new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(new Date(event.sale_starts_at))
-  );
+  const saleTimeFormatter = new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+  const saleTime = $derived(formatSaleTime(event.sale_starts_at));
+
+  function formatSaleTime(value: string) {
+    const timestamp = new Date(value).getTime();
+    if (!Number.isFinite(timestamp)) return 'Sale TBA';
+    return saleTimeFormatter.format(new Date(timestamp));
+  }
 </script>
 
 <a

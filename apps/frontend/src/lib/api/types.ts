@@ -1,15 +1,25 @@
 export type EventSummary = {
   id: string;
   title: string;
+  description?: string;
   venue: string;
   city: string;
   category: string;
+  image_key?: string;
   image_url: string;
+  starts_at?: string;
   sale_starts_at: string;
+  section_ids?: string[];
+  sections?: EventSection[];
   remaining_bucket: 'LOW' | 'MEDIUM' | 'HIGH' | 'SOLD_OUT';
   demand_score: number;
   projection_lag_ms: number;
   status?: string;
+};
+
+export type EventSection = {
+  id: string;
+  name: string;
 };
 
 export type EventAnnouncement = {

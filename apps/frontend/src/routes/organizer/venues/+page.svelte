@@ -53,7 +53,7 @@
           </div>
           <h3 class="font-bold text-lg leading-tight mb-1">{venue.name}</h3>
           <p class="text-inkMuted text-sm flex items-center gap-1 mb-4">
-            {venue.city}, {venue.country}
+            {venue.city}
           </p>
           <div class="pt-4 border-t border-white/10 flex justify-end">
             <button

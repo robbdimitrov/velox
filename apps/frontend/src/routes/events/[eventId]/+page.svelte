@@ -9,6 +9,7 @@
   import { SeatSelectionState } from '$lib/state/seat-state.svelte';
   import {
     Accessibility,
+    CalendarDays,
     Megaphone,
     Minus,
     OctagonAlert,
@@ -19,7 +20,6 @@
   } from '@lucide/svelte';
   import Panel from '$lib/components/Panel.svelte';
   import PrimaryButton from '$lib/components/PrimaryButton.svelte';
-  import { onMount } from 'svelte';
   import { slide } from 'svelte/transition';
 
   let { data } = $props();
@@ -43,6 +43,18 @@
   let hiddenAnnouncementCount = $derived(
     data.announcements.length - ANNOUNCEMENT_PREVIEW_COUNT
   );
+  let sectionOptions = $derived(
+    data.sections?.length
+      ? data.sections
+      : [{ id: data.snapshot.section_id, name: data.snapshot.section_id }]
+  );
+
+  const eventTimeFormatter = new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 
   $effect(() => {
     if (data.isRateLimited) return;
@@ -108,6 +120,13 @@
       reservingStatus = '';
     }
   }
+
+  function formatEventTime(value: string | undefined) {
+    if (!value) return 'TBA';
+    const timestamp = new Date(value).getTime();
+    if (!Number.isFinite(timestamp)) return 'TBA';
+    return eventTimeFormatter.format(new Date(timestamp));
+  }
 </script>
 
 {#if data.isRateLimited}
@@ -123,6 +142,16 @@
           This event has been cancelled by the organizer. Seat reservation is
           disabled.
         </p>
+      </div>
+    {/if}
+
+    {#if data.loadErrors?.length}
+      <div
+        class="lg:col-span-3 rounded-sm border border-urgency/50 bg-urgency/10 p-4 text-sm font-semibold text-urgency"
+      >
+        {#each data.loadErrors as loadError}
+          <p>{loadError}</p>
+        {/each}
       </div>
     {/if}
 
@@ -143,9 +172,9 @@
           onchange={() => goto(`?section_id=${sectionID}`)}
           class="select select-bordered select-sm w-full rounded-sm border-line bg-carbon/60 text-ink focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal/50"
         >
-          <option>A</option>
-          <option>B</option>
-          <option>C</option>
+          {#each sectionOptions as section}
+            <option value={section.id}>{section.name}</option>
+          {/each}
         </select>
       </label>
 
@@ -202,21 +231,45 @@
 
     <section class="min-w-0 flex flex-col gap-4">
       <Panel padding="lg">
-        <div
-          class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"
-        >
-          <div>
+        <div class="grid gap-4 md:grid-cols-[140px_1fr_auto] md:items-end">
+          <img
+            class="h-28 w-full rounded-sm object-cover md:h-32"
+            src={data.event.image_url}
+            alt=""
+          />
+          <div class="min-w-0">
+            <div class="mb-2 flex flex-wrap items-center gap-2">
+              <span
+                class="rounded-sm border border-line bg-panelSoft px-2 py-1 text-xs font-black uppercase text-signal"
+              >
+                {data.event.category}
+              </span>
+              <span
+                class="flex items-center gap-1 rounded-sm border border-line bg-panelSoft px-2 py-1 text-xs font-semibold uppercase text-inkMuted"
+              >
+                <CalendarDays size={13} />
+                Sale {formatEventTime(data.event.sale_starts_at)}
+              </span>
+            </div>
             <h1
               class="text-3xl font-black uppercase tracking-tight text-ink drop-shadow-md"
             >
-              {data.event?.title}
+              {data.event.title}
             </h1>
             <p
-              class="text-sm font-medium text-signal mt-1 uppercase tracking-wide"
+              class="mt-1 text-sm font-medium uppercase tracking-wide text-signal"
             >
-              {data.event?.venue} <span class="text-inkMuted mx-2">|</span>
-              Section {sectionID}
+              {data.event.venue}
+              {#if data.event.city}
+                <span class="mx-2 text-inkMuted">|</span>{data.event.city}
+              {/if}
+              <span class="mx-2 text-inkMuted">|</span>Section {sectionID}
             </p>
+            {#if data.event.description}
+              <p class="mt-3 max-w-2xl text-sm leading-6 text-inkMuted">
+                {data.event.description}
+              </p>
+            {/if}
           </div>
           <div
             class="flex flex-col items-end rounded-sm border border-line bg-panelSoft/70 px-3 py-1.5"

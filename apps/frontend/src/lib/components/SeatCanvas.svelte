@@ -45,6 +45,15 @@
   // Use canvas only for dense sections; SVG keeps low-density seats accessible.
   const CANVAS_SEAT_THRESHOLD = 1000;
   let useCanvas = $derived(seats.length > CANVAS_SEAT_THRESHOLD);
+  let seatRegions = $derived(
+    seats.map((seat) => ({
+      seat,
+      x: offsetX + (seat.x - minX) * scale,
+      y: offsetY + (seat.y - minY) * scale,
+      size: SEAT_SIZE * scale
+    }))
+  );
+  let frameHandle: number | undefined;
 
   function seatPosition(seat: Seat) {
     return {
@@ -139,13 +148,11 @@
     ctx.save();
     ctx.scale(devicePixelRatio, devicePixelRatio);
 
-    for (const seat of seats) {
+    for (const region of seatRegions) {
+      const { seat, x: sx, y: sy, size } = region;
       const selected = selectedSeatIDs.has(seat.seat_id);
       const isHovered = hoveredSeat?.seat_id === seat.seat_id;
 
-      const sx = offsetX + (seat.x - minX) * scale;
-      const sy = offsetY + (seat.y - minY) * scale;
-      const size = SEAT_SIZE * scale;
       const radius = 6 * scale;
 
       if (
@@ -187,25 +194,33 @@
     ctx.restore();
   }
 
+  function requestDraw() {
+    if (!useCanvas || typeof requestAnimationFrame === 'undefined') return;
+    if (frameHandle !== undefined) return;
+    frameHandle = requestAnimationFrame(() => {
+      frameHandle = undefined;
+      draw();
+    });
+  }
+
   function getHitSeat(event: MouseEvent) {
     if (!canvas || seats.length === 0) return null;
     const rect = canvas.getBoundingClientRect();
     const clickX = ((event.clientX - rect.left) / rect.width) * width;
     const clickY = ((event.clientY - rect.top) / rect.height) * height;
 
-    return (
-      seats.find((seat) => {
-        const sx = offsetX + (seat.x - minX) * scale;
-        const sy = offsetY + (seat.y - minY) * scale;
-        const size = SEAT_SIZE * scale;
-        return (
-          clickX >= sx &&
-          clickX <= sx + size &&
-          clickY >= sy &&
-          clickY <= sy + size
-        );
-      }) || null
-    );
+    for (let i = seatRegions.length - 1; i >= 0; i -= 1) {
+      const region = seatRegions[i];
+      if (
+        clickX >= region.x &&
+        clickX <= region.x + region.size &&
+        clickY >= region.y &&
+        clickY <= region.y + region.size
+      ) {
+        return region.seat;
+      }
+    }
+    return null;
   }
 
   function handleClick(event: MouseEvent) {
@@ -220,14 +235,14 @@
     const hit = getHitSeat(event);
     if (hoveredSeat?.seat_id !== hit?.seat_id) {
       hoveredSeat = hit;
-      draw();
+      requestDraw();
     }
   }
 
   function handleMouseLeave() {
     if (hoveredSeat) {
       hoveredSeat = null;
-      draw();
+      requestDraw();
     }
   }
 
@@ -238,13 +253,18 @@
         if (entry.contentRect.width > 0) {
           width = entry.contentRect.width;
           height = entry.contentRect.height;
-          draw();
+          requestDraw();
         }
       }
     });
     if (container) observer.observe(container);
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (frameHandle !== undefined) {
+        cancelAnimationFrame(frameHandle);
+      }
+    };
   });
 
   $effect(() => {
@@ -256,7 +276,7 @@
     zoomLevel;
     accessibleOnly;
     if (seats && canvas) {
-      draw();
+      requestDraw();
     }
   });
 </script>

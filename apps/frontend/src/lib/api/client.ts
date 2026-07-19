@@ -3,6 +3,7 @@ import type {
   CheckoutResponse,
   DiscoveryResponse,
   EventAnnouncement,
+  EventSection,
   EventSummary,
   ReserveOrderRequest,
   ReserveOrderResponse,
@@ -46,9 +47,9 @@ export function createGatewayClient(
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       throw new GatewayError(
-        body.message ?? 'Gateway request failed',
+        body.message ?? body.error ?? 'Gateway request failed',
         response.status,
-        body.code
+        body.code ?? body.error
       );
     }
 
@@ -65,8 +66,18 @@ export function createGatewayClient(
         `/events?${params.toString()}`
       ).then(mapDiscovery);
     },
+    getEvent(eventID: string) {
+      return request<{ event: GatewayEvent; projection_lag_ms?: number }>(
+        `/events/${encodeURIComponent(eventID)}`
+      ).then((body) =>
+        mapEventSummary(
+          body.event,
+          body.projection_lag_ms ?? body.event.projection_lag_ms ?? 0
+        )
+      );
+    },
     getSeatSnapshot(eventID: string, sectionID: string) {
-      return request<{ seats: GatewaySeat[]; snapshot_age_ms?: number }>(
+      return request<GatewaySeatSnapshot>(
         `/events/${encodeURIComponent(eventID)}/sections/${encodeURIComponent(sectionID)}/seats`
       ).then((body) => mapSeatSnapshot(eventID, sectionID, body));
     },
@@ -159,25 +170,53 @@ export function createIdempotencyKey() {
 
 type GatewayEvent = {
   id: string;
-  name: string;
+  name?: string;
+  title?: string;
+  description?: string;
   category?: string;
-  venue: string;
-  city: string;
-  starts_at: string;
-  seats_open: number;
-  demand_score: number;
+  image_key?: string;
+  image_url?: string;
+  venue?: string;
+  city?: string;
+  starts_at?: string;
+  sale_starts_at?: string;
+  section_ids?: string[];
+  sections?: GatewaySection[];
+  seats_total?: number;
+  seats_open?: number;
+  remaining_bucket?: EventSummary['remaining_bucket'];
+  demand_score?: number;
+  projection_lag_ms?: number;
   status?: string;
 };
+
+type GatewaySection =
+  | string
+  | {
+      id?: string;
+      section_id?: string;
+      name?: string;
+    };
 
 type GatewaySeat = {
   seat_id: string;
   section_id: string;
   row: string;
   number: number;
+  x?: number;
+  y?: number;
   price_cents: number;
-  status: 'AVAILABLE' | 'HELD' | 'SOLD';
+  accessibility?: boolean;
+  status: string;
   version: number;
   expires_at_server_ms?: number;
+};
+
+type GatewaySeatSnapshot = {
+  seats: GatewaySeat[];
+  server_time_ms?: number;
+  snapshot_age_ms?: number;
+  projection_lag_ms?: number;
 };
 
 type GatewayOrder = {
@@ -195,36 +234,10 @@ function mapDiscovery(body: {
   events: GatewayEvent[];
   projection_lag_ms?: number;
 }): DiscoveryResponse {
-  const events = body.events.map((event): EventSummary => {
-    const bucket =
-      event.seats_open <= 0
-        ? 'SOLD_OUT'
-        : event.seats_open < 20
-          ? 'LOW'
-          : event.seats_open < 80
-            ? 'MEDIUM'
-            : 'HIGH';
-    let image_url = '/event-midnight-array.svg';
-    if (event.id === 'evt_neon_riot' || event.id === 'evt_summer_fests') {
-      image_url = '/event-final-whistle.svg';
-    } else if (event.id === 'evt_north_pier' || event.id === 'evt_civic_bowl') {
-      image_url = '/event-zero-hour.svg';
-    }
-
-    return {
-      id: event.id,
-      title: event.name,
-      venue: event.venue,
-      city: event.city,
-      category: event.category ?? 'Live',
-      image_url,
-      sale_starts_at: event.starts_at,
-      remaining_bucket: bucket,
-      demand_score: event.demand_score,
-      projection_lag_ms: body.projection_lag_ms ?? 0,
-      status: event.status
-    };
-  });
+  const projectionLag = body.projection_lag_ms ?? 0;
+  const events = body.events.map((event) =>
+    mapEventSummary(event, event.projection_lag_ms ?? projectionLag)
+  );
   return {
     events,
     featured: events,
@@ -235,10 +248,93 @@ function mapDiscovery(body: {
   };
 }
 
+function mapEventSummary(
+  event: GatewayEvent,
+  projectionLag: number
+): EventSummary {
+  const startsAt = event.starts_at ?? event.sale_starts_at ?? '';
+  const saleStartsAt = event.sale_starts_at ?? startsAt;
+  const sections = mapEventSections(event);
+
+  return {
+    id: event.id,
+    title: event.name ?? event.title ?? event.id,
+    description: event.description,
+    venue: event.venue ?? 'Venue pending',
+    city: event.city ?? '',
+    category: event.category ?? 'Live',
+    image_key: event.image_key,
+    image_url:
+      localImageURL(event.image_url) ?? imageURLForKey(event.image_key),
+    starts_at: startsAt,
+    sale_starts_at: saleStartsAt,
+    section_ids: sections.map((section) => section.id),
+    sections,
+    remaining_bucket:
+      event.remaining_bucket ?? remainingBucketFromOpenSeats(event.seats_open),
+    demand_score: event.demand_score ?? 0,
+    projection_lag_ms: projectionLag,
+    status: event.status
+  };
+}
+
+function remainingBucketFromOpenSeats(
+  seatsOpen: number | undefined
+): EventSummary['remaining_bucket'] {
+  if (seatsOpen === undefined) return 'HIGH';
+  if (seatsOpen <= 0) return 'SOLD_OUT';
+  if (seatsOpen < 20) return 'LOW';
+  if (seatsOpen < 80) return 'MEDIUM';
+  return 'HIGH';
+}
+
+function mapEventSections(event: GatewayEvent): EventSection[] {
+  const sections = [
+    ...(event.sections ?? []).map(normalizeSection),
+    ...(event.section_ids ?? []).map((id) => ({ id, name: id }))
+  ];
+  const byID = new Map<string, EventSection>();
+  for (const section of sections) {
+    if (section.id) byID.set(section.id, section);
+  }
+  return [...byID.values()];
+}
+
+function normalizeSection(section: GatewaySection): EventSection {
+  if (typeof section === 'string') return { id: section, name: section };
+  const id = section.id ?? section.section_id ?? '';
+  return { id, name: section.name ?? id };
+}
+
+function imageURLForKey(imageKey: string | undefined) {
+  if (!imageKey) return '/event-midnight-array.svg';
+
+  const localImages: Record<string, string> = {
+    'event-midnight-array': '/event-midnight-array.svg',
+    'midnight-array': '/event-midnight-array.svg',
+    'event-final-whistle': '/event-final-whistle.svg',
+    'final-whistle': '/event-final-whistle.svg',
+    'event-zero-hour': '/event-zero-hour.svg',
+    'zero-hour': '/event-zero-hour.svg'
+  };
+
+  if (localImages[imageKey]) return localImages[imageKey];
+  if (/^[a-z0-9_-]+\.svg$/i.test(imageKey)) return `/${imageKey}`;
+  return '/event-midnight-array.svg';
+}
+
+function localImageURL(imageURL: string | undefined) {
+  if (!imageURL) return undefined;
+  if (/^\/[a-z0-9/_-]+\.(svg|png|jpe?g|webp)$/i.test(imageURL)) {
+    return imageURL;
+  }
+  return undefined;
+}
+
 function mapSeatSnapshot(
   eventID: string,
   sectionID: string,
-  body: { seats: GatewaySeat[]; snapshot_age_ms?: number }
+  body: GatewaySeatSnapshot
 ): SeatSnapshot {
   const seats = body.seats.map((seat, index): Seat => {
     const col = index % 10;
@@ -248,11 +344,11 @@ function mapSeatSnapshot(
       seat_id: seat.seat_id,
       section_id: seat.section_id,
       row: seat.row,
-      x: 44 + col * 42,
-      y: 42 + row * 42,
+      x: seat.x ?? 44 + col * 42,
+      y: seat.y ?? 42 + row * 42,
       price_cents: seat.price_cents,
-      accessibility: col === 0 || col === 9,
-      status: seat.status,
+      accessibility: seat.accessibility ?? (col === 0 || col === 9),
+      status: mapSeatStatus(seat.status),
       version: seat.version,
       expires_at_server_ms: seat.expires_at_server_ms
     };
@@ -260,11 +356,24 @@ function mapSeatSnapshot(
   return {
     event_id: eventID,
     section_id: sectionID,
-    server_time_ms: Date.now(),
+    server_time_ms: body.server_time_ms ?? Date.now(),
     snapshot_age_ms: body.snapshot_age_ms ?? 0,
-    projection_lag_ms: 0,
+    projection_lag_ms: body.projection_lag_ms ?? 0,
     seats
   };
+}
+
+function mapSeatStatus(status: string): Seat['status'] {
+  if (
+    status === 'AVAILABLE' ||
+    status === 'HELD' ||
+    status === 'SOLD' ||
+    status === 'SELECTED' ||
+    status === 'UNKNOWN'
+  ) {
+    return status;
+  }
+  return 'UNKNOWN';
 }
 
 function mapReservation(body: { order: GatewayOrder }): ReserveOrderResponse {

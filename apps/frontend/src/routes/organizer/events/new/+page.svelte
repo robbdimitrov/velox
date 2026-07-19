@@ -20,7 +20,17 @@
   let selectedVenue = $state('');
   let eventName = $state('');
   let eventDescription = $state('');
+  let eventCategory = $state('Concerts');
+  let eventImageKey = $state('event-midnight-array');
   let eventDate = $state('');
+  let saleStartsAt = $state('');
+
+  const categoryOptions = ['Concerts', 'Sports', 'Theatre', 'Festivals'];
+  const imageOptions = [
+    { key: 'event-midnight-array', label: 'Midnight Array' },
+    { key: 'event-final-whistle', label: 'Final Whistle' },
+    { key: 'event-zero-hour', label: 'Zero Hour' }
+  ];
 
   const steps = [
     { id: 1, title: 'Venue', icon: MapPin },
@@ -32,11 +42,18 @@
     loading = true;
     error = '';
     try {
+      if (new Date(saleStartsAt).getTime() > new Date(eventDate).getTime()) {
+        throw new Error('Sale start must be before the event start.');
+      }
+
       const payload = {
-        venueId: selectedVenue,
+        venue_id: selectedVenue,
         name: eventName,
         description: eventDescription,
-        date: new Date(eventDate).toISOString()
+        category: eventCategory,
+        image_key: eventImageKey,
+        starts_at: new Date(eventDate).toISOString(),
+        sale_starts_at: new Date(saleStartsAt).toISOString()
       };
 
       const res = await fetch('/api/organizer/events', {
@@ -50,8 +67,8 @@
         throw new Error(d.message || 'Failed to create event');
       }
       window.location.href = '/organizer';
-    } catch (err: any) {
-      error = err.message;
+    } catch (err: unknown) {
+      error = err instanceof Error ? err.message : 'Failed to create event';
     } finally {
       loading = false;
     }
@@ -94,10 +111,24 @@
       </div>
     {/if}
 
+    {#if data.loadError}
+      <div
+        class="mb-6 rounded-sm border border-urgency/50 bg-urgency/10 p-3 text-sm font-semibold text-urgency"
+      >
+        {data.loadError}
+      </div>
+    {/if}
+
     {#if currentStep === 1}
       <div class="flex-1 animate-in slide-in-from-right fade-in duration-300">
         <h2 class="text-xl font-bold mb-6">Select a Venue</h2>
-        {#if data.venues.length === 0}
+        {#if data.loadError}
+          <div
+            class="rounded-sm border border-urgency/30 bg-urgency/10 p-6 text-center text-urgency"
+          >
+            <p>Venue data could not be loaded.</p>
+          </div>
+        {:else if data.venues.length === 0}
           <div
             class="p-6 border border-warning/30 bg-warning/10 rounded text-center text-warning"
           >
@@ -119,7 +150,7 @@
               >
                 <div class="font-bold">{venue.name}</div>
                 <div class="text-xs text-inkMuted mt-1">
-                  {venue.city}, {venue.country} &bull; {venue.capacity} capacity
+                  {venue.city} &bull; {venue.capacity} capacity
                 </div>
               </button>
             {/each}
@@ -146,11 +177,47 @@
           bind:value={eventDescription}
           placeholder="Tell attendees what to expect..."
         />
+        <label class="form-control space-y-2">
+          <span
+            class="text-xs font-semibold uppercase tracking-wider text-inkMuted"
+          >
+            Category
+          </span>
+          <select
+            bind:value={eventCategory}
+            class="select select-bordered w-full rounded-sm border-line bg-carbon/60 text-ink focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal/50"
+          >
+            {#each categoryOptions as category}
+              <option>{category}</option>
+            {/each}
+          </select>
+        </label>
+        <label class="form-control space-y-2">
+          <span
+            class="text-xs font-semibold uppercase tracking-wider text-inkMuted"
+          >
+            Event Image
+          </span>
+          <select
+            bind:value={eventImageKey}
+            class="select select-bordered w-full rounded-sm border-line bg-carbon/60 text-ink focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal/50"
+          >
+            {#each imageOptions as image}
+              <option value={image.key}>{image.label}</option>
+            {/each}
+          </select>
+        </label>
         <TextField
           id="date"
           label="Date & Time"
           type="datetime-local"
           bind:value={eventDate}
+        />
+        <TextField
+          id="sale-start"
+          label="Sale Start"
+          type="datetime-local"
+          bind:value={saleStartsAt}
         />
       </div>
     {/if}
@@ -175,6 +242,30 @@
             <div>
               {eventDate ? new Date(eventDate).toLocaleString() : 'Not set'}
             </div>
+          </div>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+              <div class="text-xs text-inkMuted uppercase font-semibold">
+                Category
+              </div>
+              <div>{eventCategory}</div>
+            </div>
+            <div>
+              <div class="text-xs text-inkMuted uppercase font-semibold">
+                Sale Start
+              </div>
+              <div>
+                {saleStartsAt
+                  ? new Date(saleStartsAt).toLocaleString()
+                  : 'Not set'}
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="text-xs text-inkMuted uppercase font-semibold">
+              Image Key
+            </div>
+            <div>{eventImageKey}</div>
           </div>
           <div>
             <div class="text-xs text-inkMuted uppercase font-semibold">
@@ -207,7 +298,8 @@
         <ActionButton
           onclick={() => currentStep++}
           disabled={(currentStep === 1 && !selectedVenue) ||
-            (currentStep === 2 && (!eventName || !eventDate))}
+            (currentStep === 2 &&
+              (!eventName || !eventDate || !saleStartsAt || !eventCategory))}
         >
           Next <ArrowRight size={16} />
         </ActionButton>
