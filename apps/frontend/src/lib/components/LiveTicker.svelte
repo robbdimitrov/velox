@@ -1,6 +1,5 @@
 <script lang="ts">
   import { Activity } from '@lucide/svelte';
-  import { onDestroy, onMount } from 'svelte';
   import { slide } from 'svelte/transition';
 
   let { url }: { url: string } = $props();
@@ -8,7 +7,7 @@
     'System connected. Waiting for live updates...'
   ]);
 
-  onMount(() => {
+  $effect(() => {
     if (!url || typeof EventSource === 'undefined') return;
 
     const source = new EventSource(url);
@@ -24,10 +23,6 @@
     source.onerror = () => source.close();
 
     return () => source.close();
-  });
-
-  onDestroy(() => {
-    messages = messages.slice(0, 4);
   });
 </script>
 
