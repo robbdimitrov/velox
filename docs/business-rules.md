@@ -6,6 +6,7 @@ the target, the gap is called out explicitly.
 ## Identity And Sessions
 
 - Users register with email, password, and role.
+- Passwords must be 8 to 128 bytes.
 - Empty role means `reserver`; valid explicit roles are `reserver` and
   `organizer`.
 - Store-backed passwords are Argon2id hashes.
@@ -15,8 +16,6 @@ the target, the gap is called out explicitly.
   subject.
 - Login failures are counted per email and client IP. Five failures lock login
   for 5 minutes.
-
-Current gap: password length and complexity bounds are not enforced yet.
 
 ## Roles And Ownership
 

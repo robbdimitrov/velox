@@ -16,7 +16,7 @@ func TestOrganizerCreateEvent(t *testing.T) {
 	client := newTestClient(server)
 
 	// Create organizer
-	reqBody := `{"email":"new_organizer@velox.local","password":"pass","role":"organizer"}`
+	reqBody := `{"email":"new_organizer@velox.local","password":"passphrase","role":"organizer"}`
 	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader([]byte(reqBody)))
 	rr := httptest.NewRecorder()
 	server.Routes().ServeHTTP(rr, req)
@@ -24,7 +24,7 @@ func TestOrganizerCreateEvent(t *testing.T) {
 		t.Fatalf("register failed: %s", rr.Body.String())
 	}
 
-	cookie := client.login(t, "new_organizer@velox.local", "pass")
+	cookie := client.login(t, "new_organizer@velox.local", "passphrase")
 
 	eventPayload := map[string]any{
 		"id":        "evt_created_canonical",

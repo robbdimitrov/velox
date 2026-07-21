@@ -7,9 +7,9 @@ cookie. Cookies are `HttpOnly`, `SameSite=Lax`, path `/`, and expire after 12
 hours. Token verification checks signature, expiry, issuer, audience, and
 subject before loading the user from the store.
 
-Store-backed registration hashes passwords with Argon2id. Demo in-memory mode
-still accepts seeded plaintext passwords and is not a production security
-boundary.
+Registration requires passwords from 8 to 128 bytes. Store-backed registration
+hashes passwords with Argon2id. Demo in-memory mode still accepts seeded
+plaintext passwords and is not a production security boundary.
 
 Organizer routes require the `organizer` role and then an ownership check next
 to the protected venue or event operation. Buyer order and wallet reads are
@@ -18,18 +18,15 @@ public routes.
 
 ## Request And Token Handling
 
-Gateway request bodies are capped at 1 MiB. Reservation and announcement
-commands reject unknown JSON fields; auth, venue, and event-create routes still
-need explicit request DTOs before they should be considered strict public
-contracts.
+Gateway request bodies are capped at 1 MiB. Reservation, organizer event,
+organizer venue, and announcement commands reject unknown JSON fields.
 
-Reservation creation requires `Idempotency-Key`. Confirm and cancel currently
-verify ownership but do not yet enforce a signed reservation token or
-idempotency key. Phase 3 must add signed reservation tokens and avoid logging
-raw token values.
+Reservation creation requires `Idempotency-Key`. Confirm and cancel verify
+ownership and require both `Idempotency-Key` and a signed reservation token.
+Raw reservation and wallet tokens are not logged.
 
-QR wallet tokens are short-lived HMAC tokens. Current claims include ticket ID,
-purpose, and expiry; scanner-like validation must add user and event claims.
+QR wallet tokens are short-lived HMAC tokens. Claims include ticket ID, user
+ID, event ID, purpose, and expiry.
 
 Kafka inventory events carry signatures. Consumers must verify signature,
 schema version, producer identity, and aggregate ordering before applying

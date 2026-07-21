@@ -11,7 +11,7 @@ import (
 func TestRegister(t *testing.T) {
 	server := NewServerWithStore("test", nil, nil)
 
-	reqBody := `{"email":"new_user@velox.local","password":"pass","role":"reserver"}`
+	reqBody := `{"email":"new_user@velox.local","password":"passphrase","role":"reserver"}`
 	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader([]byte(reqBody)))
 	rr := httptest.NewRecorder()
 	server.Routes().ServeHTTP(rr, req)
@@ -49,7 +49,7 @@ func TestRegister(t *testing.T) {
 func TestRegisterPreservesOrganizerRole(t *testing.T) {
 	server := NewServerWithStore("test", nil, nil)
 
-	reqBody := `{"email":"new_organizer@velox.local","password":"pass","role":"organizer"}`
+	reqBody := `{"email":"new_organizer@velox.local","password":"passphrase","role":"organizer"}`
 	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader([]byte(reqBody)))
 	rr := httptest.NewRecorder()
 	server.Routes().ServeHTTP(rr, req)
@@ -75,7 +75,20 @@ func TestRegisterPreservesOrganizerRole(t *testing.T) {
 func TestRegisterRejectsInvalidRole(t *testing.T) {
 	server := NewServerWithStore("test", nil, nil)
 
-	reqBody := `{"email":"admin@velox.local","password":"pass","role":"admin"}`
+	reqBody := `{"email":"admin@velox.local","password":"passphrase","role":"admin"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader([]byte(reqBody)))
+	rr := httptest.NewRecorder()
+	server.Routes().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request, got %d. body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestRegisterRejectsShortPassword(t *testing.T) {
+	server := NewServerWithStore("test", nil, nil)
+
+	reqBody := `{"email":"short@velox.local","password":"short","role":"reserver"}`
 	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader([]byte(reqBody)))
 	rr := httptest.NewRecorder()
 	server.Routes().ServeHTTP(rr, req)

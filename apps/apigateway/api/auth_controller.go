@@ -15,6 +15,8 @@ const sessionTTL = 12 * time.Hour
 const (
 	defaultTokenIssuer   = "velox-apigateway"
 	defaultTokenAudience = "velox-api"
+	minPasswordLength    = 8
+	maxPasswordLength    = 128
 )
 
 // scopesForRole returns token scopes for ingress checks; authorization still
@@ -41,6 +43,10 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	role, ok := normalizedRegistrationRole(req.Role)
 	if !ok {
 		writeError(w, http.StatusBadRequest, "invalid_role")
+		return
+	}
+	if len(req.Password) < minPasswordLength || len(req.Password) > maxPasswordLength {
+		writeError(w, http.StatusBadRequest, "invalid_password")
 		return
 	}
 
