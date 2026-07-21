@@ -3,10 +3,30 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"sort"
 	"strings"
+	"time"
 )
+
+const reservationTokenPurpose = "reservation"
+
+var (
+	errReservationTokenInvalid = errors.New("reservation token invalid")
+	errReservationTokenExpired = errors.New("reservation token expired")
+)
+
+type reservationTokenClaims struct {
+	ReservationID     string
+	OrderID           string
+	UserID            string
+	EventID           string
+	SectionID         string
+	SeatIDs           []string
+	ExpiresAtServerMS int64
+	IssuedAtServerMS  int64
+}
 
 // validateSeatsAvailable does an early projection check before orderservice;
 // seatservice's expected-version append remains authoritative.
@@ -155,7 +175,12 @@ func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	order := s.completePendingReservation(user.ID, req.EventID, req.SectionID, req.SeatIDs, idemKey, hash, upstreamOrder.OrderID, upstreamOrder.Status)
+	order, err := s.completePendingReservation(r.Context(), user.ID, req.EventID, req.SectionID, req.SeatIDs, idemKey, hash, upstreamOrder.OrderID, upstreamOrder.Status)
+	if err != nil {
+		s.releasePendingReservation(req.EventID, req.SectionID, req.SeatIDs, idemKey)
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
 	writeJSON(w, resp.StatusCode, map[string]any{"order": order})
 }
 
@@ -171,11 +196,53 @@ func (s *Server) handleCancelReservation(w http.ResponseWriter, r *http.Request,
 // cancel to orderservice's internal /orders/{id}/{action} endpoint.
 func (s *Server) forwardOrderAction(w http.ResponseWriter, r *http.Request, user User, action string) {
 	reservationID := r.PathValue("reservationId")
+	token := r.Header.Get("Reservation-Token")
+	if token == "" {
+		writeError(w, http.StatusBadRequest, "reservation_token_required")
+		return
+	}
+	key := r.Header.Get("Idempotency-Key")
+	if key == "" {
+		writeError(w, http.StatusBadRequest, "missing_idempotency_key")
+		return
+	}
+
+	claims, err := s.verifyReservationToken(token, user, reservationID)
+	if err != nil {
+		if errors.Is(err, errReservationTokenExpired) {
+			writeError(w, http.StatusConflict, "reservation_token_expired")
+			return
+		}
+		writeError(w, http.StatusUnauthorized, "reservation_token_invalid")
+		return
+	}
 	orderID := strings.TrimPrefix(reservationID, "res_")
+	if !constantTimeStringEqual(claims.OrderID, orderID) {
+		writeError(w, http.StatusUnauthorized, "reservation_token_invalid")
+		return
+	}
+	hash := requestHash([]byte(action + ":" + reservationID + ":" + token))
+	idemKey := "reservation_action:" + action + ":" + user.ID + ":" + key
+	s.mu.Lock()
+	if rec, exists := s.idempotency[idemKey]; exists {
+		s.mu.Unlock()
+		if rec.Hash != hash {
+			writeError(w, http.StatusConflict, "idempotency_key_conflict")
+			return
+		}
+		writeJSON(w, http.StatusOK, rec.Response)
+		return
+	}
+	s.mu.Unlock()
 
 	if s.store != nil {
-		if _, err := s.store.GetOrder(r.Context(), user, orderID); err != nil {
+		order, err := s.store.GetOrder(r.Context(), user, orderID)
+		if err != nil {
 			writeStoreError(w, err)
+			return
+		}
+		if !reservationTokenMatchesOrder(claims, order) {
+			writeError(w, http.StatusUnauthorized, "reservation_token_invalid")
 			return
 		}
 	} else {
@@ -184,6 +251,10 @@ func (s *Server) forwardOrderAction(w http.ResponseWriter, r *http.Request, user
 		s.mu.Unlock()
 		if !ok || order.UserID != user.ID {
 			writeError(w, http.StatusNotFound, "order_not_found")
+			return
+		}
+		if !reservationTokenMatchesOrder(claims, *order) {
+			writeError(w, http.StatusUnauthorized, "reservation_token_invalid")
 			return
 		}
 	}
@@ -213,7 +284,23 @@ func (s *Server) forwardOrderAction(w http.ResponseWriter, r *http.Request, user
 		writeError(w, http.StatusBadGateway, "upstream_error")
 		return
 	}
-	writeJSON(w, resp.StatusCode, map[string]any{"order_id": upstream.OrderID, "status": upstream.Status})
+	out := map[string]any{
+		"order_id":          upstream.OrderID,
+		"status":            upstream.Status,
+		"wallet_ticket_ids": []string{},
+	}
+	if action == "confirm" && s.store != nil {
+		ticketIDs, err := s.store.GetWalletTicketIDsForOrder(r.Context(), user.ID, upstream.OrderID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error")
+			return
+		}
+		out["wallet_ticket_ids"] = ticketIDs
+	}
+	s.mu.Lock()
+	s.idempotency[idemKey] = idempotencyRecord{Hash: hash, Response: out}
+	s.mu.Unlock()
+	writeJSON(w, resp.StatusCode, out)
 }
 
 func (s *Server) handleOrders(w http.ResponseWriter, r *http.Request, user User) {
@@ -300,9 +387,13 @@ func (s *Server) releasePendingReservation(eventID, sectionID string, seatIDs []
 	}
 }
 
-func (s *Server) completePendingReservation(userID, eventID, sectionID string, seatIDs []string, pendingID, hash, orderID, status string) Order {
+func (s *Server) completePendingReservation(ctx context.Context, userID, eventID, sectionID string, seatIDs []string, pendingID, hash, orderID, status string) (Order, error) {
 	reservationID := "res_" + orderID
 	now := s.now()
+	selectedSeats, totalCents, err := s.selectedReservationSeats(ctx, eventID, sectionID, seatIDs)
+	if err != nil {
+		return Order{}, err
+	}
 	order := Order{
 		ID:                orderID,
 		ReservationID:     reservationID,
@@ -310,13 +401,21 @@ func (s *Server) completePendingReservation(userID, eventID, sectionID string, s
 		EventID:           eventID,
 		SectionID:         sectionID,
 		SeatIDs:           append([]string(nil), seatIDs...),
+		Seats:             selectedSeats,
 		Status:            status,
+		TotalCents:        totalCents,
 		ExpiresAtServerMS: now.Add(s.holdTTL).UnixMilli(),
+		ServerTimeMS:      now.UnixMilli(),
 		CreatedAt:         now.UnixMilli(),
 		UpdatedAt:         now.UnixMilli(),
 	}
+	token, err := s.signReservationToken(order, now)
+	if err != nil {
+		return Order{}, err
+	}
+	order.ReservationToken = token
 	if s.store != nil {
-		return order
+		return order, nil
 	}
 
 	s.mu.Lock()
@@ -328,14 +427,156 @@ func (s *Server) completePendingReservation(userID, eventID, sectionID string, s
 			if !ok || seat.Status != StatusHeld || seat.HeldByOrderID != pendingID {
 				continue
 			}
-			order.TotalCents += seat.PriceCents
 			seat.HeldByOrderID = orderID
 			seat.ExpiresAtServerMS = order.ExpiresAtServerMS
 		}
 	}
 	s.orders[orderID] = &order
 	s.idempotency[pendingID] = idempotencyRecord{Hash: hash, Response: order}
-	return order
+	return order, nil
+}
+
+func (s *Server) selectedReservationSeats(ctx context.Context, eventID, sectionID string, seatIDs []string) ([]Seat, int, error) {
+	wanted := make(map[string]struct{}, len(seatIDs))
+	for _, seatID := range seatIDs {
+		wanted[seatID] = struct{}{}
+	}
+	selected := make([]Seat, 0, len(seatIDs))
+	totalCents := 0
+	if s.store != nil {
+		seats, _, err := s.store.ListSeats(ctx, eventID, sectionID)
+		if err != nil {
+			return nil, 0, err
+		}
+		for _, seat := range seats {
+			if _, ok := wanted[seat.ID]; !ok {
+				continue
+			}
+			selected = append(selected, seat)
+			totalCents += seat.PriceCents
+		}
+		sort.Slice(selected, func(i, j int) bool { return selected[i].ID < selected[j].ID })
+		return selected, totalCents, nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	section := s.seats[eventID][sectionID]
+	for _, seatID := range seatIDs {
+		seat := section[seatID]
+		selected = append(selected, *seat)
+		totalCents += seat.PriceCents
+	}
+	return selected, totalCents, nil
+}
+
+func (s *Server) signReservationToken(order Order, issuedAt time.Time) (string, error) {
+	return signHMAC(s.secret, map[string]any{
+		"purpose":              reservationTokenPurpose,
+		"iss":                  s.tokenIssuer,
+		"aud":                  s.tokenAudience,
+		"reservation_id":       order.ReservationID,
+		"order_id":             order.ID,
+		"user_id":              order.UserID,
+		"event_id":             order.EventID,
+		"section_id":           order.SectionID,
+		"seat_ids":             order.SeatIDs,
+		"expires_at":           time.UnixMilli(order.ExpiresAtServerMS).UTC().Format(time.RFC3339),
+		"expires_at_server_ms": order.ExpiresAtServerMS,
+		"issued_at":            issuedAt.UTC().Format(time.RFC3339),
+		"issued_at_server_ms":  issuedAt.UnixMilli(),
+	})
+}
+
+func (s *Server) verifyReservationToken(token string, user User, reservationID string) (reservationTokenClaims, error) {
+	payload, err := verifyHMAC(s.secret, token)
+	if err != nil {
+		return reservationTokenClaims{}, errReservationTokenInvalid
+	}
+	if stringClaim(payload, "purpose") != reservationTokenPurpose ||
+		stringClaim(payload, "iss") != s.tokenIssuer ||
+		stringClaim(payload, "aud") != s.tokenAudience {
+		return reservationTokenClaims{}, errReservationTokenInvalid
+	}
+	claims := reservationTokenClaims{
+		ReservationID:     stringClaim(payload, "reservation_id"),
+		OrderID:           stringClaim(payload, "order_id"),
+		UserID:            stringClaim(payload, "user_id"),
+		EventID:           stringClaim(payload, "event_id"),
+		SectionID:         stringClaim(payload, "section_id"),
+		ExpiresAtServerMS: int64NumberClaim(payload, "expires_at_server_ms"),
+		IssuedAtServerMS:  int64NumberClaim(payload, "issued_at_server_ms"),
+	}
+	if claims.ReservationID == "" || claims.OrderID == "" || claims.UserID == "" ||
+		claims.EventID == "" || claims.SectionID == "" || claims.ExpiresAtServerMS == 0 {
+		return reservationTokenClaims{}, errReservationTokenInvalid
+	}
+	seatIDs, ok := stringSliceClaim(payload, "seat_ids")
+	if !ok || len(seatIDs) == 0 {
+		return reservationTokenClaims{}, errReservationTokenInvalid
+	}
+	claims.SeatIDs = seatIDs
+	if !constantTimeStringEqual(claims.ReservationID, reservationID) ||
+		!constantTimeStringEqual(claims.UserID, user.ID) {
+		return reservationTokenClaims{}, errReservationTokenInvalid
+	}
+	if s.now().UnixMilli() >= claims.ExpiresAtServerMS {
+		return reservationTokenClaims{}, errReservationTokenExpired
+	}
+	return claims, nil
+}
+
+func stringClaim(payload map[string]any, key string) string {
+	value, _ := payload[key].(string)
+	return value
+}
+
+func int64NumberClaim(payload map[string]any, key string) int64 {
+	switch value := payload[key].(type) {
+	case float64:
+		return int64(value)
+	case int64:
+		return value
+	case int:
+		return int64(value)
+	default:
+		return 0
+	}
+}
+
+func stringSliceClaim(payload map[string]any, key string) ([]string, bool) {
+	values, ok := payload[key].([]any)
+	if !ok {
+		return nil, false
+	}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		text, ok := value.(string)
+		if !ok || text == "" {
+			return nil, false
+		}
+		out = append(out, text)
+	}
+	return out, true
+}
+
+func reservationTokenMatchesOrder(claims reservationTokenClaims, order Order) bool {
+	if !constantTimeStringEqual(claims.EventID, order.EventID) ||
+		!constantTimeStringEqual(claims.SectionID, order.SectionID) {
+		return false
+	}
+	if len(claims.SeatIDs) != len(order.SeatIDs) {
+		return false
+	}
+	tokenSeats := append([]string(nil), claims.SeatIDs...)
+	orderSeats := append([]string(nil), order.SeatIDs...)
+	sort.Strings(tokenSeats)
+	sort.Strings(orderSeats)
+	for i := range tokenSeats {
+		if !constantTimeStringEqual(tokenSeats[i], orderSeats[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Server) expireOrderLocked(order *Order) {

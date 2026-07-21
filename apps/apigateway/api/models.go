@@ -126,20 +126,24 @@ type Seat struct {
 type Order struct {
 	ID                string   `json:"id"`
 	ReservationID     string   `json:"reservation_id"`
+	ReservationToken  string   `json:"reservation_token,omitempty"`
 	UserID            string   `json:"user_id"`
 	EventID           string   `json:"event_id"`
 	SectionID         string   `json:"section_id"`
 	SeatIDs           []string `json:"seat_ids"`
+	Seats             []Seat   `json:"seats,omitempty"`
 	Status            string   `json:"status"`
 	TotalCents        int      `json:"total_cents"`
+	FeesCents         int      `json:"fees_cents"`
 	ExpiresAtServerMS int64    `json:"expires_at_server_ms,omitempty"`
+	ServerTimeMS      int64    `json:"server_time_ms,omitempty"`
 	CreatedAt         int64    `json:"created_at_server_ms"`
 	UpdatedAt         int64    `json:"updated_at_server_ms"`
 }
 
 type idempotencyRecord struct {
 	Hash     string
-	Response Order
+	Response any
 }
 
 type WalletTicketLedgerEntry struct {

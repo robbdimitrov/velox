@@ -99,7 +99,7 @@ export function createGatewayClient(
       idempotencyKey: string,
       reservationToken: string
     ) {
-      return request<{ order_id?: string; status?: string }>(
+      return request<GatewayCheckoutResponse>(
         `/reservations/${encodeURIComponent(body.reservation_id)}/confirm`,
         {
           method: 'POST',
@@ -108,14 +108,14 @@ export function createGatewayClient(
             'Reservation-Token': reservationToken
           }
         }
-      ).then((res) => mapCheckout(body.reservation_id, res));
+      ).then(mapCheckout);
     },
     cancelReservation(
       reservationId: string,
       idempotencyKey: string,
       reservationToken: string
     ) {
-      return request<{ order_id?: string; status?: string }>(
+      return request<GatewayCheckoutResponse>(
         `/reservations/${encodeURIComponent(reservationId)}/cancel`,
         {
           method: 'POST',
@@ -124,7 +124,7 @@ export function createGatewayClient(
             'Reservation-Token': reservationToken
           }
         }
-      ).then((res) => mapCheckout(reservationId, res));
+      ).then(mapCheckout);
     },
     wallet() {
       return request<WalletResponse>('/wallet/tickets');
@@ -222,12 +222,22 @@ type GatewaySeatSnapshot = {
 type GatewayOrder = {
   id: string;
   reservation_id: string;
+  reservation_token: string;
   event_id: string;
   section_id: string;
   seat_ids: string[];
+  seats?: Array<{ seat_id: string; price_cents: number }>;
   status: 'PENDING' | 'CONFIRMED' | 'EXPIRED' | 'FAILED';
   total_cents: number;
+  fees_cents?: number;
   expires_at_server_ms?: number;
+  server_time_ms?: number;
+};
+
+type GatewayCheckoutResponse = {
+  order_id: string;
+  status: 'CONFIRMED' | 'CANCELLED';
+  wallet_ticket_ids: string[];
 };
 
 function mapDiscovery(body: {
@@ -378,33 +388,42 @@ function mapSeatStatus(status: string): Seat['status'] {
 
 function mapReservation(body: { order: GatewayOrder }): ReserveOrderResponse {
   const order = body.order;
-  const subtotal = order.total_cents;
+  if (!order.reservation_token) {
+    throw new GatewayError('reservation_token missing', 502, 'upstream_error');
+  }
+  const seats =
+    order.seats?.map((seat) => ({
+      seat_id: seat.seat_id,
+      price_cents: seat.price_cents
+    })) ?? [];
   return {
     order_id: order.id,
     reservation_id: order.reservation_id,
-    reservation_token: order.reservation_id,
-    expires_at_server_ms: order.expires_at_server_ms ?? Date.now(),
-    server_time_ms: Date.now(),
+    reservation_token: order.reservation_token,
+    expires_at_server_ms: order.expires_at_server_ms ?? 0,
+    server_time_ms: order.server_time_ms ?? Date.now(),
     version: 1,
-    seats: order.seat_ids.map((seat_id) => ({
-      seat_id,
-      price_cents: Math.round(subtotal / order.seat_ids.length)
-    })),
-    fees_cents: 0,
+    seats,
+    fees_cents: order.fees_cents ?? 0,
     total_cents: order.total_cents
   };
 }
 
-function mapCheckout(
-  reservationId: string,
-  body: { order_id?: string; status?: string }
-): CheckoutResponse {
-  const status: CheckoutResponse['status'] =
-    body.status === 'CANCELLED' ? body.status : 'CONFIRMED';
-
+function mapCheckout(body: GatewayCheckoutResponse): CheckoutResponse {
+  if (
+    !body.order_id ||
+    (body.status !== 'CONFIRMED' && body.status !== 'CANCELLED') ||
+    !Array.isArray(body.wallet_ticket_ids)
+  ) {
+    throw new GatewayError(
+      'checkout response incomplete',
+      502,
+      'upstream_error'
+    );
+  }
   return {
-    order_id: body.order_id ?? reservationId.replace('res_', ''),
-    status,
-    wallet_ticket_ids: []
+    order_id: body.order_id,
+    status: body.status,
+    wallet_ticket_ids: body.wallet_ticket_ids
   };
 }

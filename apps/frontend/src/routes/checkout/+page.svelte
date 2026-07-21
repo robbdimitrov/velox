@@ -65,9 +65,8 @@
       } else {
         checkoutState.error = `Checkout ${result.status.toLowerCase()}`;
       }
-    } catch {
-      checkoutState.error =
-        'Reservation could not be confirmed. The idempotency key prevents duplicate requests.';
+    } catch (err) {
+      checkoutState.error = checkoutErrorMessage(err, 'confirm');
       checkoutState.submitted = false;
     }
   }
@@ -88,17 +87,48 @@
       checkoutState.clear();
       await goto('/');
     } catch (err) {
-      // A 409 means the order already settled elsewhere (confirmed in
-      // another tab, or a retried request) — retrying cancel can never
-      // succeed for it, so tell the user that plainly instead of "try again".
-      if (err instanceof GatewayError && err.status === 409) {
-        checkoutState.error =
-          'This reservation was already confirmed or cancelled elsewhere.';
-      } else {
-        checkoutState.error = 'Reservation could not be cancelled. Try again.';
-      }
+      checkoutState.error = checkoutErrorMessage(err, 'cancel');
       cancelling = false;
     }
+  }
+
+  function checkoutErrorMessage(err: unknown, action: 'confirm' | 'cancel') {
+    if (!(err instanceof GatewayError)) {
+      return action === 'confirm'
+        ? 'Reservation could not be confirmed. Try again.'
+        : 'Reservation could not be cancelled. Try again.';
+    }
+    if (
+      err.code === 'reservation_expired' ||
+      err.code === 'reservation_token_expired'
+    ) {
+      checkoutState.clear();
+      return 'This reservation hold expired.';
+    }
+    if (err.code === 'reservation_token_invalid') {
+      checkoutState.clear();
+      return 'This reservation can no longer be verified.';
+    }
+    if (err.code === 'seat_not_available') {
+      checkoutState.clear();
+      return 'One or more selected seats are no longer available.';
+    }
+    if (err.code === 'event_not_bookable') {
+      checkoutState.clear();
+      return 'This event is no longer bookable.';
+    }
+    if (err.code === 'idempotency_key_conflict') {
+      return 'This action was already submitted with different reservation details.';
+    }
+    if (err.code === 'rate_limited' || err.status === 429) {
+      return 'Too many checkout attempts. Wait a moment and try again.';
+    }
+    if (err.status === 409) {
+      return 'This reservation was already confirmed or cancelled elsewhere.';
+    }
+    return action === 'confirm'
+      ? 'Reservation could not be confirmed. Try again.'
+      : 'Reservation could not be cancelled. Try again.';
   }
 </script>
 

@@ -214,6 +214,31 @@ func (s *DatabaseStore) GetWalletTickets(ctx context.Context, userID string) ([]
 	return tickets, nil
 }
 
+func (s *DatabaseStore) GetWalletTicketIDsForOrder(ctx context.Context, userID, orderID string) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT ticket_id
+		FROM projection.wallet_tickets
+		WHERE user_id = $1 AND order_id = $2
+		ORDER BY ticket_id
+	`, userID, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ticketIDs []string
+	for rows.Next() {
+		var ticketID string
+		if err := rows.Scan(&ticketID); err != nil {
+			return nil, err
+		}
+		ticketIDs = append(ticketIDs, ticketID)
+	}
+	if ticketIDs == nil {
+		ticketIDs = []string{}
+	}
+	return ticketIDs, rows.Err()
+}
+
 // getTicketLedger queries by stream_key because event-wide cancellation uses
 // the catalog event_id as correlation_id, not a single order_id.
 func (s *DatabaseStore) getTicketLedger(ctx context.Context, eventID, sectionID, seatID string) ([]WalletTicketLedgerEntry, error) {

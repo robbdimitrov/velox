@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createGatewayClient } from './client';
+import { createGatewayClient, GatewayError } from './client';
 
 describe('gateway discovery mapping', () => {
   it('maps backend metadata without event ID image overrides', async () => {
@@ -120,5 +120,133 @@ describe('gateway discovery mapping', () => {
         }
       ]
     });
+  });
+
+  it('maps reservation token and selected prices from the backend', async () => {
+    const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe('/api/reservations');
+      expect(new Headers(init?.headers).get('Idempotency-Key')).toBe(
+        'idem-reserve'
+      );
+      return new Response(
+        JSON.stringify({
+          order: {
+            id: 'ord_1',
+            reservation_id: 'res_ord_1',
+            reservation_token: 'signed-token',
+            event_id: 'evt_detail',
+            section_id: 'A',
+            seat_ids: ['A-01'],
+            seats: [{ seat_id: 'A-01', price_cents: 8650 }],
+            status: 'PENDING',
+            total_cents: 8650,
+            fees_cents: 0,
+            expires_at_server_ms: 1760000000000,
+            server_time_ms: 1759999700000
+          }
+        }),
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+    };
+
+    const reservation = await createGatewayClient(
+      fetcher as typeof fetch,
+      '/api'
+    ).reserveSeats(
+      {
+        event_id: 'evt_detail',
+        section_id: 'A',
+        seat_ids: ['A-01'],
+        expected_versions: { 'A-01': 1 }
+      },
+      'idem-reserve'
+    );
+
+    expect(reservation).toMatchObject({
+      order_id: 'ord_1',
+      reservation_id: 'res_ord_1',
+      reservation_token: 'signed-token',
+      server_time_ms: 1759999700000,
+      seats: [{ seat_id: 'A-01', price_cents: 8650 }],
+      total_cents: 8650
+    });
+    expect(reservation.reservation_token).not.toBe(reservation.reservation_id);
+  });
+
+  it('rejects reservation responses without a backend token', async () => {
+    const fetcher = async () =>
+      new Response(
+        JSON.stringify({
+          order: {
+            id: 'ord_1',
+            reservation_id: 'res_ord_1',
+            event_id: 'evt_detail',
+            section_id: 'A',
+            seat_ids: ['A-01'],
+            status: 'PENDING',
+            total_cents: 8650
+          }
+        }),
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+
+    await expect(
+      createGatewayClient(fetcher as typeof fetch, '/api').reserveSeats(
+        {
+          event_id: 'evt_detail',
+          section_id: 'A',
+          seat_ids: ['A-01'],
+          expected_versions: { 'A-01': 1 }
+        },
+        'idem-reserve'
+      )
+    ).rejects.toMatchObject({ code: 'upstream_error' });
+  });
+
+  it('sends reservation token and maps checkout ticket IDs', async () => {
+    const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe('/api/reservations/res_ord_1/confirm');
+      const headers = new Headers(init?.headers);
+      expect(headers.get('Idempotency-Key')).toBe('idem-confirm');
+      expect(headers.get('Reservation-Token')).toBe('signed-token');
+      return new Response(
+        JSON.stringify({
+          order_id: 'ord_1',
+          status: 'CONFIRMED',
+          wallet_ticket_ids: ['tkt_1']
+        }),
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+    };
+
+    const checkout = await createGatewayClient(
+      fetcher as typeof fetch,
+      '/api'
+    ).checkout(
+      { reservation_id: 'res_ord_1', terms_accepted: true },
+      'idem-confirm',
+      'signed-token'
+    );
+
+    expect(checkout).toEqual({
+      order_id: 'ord_1',
+      status: 'CONFIRMED',
+      wallet_ticket_ids: ['tkt_1']
+    });
+  });
+
+  it('does not synthesize missing checkout ticket IDs', async () => {
+    const fetcher = async () =>
+      new Response(JSON.stringify({ order_id: 'ord_1', status: 'CONFIRMED' }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+    await expect(
+      createGatewayClient(fetcher as typeof fetch, '/api').checkout(
+        { reservation_id: 'res_ord_1', terms_accepted: true },
+        'idem-confirm',
+        'signed-token'
+      )
+    ).rejects.toBeInstanceOf(GatewayError);
   });
 });

@@ -23,6 +23,8 @@ Current JSON unknown-field policy:
 | Endpoint family | Policy |
 | --- | --- |
 | `POST /reservations` | Strict; unknown fields and trailing JSON rejected. |
+| `POST /reservations/{reservationId}/confirm` | Header-only command; body ignored today. |
+| `POST /reservations/{reservationId}/cancel` | Header-only command; body ignored today. |
 | `POST /organizer/events/{eventId}/announcements` | Strict. |
 | `POST /organizer/events` | Strict. |
 | Internal orderservice `POST /orders` | Strict. |
@@ -199,14 +201,32 @@ Request:
 {"event_id":"evt_neon_riot","section_id":"A","seat_ids":["A-01","A-02"]}
 ```
 
-Current response:
+Response:
 
 ```json
-{"order":{"id":"...","reservation_id":"res_...","event_id":"evt","section_id":"A","seat_ids":["A-01"],"status":"PENDING","total_cents":8650,"expires_at_server_ms":1760000000000}}
+{
+  "order": {
+    "id": "ord_...",
+    "reservation_id": "res_ord_...",
+    "reservation_token": "opaque-hmac-token",
+    "event_id": "evt",
+    "section_id": "A",
+    "seat_ids": ["A-01"],
+    "seats": [{"seat_id": "A-01", "price_cents": 8650}],
+    "status": "PENDING",
+    "total_cents": 8650,
+    "fees_cents": 0,
+    "expires_at_server_ms": 1760000000000,
+    "server_time_ms": 1759999700000
+  }
+}
 ```
 
-Target Phase 3 response adds signed `reservation_token`, `server_time_ms`,
-selected seat prices, fees, and an authoritative hold deadline.
+`reservation_token` is signed by the gateway and is opaque to the browser. Its
+claims include reservation ID, order ID, user ID, event ID, section ID, seat
+IDs, `expires_at`, `expires_at_server_ms`, `issued_at`, and
+`issued_at_server_ms`. Clients use `server_time_ms` plus
+`expires_at_server_ms` for countdown display.
 
 Stable errors include `missing_idempotency_key`, `invalid_json`,
 `invalid_seat_count`, `event_not_bookable`, `seat_not_available`,
@@ -215,25 +235,31 @@ Stable errors include `missing_idempotency_key`, `invalid_json`,
 
 ### `POST /reservations/{reservationId}/confirm`
 
-Requires auth. Current gateway verifies ownership by resolving
-`reservationId -> orderId` and proxies to orderservice.
+Requires auth, `Idempotency-Key`, and `Reservation-Token`. The gateway verifies
+the token signature, purpose, issuer, audience, reservation ID, order ID, user
+ID, and expiry before proxying to orderservice. The gateway also verifies order
+ownership by resolving `reservationId -> orderId`.
 
-Current response:
+Response:
 
 ```json
-{"order_id":"...","status":"CONFIRMED"}
+{"order_id":"...","status":"CONFIRMED","wallet_ticket_ids":["tkt_..."]}
 ```
 
-Current gap: `Reservation-Token` and confirm/cancel idempotency are not enforced
-at the gateway yet. Phase 3 must require a signed reservation token and
-`Idempotency-Key`.
+`wallet_ticket_ids` is backend-owned. It may be empty while the wallet
+projection catches up; Phase 4 owns the durable out-of-order issuance repair.
+
+Stable errors include `reservation_token_required`,
+`reservation_token_invalid`, `reservation_token_expired`,
+`missing_idempotency_key`, `idempotency_key_conflict`,
+`order_not_confirmable`, `order_not_found`, and `upstream_error`.
 
 ### `POST /reservations/{reservationId}/cancel`
 
-Same ownership and proxy behavior as confirm. Current response:
+Same token, ownership, and idempotency requirements as confirm. Response:
 
 ```json
-{"order_id":"...","status":"CANCELLED"}
+{"order_id":"...","status":"CANCELLED","wallet_ticket_ids":[]}
 ```
 
 ### `GET /orders`

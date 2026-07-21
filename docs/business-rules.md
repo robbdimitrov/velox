@@ -61,9 +61,14 @@ Current gap: password length and complexity bounds are not enforced yet.
 - Idempotency keys are scoped by service, user, and key. Same body returns the
   same response reference; different body returns conflict.
 - Current create-order idempotency TTL is 24 hours.
-
-Current gap: gateway confirm and cancel do not yet enforce signed reservation
-tokens or idempotency keys.
+- Reservation create returns a gateway-signed reservation token.
+- Confirm and cancel require `Reservation-Token` and `Idempotency-Key`.
+- Reservation-token claims bind reservation ID, order ID, user ID, event ID,
+  section ID, seat IDs, issued timestamp, and expiry timestamp. Confirm and
+  cancel reject missing, invalid, cross-user, or expired tokens.
+- Confirm and cancel idempotency keys are scoped by action, user, and key. Same
+  action data replays the same gateway response; different token/action data
+  returns conflict.
 
 ## Hold Deadlines
 
@@ -140,6 +145,8 @@ must add user ID and event ID claims before scanner-like validation exists.
 - Commands return authoritative results from write services.
 - If lag exceeds a configured threshold, risky UI actions should freeze or
   clearly show stale state.
+- Confirm responses return backend-owned wallet ticket IDs visible in the
+  projection at response time.
 - Wallet issuance must tolerate duplicate and out-of-order events.
 
 Current wallet gap: there is no durable pending-ticket buffer or repair worker
