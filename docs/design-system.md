@@ -1,31 +1,31 @@
 # Design System
 
-Velox uses a dense command-center interface for live entertainment and flash
-sale operations. Visual state must communicate risk and ownership quickly.
+Velox uses a polished, image-less Bauhaus/Apollo interface for reservation-only
+event access. Visual state must communicate availability, ownership, and risk
+quickly in both light and dark themes.
 
 ## Tokens
 
 | Token | Hex | Use |
 | --- | --- | --- |
-| Carbon | `#07080B` | App background and sold seat body. |
-| Panel | `#121722` | Primary work surfaces. |
-| Panel soft | `#1A2130` | Secondary rows and selected panel backgrounds. |
-| Line blue | `#273244` | Borders, section outlines, disabled controls. |
-| Warm ink | `#F7F1E8` | Primary readable foreground. |
-| Muted slate | `#8FA3B8` | Secondary text and metadata. |
-| Signal amber | `#F2B84B` | Primary action, selected seats, active filters. |
-| Electric teal | `#39D6C8` | Live accent and secondary operational emphasis. |
-| Urgency red | `#FF5C5C` | Errors, destructive actions, holds by others, cancellation. |
+| Porcelain | `#F7F5F0` | Light app background. |
+| Ink | `#101114` | Light primary text and dark app background. |
+| Graphite | `#26282D` | Dark panels and light-theme text emphasis. |
+| Mist | `#E4E0D8` | Light borders and disabled surfaces. |
+| Lunar | `#F9FAFB` | Light work surfaces. |
+| Apollo navy | `#172033` | Secondary control emphasis. |
+| Deep red | `#8F1D2C` | Primary action, selected seats, focus accent. |
+| Signal amber | `#C47A1C` | Warnings, expiring reservations, stale state. |
+| Control green | `#2E7D5B` | Confirmed reservation state. |
+| Urgency red | `#C62828` | Errors, destructive actions, held-by-other state. |
 
-Selected-seat and primary-action color is signal amber. Do not use indigo for
-selected seats unless the implementation tokens are changed in the same
-release.
+Primary actions and selected-seat state use deep red. Every token pair must
+meet WCAG AA contrast in both light and dark DaisyUI themes.
 
 ## Typography
 
-- Use Space Grotesk for UI text.
-- Use Space Mono for timers, prices, seat IDs, counters, and operational
-  numerals.
+- Use system fonts only. Do not import remote or bundled display fonts.
+- Use tabular numerals for timers, seat IDs, counters, and operational values.
 - Keep dashboard and form headings compact. Reserve hero-scale type for the
   public discovery first viewport.
 - Letter spacing remains normal except deliberate uppercase labels.
@@ -34,7 +34,7 @@ release.
 
 - Global shell owns page width, viewport inset, and nav-to-content spacing.
 - Use `max-w-7xl` for discovery, seat maps, wallet, and dashboards.
-- Use `max-w-5xl` for review and checkout flows.
+- Use `max-w-5xl` for reservation review flows.
 - Use `max-w-3xl` for setup forms.
 - Use `max-w-md` for auth.
 - Major panel groups use a 6-unit gap.
@@ -43,6 +43,8 @@ release.
 
 ## Components
 
+- Implement theming with Tailwind v4 and DaisyUI 5 tokens. Theme variants are
+  System, Light, and Dark; logout clears the local theme preference.
 - Buttons use DaisyUI button primitives plus Lucide icons for clear actions.
 - Forms use labeled DaisyUI inputs, textareas, selects, and error strips.
 - Panels use sharp 0 to 4 px radii and visible line borders.
@@ -56,9 +58,9 @@ release.
 | State | Visual treatment | Interaction |
 | --- | --- | --- |
 | Available | Muted grey node with line border | Selectable. |
-| Selected | Signal amber fill and outline | Toggleable by current user. |
-| Held | Urgency red/crimson emphasis | Not selectable unless held by current reservation. |
-| Sold | Solid carbon/dim node | Not selectable. |
+| Selected | Deep red fill and outline | Toggleable by current user. |
+| Held | Urgency red emphasis | Not selectable unless held by current reservation. |
+| Confirmed | Control green or solid muted node | Not selectable. |
 | Cancelled | Urgency red outline or disabled red-tinted node | Not selectable. |
 | Unavailable | Line-blue disabled node | Not selectable. |
 | Unknown | Outlined node with muted fill | Disabled until refreshed. |
@@ -70,7 +72,7 @@ and selection changes do not resize the layout.
 ## Organizer Patterns
 
 - Dashboards optimize for scanning: compact metric rows, inventory status,
-  projection lag, order summaries, and operational actions.
+  projection lag, reservation summaries, and operational actions.
 - Destructive actions, especially event cancellation, must use urgency color
   and explicit confirmation.
 - Staff controls are absent or disabled until membership assignment is real.
@@ -81,7 +83,7 @@ and selection changes do not resize the layout.
 Empty states:
 
 - Discovery: no events matching filters, with filters still visible.
-- Wallet: no tickets yet, with no transfer/scanner controls.
+- Wallet: no reservation tickets yet, with no transfer/scanner controls.
 - Organizer venues/events: clear create action if user has organizer role.
 
 Error states:
@@ -106,13 +108,13 @@ Degraded states:
 
 ## Assets And Screenshots
 
-- Event imagery must come from backend image keys or documented local assets.
-- Hardcoded event ID to image mapping is a temporary frontend seam.
+- Event discovery and detail screens are image-less. Use typography, geometry,
+  color, motion restraint, and live state instead of event artwork.
 - README screenshots must come from the actual local app after the route and
   data contracts support the showcased flows.
 
 ## Future Controls
 
-Transfer, scanner, upgrade, staff invite, and payment controls must be active
+Transfer, scanner, upgrade, and staff invite controls must be active
 only when the backing route, persistence, and tests exist. Otherwise render the
 state as unavailable or omit the control.

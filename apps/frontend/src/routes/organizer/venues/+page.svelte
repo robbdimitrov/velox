@@ -47,7 +47,7 @@
             >
               <MapPin size={20} />
             </div>
-            <span class="badge badge-sm badge-outline border-white/10"
+            <span class="badge badge-sm badge-outline border-line"
               >{venue.capacity} capacity</span
             >
           </div>
@@ -55,7 +55,7 @@
           <p class="text-inkMuted text-sm flex items-center gap-1 mb-4">
             {venue.city}
           </p>
-          <div class="pt-4 border-t border-white/10 flex justify-end">
+          <div class="flex justify-end border-t border-line pt-4">
             <button
               class="btn btn-xs btn-ghost rounded text-signal hover:bg-signal/10"
             >

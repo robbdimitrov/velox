@@ -6,29 +6,42 @@
 | ---------- | ----------------------- |
 | Framework  | SvelteKit SSR, Svelte 5 |
 | Language   | TypeScript              |
-| Styling    | Tailwind                |
-| Components | DaisyUI                 |
+| Styling    | Tailwind v4             |
+| Components | DaisyUI 5               |
 | Icons      | Lucide                  |
 
 ## Design Direction
 
-Velox uses a crafted command-center aesthetic for live entertainment under
-extreme demand. The base surface is deep carbon `#07080B`; interface structure
-uses cool panel layers, square geometry, dense grids, and high-contrast
-typography. State color must be functional, not decorative:
+Velox uses a polished, image-less Bauhaus/Apollo aesthetic for reservation-only
+event access. Surfaces use disciplined geometry, strong grids, system fonts,
+and functional color. The premium primary is deep red; selected seats and
+primary commands use the same token. Light and dark themes must have WCAG AA
+parity for text, controls, focus rings, and seat states.
 
-- `#F2B84B` (signal amber): primary action, selected seats, active filters, key operational highlights.
-- `#39D6C8` (electric teal): accent detail, secondary live-state emphasis, and contrast against amber.
-- `#FF5C5C` (urgency red): held seats by others, destructive warnings, checkout expiry, cancellation state.
-- `#F7F1E8` (warm ink): readable foreground text.
-- `#273244` (line blue): inactive borders, map section outlines, disabled states.
-- `#8FA3B8` (muted slate): secondary text and supporting metadata.
+State color must be functional, not decorative:
 
-Use sharp 0 to 4 px radii for core controls. Prefer `Space Grotesk` for UI text and `Space Mono` numerals for timers, counters, and seat identifiers. The interface should feel like a classic, high-reliability aerospace control center.
+- Deep red: Reserve, selected seats, active filters, and focus accents.
+- Apollo navy: secondary command emphasis and navigation.
+- Signal amber: expiring reservations, warnings, and stale state.
+- Control green: confirmed reservation tickets.
+- Urgency red: destructive actions, holds by others, and cancellation state.
+
+Use sharp 0 to 4 px radii for core controls. Use system fonts only and tabular
+numerals for timers, counters, and seat identifiers. The interface should feel
+like a classic, high-reliability aerospace control center with Bauhaus
+restraint.
 
 Compose frontend styling with Tailwind utilities and DaisyUI components only.
 Do not add app-specific CSS classes or component rules to `app.css`; keep that
 file limited to Tailwind/DaisyUI setup and design tokens.
+
+Theme behavior:
+
+- Offer System, Light, and Dark preferences from account-accessible UI.
+- Persist the local preference outside the session cookie.
+- System follows `prefers-color-scheme` when no explicit preference exists.
+- Logout clears the local theme preference and returns the next anonymous view
+  to System.
 
 The global app frame in `+layout.svelte` owns the 80rem page width, horizontal
 viewport inset, top/bottom padding, and the nav-to-content `gap-6`. Routes
@@ -39,7 +52,7 @@ Screen widths use a small set of Tailwind tiers:
 
 - `max-w-7xl`: discovery, seat maps, wallet, organizer dashboards, and other
   multi-panel workspaces.
-- `max-w-5xl`: two-panel confirmation and review flows.
+- `max-w-5xl`: two-panel reservation confirmation and review flows.
 - `max-w-3xl`: forms and single-column organizer setup flows.
 - `max-w-md`: login, registration, and compact modal-like entry screens.
 
@@ -58,12 +71,12 @@ Layout:
 
 1. Top command bar: logo, location picker, search input, account entry, and
    rate-limit friendly category tabs.
-2. Live ticker strip: SSE-fed upcoming sale and sell-through messages, capped to
-   fixed-height rows to prevent layout shift.
+2. Live ticker strip: SSE-fed availability and reservation activity messages,
+   capped to fixed-height rows to prevent layout shift.
 3. Filter rail: event type, date window, city, and availability threshold. Each
    filter mutates URL query state and triggers debounced read-model queries.
-4. Trending demand list: dense event rows with event image, venue, sale start,
-   remaining inventory bucket, and demand score.
+4. Trending demand list: dense event rows with venue, start time, remaining
+   inventory bucket, and demand score.
 5. Top venue rail: venue cards derived from event projection summaries until a
    dedicated public venue read model exists.
 6. Featured grid: cached event cards for top categories, refreshed from
@@ -79,7 +92,9 @@ Implementation rules:
   gateway exposes an explicit cacheable venue read endpoint.
 - Cache hot discovery responses at the CDN for 1 second with
   stale-while-revalidate.
-- `EventCard.svelte` derives scarcity badges from streamed read data using
+- Published events are immediately reservable; do not show public opening
+  timestamps or delayed availability copy.
+- Event cards are image-less and derive scarcity badges from streamed read data using
   Svelte 5 Runes.
 - `LiveTicker.svelte` consumes SSE and appends bounded messages into an
   in-memory ring buffer.
@@ -101,9 +116,9 @@ Layout:
 Seat states:
 
 - Available: grey node.
-- Selected by current user: signal amber node with outline.
+- Selected by current user: deep red node with outline.
 - Held by another user: flashing crimson node until expiry.
-- Sold: solid carbon node, non-interactive.
+- Confirmed reservation: solid muted or control-green node, non-interactive.
 - Unknown or stale: outlined node with disabled click target.
 
 State sync:
@@ -159,7 +174,7 @@ Layout:
 2. Timer band: server-authoritative countdown displayed as `MM:SS` with
    monospace numerals.
 3. Right panel: reservation confirmation prompt, terms of service acceptance,
-   submit button.
+   Confirm reservation button.
 4. Failure strip: single-line error states for expired hold,
    duplicate request, or stale reservation.
 
@@ -171,19 +186,22 @@ Rules:
   reservation token headers.
 - Timer display is client-side interpolation from `expires_at_server_ms` and
   server time offset, but backend expiry is authoritative.
-- On `SeatReservationExpired`, immediately clear checkout state and return the
-  user to the seat map.
-- Checkout state stores the signed backend reservation token returned by the
+- On `SeatReservationExpired`, immediately clear reservation review state and
+  return the user to the seat map.
+- Reservation review state stores the signed backend reservation token returned by the
   gateway; the frontend never derives it from the reservation ID.
+- Visible command copy is Reserve, Confirm reservation, and Cancel reservation.
+- Wallet copy uses Reservation ticket.
+- The former review URL redirects permanently to `/reservation`.
 
-## Secure Ticket Wallet and History Ledger
+## Secure Reservation Ticket Wallet and History Ledger
 
 Purpose: expose the ticket lifecycle from event-sourced history.
 
 Layout:
 
-1. Wallet header: upcoming tickets, transfer status, identity verification
-   state.
+1. Wallet header: upcoming reservation tickets, transfer status, identity
+   verification state.
 2. Ticket pass list: QR code, event, seat, gate, transfer controls.
 3. Provenance ledger: expandable immutable timeline per ticket.
 4. History filters: Issued, Transferred, Used, Upgraded, Cancelled.

@@ -27,8 +27,8 @@
       }
 
       window.location.href = '/';
-    } catch (err: any) {
-      error = err.message;
+    } catch (err: unknown) {
+      error = err instanceof Error ? err.message : 'Registration failed';
     } finally {
       loading = false;
     }

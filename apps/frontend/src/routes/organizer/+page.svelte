@@ -27,14 +27,14 @@
     {
       label: 'Active Holds',
       value: metrics.activeHolds,
-      detail: 'Currently in checkout flow',
+      detail: 'Currently held for review',
       icon: Users,
       tone: 'signal'
     },
     {
       label: 'Seats Remaining',
       value: metrics.seatsRemaining,
-      detail: 'Available for purchase',
+      detail: 'Available to reserve',
       icon: Ticket,
       tone: 'ok'
     }
@@ -88,8 +88,8 @@
         <h1 class="text-3xl font-black uppercase tracking-tight text-ink">
           Organizer Analytics
         </h1>
-        <p class="text-sm text-inkMuted mt-1">
-          Live operational read model for flash sale health and inventory
+        <p class="mt-1 text-sm text-inkMuted">
+          Live operational read model for reservation health and inventory
           movement.
         </p>
       </div>

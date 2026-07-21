@@ -5,13 +5,10 @@ export type EventSummary = {
   venue: string;
   city: string;
   category: string;
-  image_key?: string;
-  image_url: string;
   starts_at?: string;
-  sale_starts_at: string;
   section_ids?: string[];
   sections?: EventSection[];
-  remaining_bucket: 'LOW' | 'MEDIUM' | 'HIGH' | 'SOLD_OUT';
+  remaining_bucket: 'LOW' | 'MEDIUM' | 'HIGH' | 'FULL';
   demand_score: number;
   projection_lag_ms: number;
   status?: string;
@@ -40,7 +37,8 @@ export type DiscoveryResponse = {
   };
 };
 
-export type SeatStatus = 'AVAILABLE' | 'SELECTED' | 'HELD' | 'SOLD' | 'UNKNOWN';
+export type SeatStatus =
+  'AVAILABLE' | 'SELECTED' | 'HELD' | 'RESERVED' | 'UNKNOWN';
 
 export type Seat = {
   index: number;
@@ -49,7 +47,6 @@ export type Seat = {
   row: string;
   x: number;
   y: number;
-  price_cents: number;
   accessibility: boolean;
   status: SeatStatus;
   version: number;
@@ -88,17 +85,15 @@ export type ReserveOrderResponse = {
   expires_at_server_ms: number;
   server_time_ms: number;
   version: number;
-  seats: Array<{ seat_id: string; price_cents: number }>;
-  fees_cents: number;
-  total_cents: number;
+  seats: Array<{ seat_id: string }>;
 };
 
-export type CheckoutRequest = {
+export type ReservationConfirmationRequest = {
   reservation_id: string;
   terms_accepted: boolean;
 };
 
-export type CheckoutResponse = {
+export type ReservationConfirmationResponse = {
   order_id: string;
   status: 'CONFIRMED' | 'CANCELLED';
   wallet_ticket_ids: string[];

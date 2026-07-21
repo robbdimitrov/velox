@@ -27,9 +27,9 @@
 
   const colors: Record<string, string> = {
     AVAILABLE: '#8FA3B8',
-    SELECTED: '#F2B84B',
+    SELECTED: '#9F1D2F',
     HELD: '#FF5C5C',
-    SOLD: '#151D29',
+    RESERVED: '#2E7D5B',
     UNKNOWN: '#273244'
   };
 
@@ -81,13 +81,13 @@
   }
 
   function seatCursor(seat: Seat) {
-    return seat.status !== 'SOLD' && (!accessibleOnly || seat.accessibility)
+    return seat.status !== 'RESERVED' && (!accessibleOnly || seat.accessibility)
       ? 'pointer'
       : 'default';
   }
 
   function handleSeatClick(seat: Seat) {
-    if (seat.status === 'SOLD') return;
+    if (seat.status === 'RESERVED') return;
     if (accessibleOnly && !seat.accessibility) return;
     onToggle(seat);
   }
@@ -157,14 +157,14 @@
 
       if (
         isHovered &&
-        seat.status !== 'SOLD' &&
+        seat.status !== 'RESERVED' &&
         (!accessibleOnly || seat.accessibility)
       ) {
         ctx.shadowColor = 'rgba(255, 255, 255, 0.6)';
         ctx.shadowBlur = 10 * scale;
       } else if (selected || seat.status === 'HELD') {
         ctx.shadowColor = selected
-          ? 'rgba(242, 184, 75, 0.62)'
+          ? 'rgba(159, 29, 47, 0.62)'
           : 'rgba(255, 92, 92, 0.62)';
         ctx.shadowBlur = 9 * scale;
       } else {
@@ -225,7 +225,7 @@
 
   function handleClick(event: MouseEvent) {
     const hit = getHitSeat(event);
-    if (hit && hit.status !== 'SOLD') {
+    if (hit && hit.status !== 'RESERVED') {
       if (accessibleOnly && !hit.accessibility) return;
       onToggle(hit);
     }
@@ -290,7 +290,7 @@
       bind:this={canvas}
       class="absolute inset-0 z-10 transition-opacity duration-300 hover:opacity-95"
       style="width: {width}px; height: {height}px; display: block; cursor: {hoveredSeat &&
-      hoveredSeat.status !== 'SOLD' &&
+      hoveredSeat.status !== 'RESERVED' &&
       (!accessibleOnly || hoveredSeat.accessibility)
         ? 'pointer'
         : 'default'};"

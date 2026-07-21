@@ -27,7 +27,7 @@
   <EmptyState
     icon={Calendar}
     title="No Events Found"
-    description="You haven't created any events yet. Create an event to start selling tickets."
+    description="You haven't created any events yet. Create an event to start accepting reservations."
   >
     <ActionLink href="/organizer/events/new">
       <Plus size={16} /> Create Your First Event
@@ -47,7 +47,7 @@
             >
               <Calendar size={20} />
             </div>
-            <span class="badge badge-sm badge-outline border-white/10">
+            <span class="badge badge-sm badge-outline border-line">
               {new Date(event.startDate).toLocaleDateString()}
             </span>
           </div>
@@ -56,7 +56,7 @@
             {event.description || 'No description provided.'}
           </p>
           <div
-            class="pt-4 border-t border-white/10 flex justify-between items-center mt-auto"
+            class="mt-auto flex items-center justify-between border-t border-line pt-4"
           >
             <div class="text-sm text-inkMuted">
               {event.status === 'published' ? 'Published' : 'Draft'}

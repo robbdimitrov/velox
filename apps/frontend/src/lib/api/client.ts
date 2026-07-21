@@ -1,10 +1,10 @@
 import type {
-  CheckoutRequest,
-  CheckoutResponse,
   DiscoveryResponse,
   EventAnnouncement,
   EventSection,
   EventSummary,
+  ReservationConfirmationRequest,
+  ReservationConfirmationResponse,
   ReserveOrderRequest,
   ReserveOrderResponse,
   Seat,
@@ -94,12 +94,12 @@ export function createGatewayClient(
         })
       }).then(mapReservation);
     },
-    checkout(
-      body: CheckoutRequest,
+    confirmReservation(
+      body: ReservationConfirmationRequest,
       idempotencyKey: string,
       reservationToken: string
     ) {
-      return request<GatewayCheckoutResponse>(
+      return request<GatewayReservationConfirmationResponse>(
         `/reservations/${encodeURIComponent(body.reservation_id)}/confirm`,
         {
           method: 'POST',
@@ -108,14 +108,14 @@ export function createGatewayClient(
             'Reservation-Token': reservationToken
           }
         }
-      ).then(mapCheckout);
+      ).then(mapReservationConfirmation);
     },
     cancelReservation(
       reservationId: string,
       idempotencyKey: string,
       reservationToken: string
     ) {
-      return request<GatewayCheckoutResponse>(
+      return request<GatewayReservationConfirmationResponse>(
         `/reservations/${encodeURIComponent(reservationId)}/cancel`,
         {
           method: 'POST',
@@ -124,7 +124,7 @@ export function createGatewayClient(
             'Reservation-Token': reservationToken
           }
         }
-      ).then(mapCheckout);
+      ).then(mapReservationConfirmation);
     },
     wallet() {
       return request<WalletResponse>('/wallet/tickets');
@@ -174,12 +174,9 @@ type GatewayEvent = {
   title?: string;
   description?: string;
   category?: string;
-  image_key?: string;
-  image_url?: string;
   venue?: string;
   city?: string;
   starts_at?: string;
-  sale_starts_at?: string;
   section_ids?: string[];
   sections?: GatewaySection[];
   seats_total?: number;
@@ -205,7 +202,6 @@ type GatewaySeat = {
   number: number;
   x?: number;
   y?: number;
-  price_cents: number;
   accessibility?: boolean;
   status: string;
   version: number;
@@ -226,15 +222,13 @@ type GatewayOrder = {
   event_id: string;
   section_id: string;
   seat_ids: string[];
-  seats?: Array<{ seat_id: string; price_cents: number }>;
+  seats?: Array<{ seat_id: string }>;
   status: 'PENDING' | 'CONFIRMED' | 'EXPIRED' | 'FAILED';
-  total_cents: number;
-  fees_cents?: number;
   expires_at_server_ms?: number;
   server_time_ms?: number;
 };
 
-type GatewayCheckoutResponse = {
+type GatewayReservationConfirmationResponse = {
   order_id: string;
   status: 'CONFIRMED' | 'CANCELLED';
   wallet_ticket_ids: string[];
@@ -262,8 +256,7 @@ function mapEventSummary(
   event: GatewayEvent,
   projectionLag: number
 ): EventSummary {
-  const startsAt = event.starts_at ?? event.sale_starts_at ?? '';
-  const saleStartsAt = event.sale_starts_at ?? startsAt;
+  const startsAt = event.starts_at ?? '';
   const sections = mapEventSections(event);
 
   return {
@@ -273,11 +266,7 @@ function mapEventSummary(
     venue: event.venue ?? 'Venue pending',
     city: event.city ?? '',
     category: event.category ?? 'Live',
-    image_key: event.image_key,
-    image_url:
-      localImageURL(event.image_url) ?? imageURLForKey(event.image_key),
     starts_at: startsAt,
-    sale_starts_at: saleStartsAt,
     section_ids: sections.map((section) => section.id),
     sections,
     remaining_bucket:
@@ -292,7 +281,7 @@ function remainingBucketFromOpenSeats(
   seatsOpen: number | undefined
 ): EventSummary['remaining_bucket'] {
   if (seatsOpen === undefined) return 'HIGH';
-  if (seatsOpen <= 0) return 'SOLD_OUT';
+  if (seatsOpen <= 0) return 'FULL';
   if (seatsOpen < 20) return 'LOW';
   if (seatsOpen < 80) return 'MEDIUM';
   return 'HIGH';
@@ -316,31 +305,6 @@ function normalizeSection(section: GatewaySection): EventSection {
   return { id, name: section.name ?? id };
 }
 
-function imageURLForKey(imageKey: string | undefined) {
-  if (!imageKey) return '/event-midnight-array.svg';
-
-  const localImages: Record<string, string> = {
-    'event-midnight-array': '/event-midnight-array.svg',
-    'midnight-array': '/event-midnight-array.svg',
-    'event-final-whistle': '/event-final-whistle.svg',
-    'final-whistle': '/event-final-whistle.svg',
-    'event-zero-hour': '/event-zero-hour.svg',
-    'zero-hour': '/event-zero-hour.svg'
-  };
-
-  if (localImages[imageKey]) return localImages[imageKey];
-  if (/^[a-z0-9_-]+\.svg$/i.test(imageKey)) return `/${imageKey}`;
-  return '/event-midnight-array.svg';
-}
-
-function localImageURL(imageURL: string | undefined) {
-  if (!imageURL) return undefined;
-  if (/^\/[a-z0-9/_-]+\.(svg|png|jpe?g|webp)$/i.test(imageURL)) {
-    return imageURL;
-  }
-  return undefined;
-}
-
 function mapSeatSnapshot(
   eventID: string,
   sectionID: string,
@@ -356,7 +320,6 @@ function mapSeatSnapshot(
       row: seat.row,
       x: seat.x ?? 44 + col * 42,
       y: seat.y ?? 42 + row * 42,
-      price_cents: seat.price_cents,
       accessibility: seat.accessibility ?? (col === 0 || col === 9),
       status: mapSeatStatus(seat.status),
       version: seat.version,
@@ -377,7 +340,7 @@ function mapSeatStatus(status: string): Seat['status'] {
   if (
     status === 'AVAILABLE' ||
     status === 'HELD' ||
-    status === 'SOLD' ||
+    status === 'RESERVED' ||
     status === 'SELECTED' ||
     status === 'UNKNOWN'
   ) {
@@ -393,8 +356,7 @@ function mapReservation(body: { order: GatewayOrder }): ReserveOrderResponse {
   }
   const seats =
     order.seats?.map((seat) => ({
-      seat_id: seat.seat_id,
-      price_cents: seat.price_cents
+      seat_id: seat.seat_id
     })) ?? [];
   return {
     order_id: order.id,
@@ -403,20 +365,20 @@ function mapReservation(body: { order: GatewayOrder }): ReserveOrderResponse {
     expires_at_server_ms: order.expires_at_server_ms ?? 0,
     server_time_ms: order.server_time_ms ?? Date.now(),
     version: 1,
-    seats,
-    fees_cents: order.fees_cents ?? 0,
-    total_cents: order.total_cents
+    seats
   };
 }
 
-function mapCheckout(body: GatewayCheckoutResponse): CheckoutResponse {
+function mapReservationConfirmation(
+  body: GatewayReservationConfirmationResponse
+): ReservationConfirmationResponse {
   if (
     !body.order_id ||
     (body.status !== 'CONFIRMED' && body.status !== 'CANCELLED') ||
     !Array.isArray(body.wallet_ticket_ids)
   ) {
     throw new GatewayError(
-      'checkout response incomplete',
+      'reservation confirmation response incomplete',
       502,
       'upstream_error'
     );

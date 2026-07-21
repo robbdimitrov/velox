@@ -14,8 +14,7 @@ function makeEvent(overrides: Partial<EventSummary> = {}): EventSummary {
     venue: 'Velox Arena',
     city: 'Chicago',
     category: 'Concerts',
-    image_url: '/event.jpg',
-    sale_starts_at: '2026-08-15T20:00:00Z',
+    starts_at: '2026-08-15T20:00:00Z',
     remaining_bucket: 'HIGH',
     demand_score: 94,
     projection_lag_ms: 120,
@@ -39,21 +38,21 @@ describe('EventCard', () => {
     expect(link).toHaveAttribute('href', '/events/evt_neon_riot');
   });
 
-  it('renders the scarcity bucket label with underscores replaced by spaces', () => {
-    render(EventCard, { event: makeEvent({ remaining_bucket: 'SOLD_OUT' }) });
+  it('renders the full bucket label', () => {
+    render(EventCard, { event: makeEvent({ remaining_bucket: 'FULL' }) });
 
-    expect(screen.getByText('SOLD OUT')).toBeInTheDocument();
+    expect(screen.getByText('FULL')).toBeInTheDocument();
   });
 
   it.each([
     ['LOW', 'text-urgency'],
     ['MEDIUM', 'text-warn'],
     ['HIGH', 'text-ok'],
-    ['SOLD_OUT', 'text-urgency']
+    ['FULL', 'text-urgency']
   ] as const)('applies the %s scarcity tone class', (bucket, expectedClass) => {
     render(EventCard, { event: makeEvent({ remaining_bucket: bucket }) });
 
-    const badge = screen.getByText(bucket.replace('_', ' '));
+    const badge = screen.getByText(bucket);
     expect(badge.className).toContain(expectedClass);
   });
 });

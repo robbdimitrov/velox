@@ -27,8 +27,8 @@
       }
 
       window.location.href = '/';
-    } catch (err: any) {
-      error = err.message;
+    } catch (err: unknown) {
+      error = err instanceof Error ? err.message : 'Login failed';
     } finally {
       loading = false;
     }
@@ -42,7 +42,7 @@
 <div class="flex min-h-[80vh] items-center justify-center">
   <AuthCard
     title="Welcome Back"
-    description="Log in to access your tickets and reservations."
+    description="Log in to access your reservation tickets."
   >
     {#if error}
       <div

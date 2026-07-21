@@ -16,7 +16,6 @@
     name: string;
     row_count: number;
     seats_per_row: number;
-    price_cents: number;
     accessible_edge_seats: boolean;
   };
 
@@ -33,7 +32,6 @@
       name: 'A Section',
       row_count: 4,
       seats_per_row: 10,
-      price_cents: 8500,
       accessible_edge_seats: true
     },
     {
@@ -41,7 +39,6 @@
       name: 'B Section',
       row_count: 4,
       seats_per_row: 10,
-      price_cents: 8500,
       accessible_edge_seats: true
     }
   ]);
@@ -65,7 +62,6 @@
         name: `${sectionID} Section`,
         row_count: 4,
         seats_per_row: 10,
-        price_cents: 8500,
         accessible_edge_seats: true
       }
     ];
@@ -98,8 +94,8 @@
         throw new Error(d.message || 'Failed to create venue');
       }
       window.location.href = '/organizer/venues';
-    } catch (err: any) {
-      error = err.message;
+    } catch (err: unknown) {
+      error = err instanceof Error ? err.message : 'Failed to create venue';
     } finally {
       loading = false;
     }
@@ -190,7 +186,7 @@
             </p>
           </div>
           <button
-            class="btn btn-sm rounded-sm border border-line bg-panel text-ink hover:bg-signal hover:text-carbon"
+            class="btn btn-sm rounded-sm border border-line bg-panel text-ink hover:bg-signal hover:text-primary-content"
             type="button"
             onclick={addSection}
             disabled={sections.length >= 8}
@@ -202,7 +198,7 @@
         <div class="grid gap-3">
           {#each sections as section, index}
             <div
-              class="grid gap-3 rounded-sm border border-line bg-panel/70 p-3 md:grid-cols-[80px_1fr_90px_110px_120px_auto]"
+              class="grid gap-3 rounded-sm border border-line bg-panel/70 p-3 md:grid-cols-[80px_1fr_90px_110px_auto]"
             >
               <label
                 class="grid gap-1 text-xs font-bold uppercase tracking-widest text-inkMuted"
@@ -245,18 +241,6 @@
                   min="1"
                   max="50"
                   bind:value={section.seats_per_row}
-                />
-              </label>
-              <label
-                class="grid gap-1 text-xs font-bold uppercase tracking-widest text-inkMuted"
-              >
-                Price
-                <input
-                  class="input input-sm rounded-sm border-line bg-panelSoft font-mono text-ink"
-                  type="number"
-                  min="0"
-                  step="100"
-                  bind:value={section.price_cents}
                 />
               </label>
               <div class="flex items-end gap-2">

@@ -2,20 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { createGatewayClient, GatewayError } from './client';
 
 describe('gateway discovery mapping', () => {
-  it('maps backend metadata without event ID image overrides', async () => {
+  it('maps backend metadata without event imagery', async () => {
     const fetcher = async () =>
       new Response(
         JSON.stringify({
           events: [
             {
               id: 'evt_neon_riot',
-              name: 'Sold Out Night',
+              name: 'Full Night',
               category: 'Theatre',
-              image_key: 'event-zero-hour',
               venue: 'Velox Arena',
               city: 'Chicago',
               starts_at: '2026-08-15T20:00:00Z',
-              sale_starts_at: '2026-08-01T16:00:00Z',
               section_ids: ['ORCH', 'BALC'],
               seats_open: 0,
               demand_score: 97
@@ -33,11 +31,9 @@ describe('gateway discovery mapping', () => {
 
     expect(discovery.events[0]).toMatchObject({
       category: 'Theatre',
-      image_key: 'event-zero-hour',
-      image_url: '/event-zero-hour.svg',
-      sale_starts_at: '2026-08-01T16:00:00Z',
+      starts_at: '2026-08-15T20:00:00Z',
       section_ids: ['ORCH', 'BALC'],
-      remaining_bucket: 'SOLD_OUT'
+      remaining_bucket: 'FULL'
     });
   });
 
@@ -50,8 +46,7 @@ describe('gateway discovery mapping', () => {
             id: 'evt_detail',
             name: 'Detail Night',
             description: 'Backend owned copy.',
-            image_key: 'event-final-whistle',
-            sale_starts_at: '2026-08-01T16:00:00Z',
+            starts_at: '2026-08-15T20:00:00Z',
             sections: [{ id: 'FLOOR', name: 'Floor' }]
           },
           projection_lag_ms: 3
@@ -69,7 +64,7 @@ describe('gateway discovery mapping', () => {
       id: 'evt_detail',
       title: 'Detail Night',
       description: 'Backend owned copy.',
-      image_url: '/event-final-whistle.svg',
+      starts_at: '2026-08-15T20:00:00Z',
       section_ids: ['FLOOR'],
       sections: [{ id: 'FLOOR', name: 'Floor' }],
       projection_lag_ms: 3
@@ -89,7 +84,6 @@ describe('gateway discovery mapping', () => {
               x: 101,
               y: 202,
               accessibility: true,
-              price_cents: 8650,
               status: 'AVAILABLE',
               version: 4
             }
@@ -122,7 +116,7 @@ describe('gateway discovery mapping', () => {
     });
   });
 
-  it('maps reservation token and selected prices from the backend', async () => {
+  it('maps reservation token and selected seats from the backend', async () => {
     const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(input)).toBe('/api/reservations');
       expect(new Headers(init?.headers).get('Idempotency-Key')).toBe(
@@ -137,10 +131,8 @@ describe('gateway discovery mapping', () => {
             event_id: 'evt_detail',
             section_id: 'A',
             seat_ids: ['A-01'],
-            seats: [{ seat_id: 'A-01', price_cents: 8650 }],
+            seats: [{ seat_id: 'A-01' }],
             status: 'PENDING',
-            total_cents: 8650,
-            fees_cents: 0,
             expires_at_server_ms: 1760000000000,
             server_time_ms: 1759999700000
           }
@@ -167,8 +159,7 @@ describe('gateway discovery mapping', () => {
       reservation_id: 'res_ord_1',
       reservation_token: 'signed-token',
       server_time_ms: 1759999700000,
-      seats: [{ seat_id: 'A-01', price_cents: 8650 }],
-      total_cents: 8650
+      seats: [{ seat_id: 'A-01' }]
     });
     expect(reservation.reservation_token).not.toBe(reservation.reservation_id);
   });
@@ -183,8 +174,7 @@ describe('gateway discovery mapping', () => {
             event_id: 'evt_detail',
             section_id: 'A',
             seat_ids: ['A-01'],
-            status: 'PENDING',
-            total_cents: 8650
+            status: 'PENDING'
           }
         }),
         { headers: { 'Content-Type': 'application/json' } }
@@ -203,7 +193,7 @@ describe('gateway discovery mapping', () => {
     ).rejects.toMatchObject({ code: 'upstream_error' });
   });
 
-  it('sends reservation token and maps checkout ticket IDs', async () => {
+  it('sends reservation token and maps wallet ticket IDs', async () => {
     const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(input)).toBe('/api/reservations/res_ord_1/confirm');
       const headers = new Headers(init?.headers);
@@ -219,30 +209,30 @@ describe('gateway discovery mapping', () => {
       );
     };
 
-    const checkout = await createGatewayClient(
+    const reservation = await createGatewayClient(
       fetcher as typeof fetch,
       '/api'
-    ).checkout(
+    ).confirmReservation(
       { reservation_id: 'res_ord_1', terms_accepted: true },
       'idem-confirm',
       'signed-token'
     );
 
-    expect(checkout).toEqual({
+    expect(reservation).toEqual({
       order_id: 'ord_1',
       status: 'CONFIRMED',
       wallet_ticket_ids: ['tkt_1']
     });
   });
 
-  it('does not synthesize missing checkout ticket IDs', async () => {
+  it('does not synthesize missing wallet ticket IDs', async () => {
     const fetcher = async () =>
       new Response(JSON.stringify({ order_id: 'ord_1', status: 'CONFIRMED' }), {
         headers: { 'Content-Type': 'application/json' }
       });
 
     await expect(
-      createGatewayClient(fetcher as typeof fetch, '/api').checkout(
+      createGatewayClient(fetcher as typeof fetch, '/api').confirmReservation(
         { reservation_id: 'res_ord_1', terms_accepted: true },
         'idem-confirm',
         'signed-token'

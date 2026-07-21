@@ -95,7 +95,7 @@
   async function cancelEvent() {
     if (!eventId) return;
     const confirmed = confirm(
-      'Cancel this event? All outstanding orders will be cancelled and this cannot be undone.'
+      'Cancel this event? All outstanding reservations will be cancelled and this cannot be undone.'
     );
     if (!confirmed) return;
 
@@ -122,7 +122,7 @@
 <div class="space-y-8">
   <div class="mb-8 flex justify-between items-end">
     <div>
-      <h1 class="text-3xl font-black uppercase text-white tracking-tight">
+      <h1 class="text-3xl font-black uppercase tracking-tight text-ink">
         Live Analytics
       </h1>
       <p class="text-signal uppercase tracking-widest text-sm mt-1">
@@ -140,9 +140,9 @@
     />
 
     <Panel padding="lg">
-      <div class="flex items-center gap-2 mb-6 border-b border-white/10 pb-4">
+      <div class="mb-6 flex items-center gap-2 border-b border-line pb-4">
         <Megaphone class="text-signal" size={20} />
-        <h3 class="text-sm font-black uppercase tracking-wider text-white">
+        <h3 class="text-sm font-black uppercase tracking-wider text-ink">
           Post Update
         </h3>
       </div>
@@ -192,12 +192,12 @@
       </form>
 
       {#if announcements.length}
-        <div class="mt-6 space-y-2 border-t border-white/10 pt-4">
+        <div class="mt-6 space-y-2 border-t border-line pt-4">
           {#each announcements as announcement (announcement.id)}
             <div
               class="rounded-sm border border-line bg-panelSoft/70 p-3 text-xs"
             >
-              <p class="font-bold text-white">{announcement.title}</p>
+              <p class="font-bold text-ink">{announcement.title}</p>
               <p class="text-inkMuted mt-1">{announcement.body}</p>
             </div>
           {/each}
@@ -220,9 +220,9 @@
           class="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
         >
           <p class="text-sm text-inkMuted max-w-lg">
-            Cancelling this event notifies ticket holders, cancels outstanding
-            orders, and marks the event as unavailable for new sales. This
-            action cannot be undone.
+            Cancelling this event notifies reservation holders, cancels
+            outstanding reservations, and marks the event as unavailable for new
+            reservations. This action cannot be undone.
           </p>
           <button
             class="btn btn-sm border-0 bg-urgency hover:bg-urgency/80 text-white font-bold rounded shrink-0 disabled:opacity-40"
@@ -241,7 +241,7 @@
           <p
             class="mt-4 rounded border border-urgency/40 bg-urgency/10 p-3 text-xs font-medium text-urgency"
           >
-            Event marked {cancelResult.status}. {cancelResult.cancelled_orders} order{cancelResult.cancelled_orders ===
+            Event marked {cancelResult.status}. {cancelResult.cancelled_orders} reservation{cancelResult.cancelled_orders ===
             1
               ? ''
               : 's'} cancelled.

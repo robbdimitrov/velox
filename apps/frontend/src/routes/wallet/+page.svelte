@@ -34,23 +34,28 @@
     if (!token) return 'unavailable';
     return `${token.slice(0, 10)}...${token.slice(-8)}`;
   }
+
+  function ledgerEventLabel(eventType: string) {
+    if (eventType === 'TicketIssued') return 'Reservation ticket issued';
+    return eventType;
+  }
 </script>
 
 <main class="w-full">
   <Panel padding="lg">
     <div
-      class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-6 mb-6"
+      class="mb-6 flex flex-col justify-between gap-4 border-b border-line pb-6 sm:flex-row sm:items-center"
     >
       <div>
         <h1
           class="flex items-center gap-3 text-3xl font-black uppercase tracking-tight text-ink"
         >
-          <Ticket class="text-signal" size={28} /> Ticket Wallet
+          <Ticket class="text-signal" size={28} /> Reservation Wallet
         </h1>
         <p
           class="text-sm font-bold uppercase tracking-widest text-inkMuted mt-2"
         >
-          {data.wallet.tickets.length} upcoming tickets
+          {data.wallet.tickets.length} reservation tickets
         </p>
       </div>
       <div
@@ -68,7 +73,7 @@
             class="btn btn-xs rounded-sm border-0 px-4 transition-all hover:bg-panel hover:text-ink"
             class:bg-signal={historyFilter === label}
             class:font-bold={historyFilter === label}
-            class:text-carbon={historyFilter === label}
+            class:text-primary-content={historyFilter === label}
             class:bg-panelSoft={historyFilter !== label}
             class:text-inkMuted={historyFilter !== label}
             onclick={() => (historyFilter = label)}
@@ -85,7 +90,7 @@
       >
         <div>
           <div
-            class="mx-auto mb-4 grid h-14 w-14 place-items-center rounded bg-signal text-carbon"
+            class="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-sm bg-signal text-primary-content"
           >
             <LockKeyhole size={28} />
           </div>
@@ -93,7 +98,8 @@
             Sign In Required
           </h2>
           <p class="mt-2 max-w-md text-sm text-inkMuted">
-            Ticket wallet access is limited to the signed-in buyer.
+            Reservation ticket wallet access is limited to the signed-in
+            reserver.
           </p>
         </div>
       </div>
@@ -108,7 +114,7 @@
             <Ticket size={28} />
           </div>
           <h2 class="text-xl font-black uppercase tracking-tight text-ink">
-            No Tickets Yet
+            No Reservation Tickets Yet
           </h2>
           <p class="mt-2 max-w-md text-sm text-inkMuted">
             Confirmed reservations will appear here with signed entry tokens and
@@ -121,7 +127,7 @@
         class="grid min-h-[240px] place-items-center rounded-sm border border-line bg-panelSoft/70 p-8 text-center"
       >
         <p class="text-sm font-bold uppercase tracking-widest text-inkMuted">
-          No tickets match this status
+          No reservation tickets match this status
         </p>
       </div>
     {:else}
@@ -212,7 +218,7 @@
                 <summary
                   class="font-mono tabular-nums cursor-pointer select-none border-b border-line bg-panel/70 p-4 text-xs font-bold uppercase tracking-widest text-signal transition-colors hover:bg-panel"
                 >
-                  Ticket ID: {ticket.ticket_id}
+                  Reservation ticket ID: {ticket.ticket_id}
                 </summary>
                 <div class="p-4 space-y-2">
                   {#each ticket.ledger as row}
@@ -223,7 +229,8 @@
                         >{row.timestamp}</span
                       >
                       <span class="font-medium text-ink"
-                        ><span class="font-bold text-ink">{row.event_type}</span
+                        ><span class="font-bold text-ink"
+                          >{ledgerEventLabel(row.event_type)}</span
                         >
                         <span class="text-ink/40 mx-1">·</span>
                         {row.actor}</span

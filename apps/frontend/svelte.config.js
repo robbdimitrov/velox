@@ -11,13 +11,13 @@ const config = {
       directives: {
         'default-src': ['self'],
         'script-src': ['self'],
-        'style-src': ['self', 'https://fonts.googleapis.com'],
+        'style-src': ['self'],
         // Seat maps and health gauges compute live inline style attributes;
         // keep the exception scoped to attributes, not scripts or stylesheets.
         'style-src-attr': ['unsafe-inline'],
         'img-src': ['self'],
         'connect-src': ['self'],
-        'font-src': ['self', 'https://fonts.gstatic.com'],
+        'font-src': ['self'],
         'object-src': ['none'],
         'base-uri': ['self'],
         'form-action': ['self'],

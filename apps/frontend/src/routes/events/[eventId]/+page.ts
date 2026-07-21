@@ -113,9 +113,7 @@ function mergeEventBackfill(
     venue: event.venue === 'Venue pending' ? fallback.venue : event.venue,
     city: event.city || fallback.city,
     category: event.category === 'Live' ? fallback.category : event.category,
-    image_url: event.image_key ? event.image_url : fallback.image_url,
     starts_at: event.starts_at || fallback.starts_at,
-    sale_starts_at: event.sale_starts_at || fallback.sale_starts_at,
     section_ids: event.section_ids?.length
       ? event.section_ids
       : fallback.section_ids,

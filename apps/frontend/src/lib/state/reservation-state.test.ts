@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { CheckoutState, formatCountdown } from './checkout-state.svelte';
+import { ReservationState, formatCountdown } from './reservation-state.svelte';
 import type { ReserveOrderResponse } from '$lib/api/types';
 
-describe('CheckoutState', () => {
-  let state: CheckoutState;
+describe('ReservationState', () => {
+  let state: ReservationState;
 
   beforeEach(() => {
-    state = new CheckoutState();
+    state = new ReservationState();
     vi.useFakeTimers();
   });
 
@@ -21,9 +21,7 @@ describe('CheckoutState', () => {
     expires_at_server_ms: 10000,
     server_time_ms: 5000,
     version: 1,
-    seats: [],
-    fees_cents: 100,
-    total_cents: 1000
+    seats: []
   };
 
   it('initializes correctly', () => {

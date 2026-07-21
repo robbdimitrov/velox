@@ -11,9 +11,6 @@ export class SeatSelectionState {
   selectedSeats = $derived(
     this.seats.filter((seat) => this.selectedSeatIDs.has(seat.seat_id))
   );
-  selectedTotalCents = $derived(
-    this.selectedSeats.reduce((sum, seat) => sum + seat.price_cents, 0)
-  );
 
   load(seats: Seat[], serverTimeMs: number) {
     this.seats = seats;

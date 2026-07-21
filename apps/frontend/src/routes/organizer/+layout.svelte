@@ -8,6 +8,7 @@
   } from '@lucide/svelte';
   import { page } from '$app/state';
   import Panel from '$lib/components/Panel.svelte';
+  import { themeState } from '$lib/state/theme-state.svelte';
 
   let { children } = $props();
 
@@ -50,6 +51,7 @@
       <div class="mt-auto border-t border-line pt-4">
         <a
           href="/api/auth/logout"
+          onclick={() => themeState.clearOverride()}
           class="flex items-center gap-3 px-4 py-3 rounded text-urgency/80 hover:bg-urgency/10 hover:text-urgency transition-all duration-300"
         >
           <LogOut size={20} />

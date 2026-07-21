@@ -3,7 +3,6 @@
     Building2,
     CalendarDays,
     ChevronRight,
-    Clock,
     Gauge,
     MapPin,
     SlidersHorizontal,
@@ -27,10 +26,9 @@
   type VenueSummary = {
     name: string;
     city: string;
-    imageURL: string;
     eventCount: number;
     topDemandScore: number;
-    nextSaleStartsAt: string;
+    nextStartsAt: string;
     availableEventCount: number;
   };
 
@@ -38,7 +36,7 @@
   const standardCategories = ['Concerts', 'Sports', 'Theatre', 'Festivals'];
 
   const dateWindows = ['Any date', 'Today', 'This week', 'This month'];
-  const saleTimeFormatter = new Intl.DateTimeFormat('en-US', {
+  const eventTimeFormatter = new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -119,7 +117,7 @@
 
   let totalAvailableEvents = $derived(
     filteredEvents.filter(
-      (event: EventSummary) => event.remaining_bucket !== 'SOLD_OUT'
+      (event: EventSummary) => event.remaining_bucket !== 'FULL'
     ).length
   );
 
@@ -157,10 +155,10 @@
     ) {
       return false;
     }
-    if (!matchesDateWindow(event.sale_starts_at, filterState.dateWindow)) {
+    if (!matchesDateWindow(event.starts_at ?? '', filterState.dateWindow)) {
       return false;
     }
-    if (filterState.availableOnly && event.remaining_bucket === 'SOLD_OUT') {
+    if (filterState.availableOnly && event.remaining_bucket === 'FULL') {
       return false;
     }
     return true;
@@ -177,7 +175,7 @@
     if (filterState.availableOnly && venue.availableEventCount === 0) {
       return false;
     }
-    if (!matchesDateWindow(venue.nextSaleStartsAt, filterState.dateWindow)) {
+    if (!matchesDateWindow(venue.nextStartsAt, filterState.dateWindow)) {
       return false;
     }
     return true;
@@ -210,11 +208,10 @@
         venueByKey[key] = {
           name: event.venue,
           city: event.city,
-          imageURL: event.image_url,
           eventCount: 1,
           topDemandScore: event.demand_score,
-          nextSaleStartsAt: event.sale_starts_at,
-          availableEventCount: event.remaining_bucket === 'SOLD_OUT' ? 0 : 1
+          nextStartsAt: event.starts_at ?? '',
+          availableEventCount: event.remaining_bucket === 'FULL' ? 0 : 1
         };
         continue;
       }
@@ -225,13 +222,12 @@
         event.demand_score
       );
       if (
-        new Date(event.sale_starts_at).getTime() <
-        new Date(existing.nextSaleStartsAt).getTime()
+        new Date(event.starts_at ?? '').getTime() <
+        new Date(existing.nextStartsAt).getTime()
       ) {
-        existing.nextSaleStartsAt = event.sale_starts_at;
-        existing.imageURL = event.image_url;
+        existing.nextStartsAt = event.starts_at ?? '';
       }
-      if (event.remaining_bucket !== 'SOLD_OUT') {
+      if (event.remaining_bucket !== 'FULL') {
         existing.availableEventCount += 1;
       }
     }
@@ -239,14 +235,15 @@
     return Object.values(venueByKey).sort(
       (a, b) =>
         b.topDemandScore - a.topDemandScore ||
-        a.nextSaleStartsAt.localeCompare(b.nextSaleStartsAt)
+        a.nextStartsAt.localeCompare(b.nextStartsAt)
     );
   }
 
-  function formatSaleTime(value: string) {
+  function formatEventTime(value: string | undefined) {
+    if (!value) return 'Date TBA';
     const timestamp = new Date(value).getTime();
-    if (!Number.isFinite(timestamp)) return 'Sale TBA';
-    return saleTimeFormatter.format(new Date(timestamp));
+    if (!Number.isFinite(timestamp)) return 'Date TBA';
+    return eventTimeFormatter.format(new Date(timestamp));
   }
 </script>
 
@@ -267,16 +264,16 @@
         <p
           class="flex items-center gap-2 text-[0.72rem] font-extrabold uppercase tracking-[0.14em] text-signal"
         >
-          <Sparkles size={15} /> Live discovery
+          <Sparkles size={15} /> Reservation discovery
         </p>
         <h1
           class="mt-3 max-w-3xl text-4xl font-black uppercase leading-none text-ink sm:text-6xl"
         >
-          Inventory before the room moves.
+          Reserve seats before the room moves.
         </h1>
         <p class="mt-5 max-w-2xl text-base font-medium text-inkMuted">
-          Track demand, sale timing, and venue pressure from one live read
-          model.
+          Track reservation availability, event timing, and venue pressure from
+          one live read model.
         </p>
 
         <div class="mt-6 flex flex-wrap gap-2">
@@ -323,39 +320,60 @@
       {#if popularEvents[0]}
         {@const leadEvent = popularEvents[0]}
         <a
-          class="group relative min-h-[28rem] overflow-hidden border-t border-line bg-carbon lg:border-l lg:border-t-0"
+          class="group flex min-h-[28rem] flex-col justify-between border-t border-line bg-panelSoft p-6 transition-colors hover:bg-panel lg:border-l lg:border-t-0"
           href={`/events/${leadEvent.id}`}
         >
-          <img
-            class="absolute inset-0 h-full w-full object-cover opacity-85 transition-transform duration-700 group-hover:scale-105"
-            src={leadEvent.image_url}
-            alt=""
-          />
-          <div
-            class="absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.18)_38%,rgba(0,0,0,0.82)_100%)]"
-          ></div>
-          <div class="absolute inset-x-0 bottom-0 p-6">
-            <div class="mb-4 flex items-center justify-between gap-3">
+          <div class="flex items-center justify-between gap-3">
+            <span
+              class="rounded-sm border border-line bg-panel px-3 py-1 text-xs font-black uppercase text-signal"
+            >
+              Featured reservation
+            </span>
+            <ChevronRight
+              size={20}
+              class="text-inkMuted transition-colors group-hover:text-signal"
+            />
+          </div>
+          <div>
+            <div class="mb-5 flex flex-wrap gap-3">
               <span
-                class="font-mono tabular-nums rounded-sm bg-signal px-3 py-1 text-xs font-black uppercase text-carbon"
+                class="font-mono tabular-nums rounded-sm bg-signal px-3 py-1 text-xs font-black uppercase text-primary-content"
               >
                 Demand {leadEvent.demand_score}
               </span>
               <span
-                class="font-mono tabular-nums rounded-sm border border-white/25 bg-black/45 px-3 py-1 text-xs uppercase text-white"
+                class="font-mono tabular-nums rounded-sm border border-line bg-panel px-3 py-1 text-xs uppercase text-ink"
               >
-                {formatSaleTime(leadEvent.sale_starts_at)}
+                {formatEventTime(leadEvent.starts_at)}
               </span>
             </div>
-            <p class="text-3xl font-black uppercase leading-none text-white">
+            <p class="text-4xl font-black uppercase leading-none text-ink">
               {leadEvent.title}
             </p>
             <p
-              class="mt-3 flex items-center gap-2 text-sm font-semibold text-white/80"
+              class="mt-4 flex items-center gap-2 text-sm font-semibold text-inkMuted"
             >
               <MapPin size={15} class="text-signal" />
               {leadEvent.venue}, {leadEvent.city}
             </p>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="rounded-sm border border-line bg-panel p-4">
+              <p class="text-[10px] font-bold uppercase text-inkMuted">
+                Availability
+              </p>
+              <p class="mt-2 font-mono text-xl font-black text-ok">
+                {leadEvent.remaining_bucket.replace('_', ' ')}
+              </p>
+            </div>
+            <div class="rounded-sm border border-line bg-panel p-4">
+              <p class="text-[10px] font-bold uppercase text-inkMuted">
+                Category
+              </p>
+              <p class="mt-2 truncate text-sm font-black uppercase text-ink">
+                {leadEvent.category}
+              </p>
+            </div>
           </div>
         </a>
       {/if}
@@ -470,7 +488,7 @@
             <h2
               class="mt-2 text-xl font-extrabold leading-tight text-ink sm:text-2xl"
             >
-              High-demand drops
+              High-demand reservations
             </h2>
           </div>
           <span
@@ -483,24 +501,17 @@
         <div class="grid gap-4 md:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
           {#each popularEvents as event}
             <a
-              class="group overflow-hidden rounded-sm border border-line bg-panelSoft transition-all duration-300 hover:-translate-y-1 hover:border-signal"
+              class="group flex min-h-48 flex-col justify-between rounded-sm border border-line bg-panelSoft p-4 transition-all duration-300 hover:-translate-y-1 hover:border-signal"
               href={`/events/${event.id}`}
             >
-              <div class="relative h-36 overflow-hidden bg-carbon">
-                <img
-                  class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                  src={event.image_url}
-                  alt=""
-                />
+              <div>
                 <span
-                  class="font-mono tabular-nums absolute right-3 top-3 rounded-sm bg-signal px-2 py-1 text-xs font-black text-carbon"
+                  class="font-mono tabular-nums inline-flex rounded-sm bg-signal px-2 py-1 text-xs font-black text-primary-content"
                 >
-                  {event.demand_score}
+                  Demand {event.demand_score}
                 </span>
-              </div>
-              <div class="p-4">
                 <p
-                  class="truncate text-lg font-black uppercase text-ink group-hover:text-signal"
+                  class="mt-4 line-clamp-2 text-lg font-black uppercase text-ink group-hover:text-signal"
                 >
                   {event.title}
                 </p>
@@ -508,8 +519,15 @@
                   <MapPin size={13} class="text-signal" />
                   {event.venue}
                 </p>
-                <div class="mt-3 text-xs uppercase text-inkMuted">
-                  <span>{formatSaleTime(event.sale_starts_at)}</span>
+              </div>
+              <div
+                class="mt-4 flex items-center justify-between gap-3 text-xs uppercase text-inkMuted"
+              >
+                <span>{formatEventTime(event.starts_at)}</span>
+                <div
+                  class="rounded-sm border border-line bg-panel px-2 py-1 font-mono"
+                >
+                  {event.remaining_bucket.replace('_', ' ')}
                 </div>
               </div>
             </a>
@@ -560,7 +578,7 @@
       <section class="rounded-sm border border-line bg-panel/90 p-5 shadow-xl">
         <div class="mb-5 flex items-center gap-3 border-b border-line pb-4">
           <div
-            class="grid h-9 w-9 place-items-center rounded-sm bg-signal text-carbon"
+            class="grid h-9 w-9 place-items-center rounded-sm bg-signal text-primary-content"
           >
             <Building2 size={18} />
           </div>
@@ -571,15 +589,10 @@
           {#each venueSummaries as venue}
             <button
               type="button"
-              class="group overflow-hidden rounded-sm border border-line bg-panelSoft text-left transition-colors hover:border-signal"
+              class="group rounded-sm border border-line bg-panelSoft text-left transition-colors hover:border-signal"
               onclick={() => (filterState.query = venue.name)}
             >
-              <div class="grid grid-cols-[82px_1fr] gap-3 p-3">
-                <img
-                  class="h-20 w-full rounded-sm object-cover"
-                  src={venue.imageURL}
-                  alt=""
-                />
+              <div class="p-3">
                 <div class="min-w-0">
                   <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0">
@@ -607,6 +620,11 @@
                     >
                       {venue.eventCount} events
                     </span>
+                    <span
+                      class="ml-2 rounded-sm border border-line bg-panel/70 px-2 py-1 text-inkMuted"
+                    >
+                      {venue.availableEventCount} reservable
+                    </span>
                   </div>
                 </div>
               </div>
@@ -626,7 +644,9 @@
           >
             <CalendarDays size={18} />
           </div>
-          <h2 class="text-sm font-black uppercase text-ink">Featured drops</h2>
+          <h2 class="text-sm font-black uppercase text-ink">
+            Featured reservations
+          </h2>
         </div>
 
         <div class="grid gap-4">
@@ -636,11 +656,11 @@
               href={`/events/${event.id}`}
             >
               <div class="flex items-center gap-3">
-                <img
-                  class="h-16 w-16 rounded-sm object-cover"
-                  src={event.image_url}
-                  alt=""
-                />
+                <div
+                  class="grid h-12 w-12 shrink-0 place-items-center rounded-sm border border-line bg-panel text-signal"
+                >
+                  <Ticket size={18} />
+                </div>
                 <div class="min-w-0 flex-1">
                   <p
                     class="truncate font-black uppercase text-ink group-hover:text-signal"
@@ -648,8 +668,8 @@
                     {event.title}
                   </p>
                   <p class="mt-1 flex items-center gap-1 text-xs text-inkMuted">
-                    <Clock size={12} />
-                    {formatSaleTime(event.sale_starts_at)}
+                    <CalendarDays size={12} />
+                    {formatEventTime(event.starts_at)}
                   </p>
                 </div>
                 <ChevronRight

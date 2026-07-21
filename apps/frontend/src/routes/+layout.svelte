@@ -11,21 +11,29 @@
   } from '@lucide/svelte';
   import { authState } from '$lib/state/auth-state.svelte';
   import { filterState } from '$lib/state/filter-state.svelte';
+  import { themeState } from '$lib/state/theme-state.svelte';
+  import type { Snippet } from 'svelte';
   import type { LayoutData } from './$types';
 
-  let { data, children }: { data: LayoutData; children: any } = $props();
+  let { data, children }: { data: LayoutData; children: Snippet } = $props();
 
   $effect(() => {
     authState.user = data.user || null;
   });
+
+  $effect(() => themeState.init());
+
+  function clearLocalPreferences() {
+    themeState.clearOverride();
+  }
 </script>
 
 <div
-  class="min-h-screen bg-[linear-gradient(135deg,rgba(242,184,75,0.1),transparent_28%),linear-gradient(225deg,rgba(57,214,200,0.09),transparent_34%),linear-gradient(180deg,#07080b_0%,#0b1018_42%,#07080b_100%)] pb-10 font-sans text-ink antialiased"
-  data-theme="velox"
+  class="min-h-screen bg-[linear-gradient(135deg,color-mix(in_oklab,var(--color-primary)_10%,transparent),transparent_30%),linear-gradient(225deg,color-mix(in_oklab,var(--color-info)_9%,transparent),transparent_36%),var(--color-base-100)] pb-10 font-sans text-ink antialiased"
+  data-theme={themeState.resolvedTheme}
 >
   <div
-    class="pointer-events-none fixed inset-0 z-0 bg-[linear-gradient(rgba(39,50,68,0.32)_1px,transparent_1px),linear-gradient(90deg,rgba(39,50,68,0.32)_1px,transparent_1px)] bg-[size:36px_36px] [mask-image:linear-gradient(to_bottom,rgba(0,0,0,0.72),transparent_72%)]"
+    class="pointer-events-none fixed inset-0 z-0 bg-[linear-gradient(color-mix(in_oklab,var(--color-base-300)_28%,transparent)_1px,transparent_1px),linear-gradient(90deg,color-mix(in_oklab,var(--color-base-300)_28%,transparent)_1px,transparent_1px)] bg-[size:36px_36px] [mask-image:linear-gradient(to_bottom,rgba(0,0,0,0.72),transparent_72%)]"
   ></div>
   <div
     class="relative z-10 mx-auto flex w-[min(calc(100%_-_2rem),80rem)] flex-col gap-6 pt-6 pb-8"
@@ -39,7 +47,7 @@
           class="flex min-w-0 items-center gap-3 text-xl font-black uppercase tracking-tight transition-colors hover:text-signal sm:text-2xl"
         >
           <div
-            class="grid h-10 w-10 place-items-center rounded-sm bg-signal text-carbon shadow-lg shadow-signal/20"
+            class="grid h-10 w-10 place-items-center rounded-sm bg-signal text-primary-content shadow-lg shadow-signal/20"
           >
             <Ticket size={22} />
           </div>
@@ -101,6 +109,7 @@
                 <li>
                   <a
                     href="/api/auth/logout"
+                    onclick={clearLocalPreferences}
                     class="rounded-sm transition-colors hover:bg-panelSoft hover:text-urgency"
                     >Logout</a
                   >

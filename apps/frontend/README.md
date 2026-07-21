@@ -1,6 +1,6 @@
 # Velox Frontend
 
-SvelteKit SSR frontend for buyer discovery, real-time seat selection, checkout, wallet, and organizer operations.
+SvelteKit SSR frontend for reserver discovery, real-time seat selection, reservation review, wallet, and organizer operations.
 
 ## Commands
 

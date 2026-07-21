@@ -16,8 +16,7 @@ export const mockDiscovery: DiscoveryResponse = {
       venue: 'North Pier Hall',
       city: 'Chicago',
       category: 'Concerts',
-      image_url: '/event-midnight-array.svg',
-      sale_starts_at: new Date(now + 18 * 60_000).toISOString(),
+      starts_at: new Date(now + 18 * 60_000).toISOString(),
       remaining_bucket: 'LOW',
       demand_score: 98,
       projection_lag_ms: 42
@@ -28,8 +27,7 @@ export const mockDiscovery: DiscoveryResponse = {
       venue: 'Civic Bowl',
       city: 'Austin',
       category: 'Sports',
-      image_url: '/event-final-whistle.svg',
-      sale_starts_at: new Date(now + 51 * 60_000).toISOString(),
+      starts_at: new Date(now + 51 * 60_000).toISOString(),
       remaining_bucket: 'MEDIUM',
       demand_score: 91,
       projection_lag_ms: 73
@@ -40,8 +38,7 @@ export const mockDiscovery: DiscoveryResponse = {
       venue: 'Atlas Stage',
       city: 'New York',
       category: 'Theatre',
-      image_url: '/event-zero-hour.svg',
-      sale_starts_at: new Date(now + 3 * 60 * 60_000).toISOString(),
+      starts_at: new Date(now + 3 * 60 * 60_000).toISOString(),
       remaining_bucket: 'HIGH',
       demand_score: 84,
       projection_lag_ms: 55
@@ -65,7 +62,7 @@ export function makeMockSeatSnapshot(
     const row = Math.floor(index / 22);
     const seatID = `${sectionID}-${row + 1}-${col + 1}`;
     const held = index % 19 === 0;
-    const sold = index % 29 === 0;
+    const reserved = index % 29 === 0;
     return {
       index,
       seat_id: seatID,
@@ -73,10 +70,9 @@ export function makeMockSeatSnapshot(
       row: String.fromCharCode(65 + row),
       x: 28 + col * 28,
       y: 32 + row * 32,
-      price_cents: 7200 + row * 500,
       accessibility: col === 0 || col === 21,
-      status: sold ? 'SOLD' : held ? 'HELD' : 'AVAILABLE',
-      version: sold || held ? 2 : 1,
+      status: reserved ? 'RESERVED' : held ? 'HELD' : 'AVAILABLE',
+      version: reserved || held ? 2 : 1,
       expires_at_server_ms: held ? now + 320_000 : undefined
     };
   });
@@ -92,7 +88,6 @@ export function makeMockSeatSnapshot(
 }
 
 export function makeMockReservation(seatIDs: string[]): ReserveOrderResponse {
-  const subtotal = seatIDs.length * 8800;
   return {
     order_id: 'ord_mock_8831',
     reservation_id: 'res_mock_8831',
@@ -100,9 +95,7 @@ export function makeMockReservation(seatIDs: string[]): ReserveOrderResponse {
     expires_at_server_ms: Date.now() + 8 * 60_000,
     server_time_ms: Date.now(),
     version: 4,
-    seats: seatIDs.map((seat_id) => ({ seat_id, price_cents: 8800 })),
-    fees_cents: Math.round(subtotal * 0.14),
-    total_cents: subtotal + Math.round(subtotal * 0.14)
+    seats: seatIDs.map((seat_id) => ({ seat_id }))
   };
 }
 

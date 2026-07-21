@@ -15,7 +15,6 @@ describe('SeatSelectionState', () => {
       x: 10,
       y: 10,
       status: 'AVAILABLE',
-      price_cents: 1000,
       version: 1,
       expires_at_server_ms: 0,
       index: 1,
@@ -28,7 +27,6 @@ describe('SeatSelectionState', () => {
       x: 20,
       y: 10,
       status: 'HELD',
-      price_cents: 1500,
       version: 2,
       expires_at_server_ms: 0,
       index: 2,
@@ -51,12 +49,10 @@ describe('SeatSelectionState', () => {
     state.toggleSeat(mockSeats[0]);
     expect(state.selectedSeatIDs.has('1')).toBe(true);
     expect(state.selectedSeats.length).toBe(1);
-    expect(state.selectedTotalCents).toBe(1000);
 
     state.toggleSeat(mockSeats[0]);
     expect(state.selectedSeatIDs.has('1')).toBe(false);
     expect(state.selectedSeats.length).toBe(0);
-    expect(state.selectedTotalCents).toBe(0);
   });
 
   it('does not toggle unavailable seat unless already selected', () => {

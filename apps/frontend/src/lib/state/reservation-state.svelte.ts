@@ -1,6 +1,6 @@
 import type { ReserveOrderResponse } from '$lib/api/types';
 
-export class CheckoutState {
+export class ReservationState {
   reservation = $state<ReserveOrderResponse | null>(null);
   submitted = $state(false);
   error = $state('');
@@ -27,7 +27,7 @@ export class CheckoutState {
   }
 }
 
-export const checkoutState = new CheckoutState();
+export const reservationState = new ReservationState();
 
 export function formatCountdown(ms: number) {
   const totalSeconds = Math.ceil(ms / 1000);

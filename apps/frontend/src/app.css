@@ -1,44 +1,72 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
-
 @import 'tailwindcss/index.css';
 @plugin 'daisyui';
 @plugin 'daisyui/theme' {
-  name: 'velox';
+  name: 'velox-light';
   default: true;
+  color-scheme: light;
+  --color-primary: #9f1d2f;
+  --color-secondary: #4b5563;
+  --color-accent: #2563eb;
+  --color-neutral: #1f2937;
+  --color-base-100: #f8fafc;
+  --color-base-200: #eef2f7;
+  --color-base-300: #cbd5e1;
+  --color-base-content: #111827;
+  --color-info: #2563eb;
+  --color-success: #15803d;
+  --color-warning: #d97706;
+  --color-error: #b91c1c;
+  --radius-selector: 2px;
+  --radius-field: 2px;
+  --radius-box: 4px;
+}
+@plugin 'daisyui/theme' {
+  name: 'velox-dark';
   prefersdark: true;
   color-scheme: dark;
-  --color-primary: #f2b84b;
-  --color-secondary: #8fa3b8;
-  --color-accent: #39d6c8;
-  --color-neutral: #10151f;
-  --color-base-100: #07080b;
-  --color-base-200: #10151f;
-  --color-base-300: #273244;
-  --color-base-content: #f7f1e8;
-  --color-info: #58a6ff;
-  --color-success: #35c78a;
-  --color-warning: #f2b84b;
-  --color-error: #ff5c5c;
+  --color-primary: #b3263a;
+  --color-secondary: #94a3b8;
+  --color-accent: #60a5fa;
+  --color-neutral: #111827;
+  --color-base-100: #0b0f14;
+  --color-base-200: #151b24;
+  --color-base-300: #2b3443;
+  --color-base-content: #f8fafc;
+  --color-info: #60a5fa;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
   --radius-selector: 2px;
   --radius-field: 2px;
   --radius-box: 4px;
 }
 
 @theme {
-  --color-carbon: #07080b;
-  --color-panel: #10151f;
-  --color-panelSoft: #151d29;
-  --color-line: #273244;
-  --color-ink: #f7f1e8;
-  --color-inkMuted: #8fa3b8;
-  --color-urgency: #ff5c5c;
-  --color-signal: #f2b84b;
-  --color-signalHover: #ffd166;
-  --color-accent: #39d6c8;
-  --color-ok: #35c78a;
-  --color-warn: #f2b84b;
-  --font-sans: 'Space Grotesk', Inter, system-ui, sans-serif;
-  --font-mono: 'Space Mono', ui-monospace, monospace;
+  --color-carbon: var(--color-base-100);
+  --color-panel: var(--color-base-200);
+  --color-panelSoft: color-mix(
+    in oklab,
+    var(--color-base-200) 78%,
+    var(--color-base-300)
+  );
+  --color-line: var(--color-base-300);
+  --color-ink: var(--color-base-content);
+  --color-inkMuted: color-mix(
+    in oklab,
+    var(--color-base-content) 56%,
+    transparent
+  );
+  --color-urgency: var(--color-error);
+  --color-signal: var(--color-primary);
+  --color-signalHover: color-mix(in oklab, var(--color-primary) 84%, white);
+  --color-accent: var(--color-info);
+  --color-ok: var(--color-success);
+  --color-warn: var(--color-warning);
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    sans-serif;
+  --font-mono:
+    'SFMono-Regular', 'Cascadia Code', 'Liberation Mono', Consolas, monospace;
   --radius-ui: 2px;
   --radius-card: 4px;
 }

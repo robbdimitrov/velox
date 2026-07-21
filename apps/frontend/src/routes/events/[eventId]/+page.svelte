@@ -5,7 +5,7 @@
   import AnnouncementCard from '$lib/components/AnnouncementCard.svelte';
   import SeatCanvas from '$lib/components/SeatCanvas.svelte';
   import VirtualWaitingRoom from '$lib/components/VirtualWaitingRoom.svelte';
-  import { checkoutState } from '$lib/state/checkout-state.svelte';
+  import { reservationState } from '$lib/state/reservation-state.svelte';
   import { SeatSelectionState } from '$lib/state/seat-state.svelte';
   import {
     Accessibility,
@@ -71,7 +71,10 @@
     const source = new EventSource(data.seatSseURL);
     source.onmessage = (event) => {
       try {
-        const delta = JSON.parse(event.data) as SeatDelta;
+        const delta = JSON.parse(event.data) as unknown;
+        if (!isSeatDelta(delta)) {
+          return;
+        }
         seatState.applyDelta(delta);
         eventLog = [
           `${delta.seat_id} ${delta.status} v${delta.version}`,
@@ -92,7 +95,7 @@
 
   async function reserve() {
     if (!seatState.selectedSeats.length || isCancelled) return;
-    reservingStatus = 'Holding Seat...';
+    reservingStatus = 'Holding seats...';
     error = '';
 
     const client = createGatewayClient(fetch, data.gatewayBaseURL);
@@ -107,13 +110,13 @@
         createIdempotencyKey()
       );
 
-      reservingStatus = 'Confirming...';
+      reservingStatus = 'Preparing review...';
       await new Promise((r) => setTimeout(r, 800));
-      reservingStatus = 'Reserved!';
+      reservingStatus = 'Hold ready';
       await new Promise((r) => setTimeout(r, 400));
 
-      checkoutState.load(reservation);
-      await goto('/checkout');
+      reservationState.load(reservation);
+      await goto('/reservation');
     } catch (requestError) {
       error =
         'Reservation rejected by gateway. Refresh seat state and try again.';
@@ -126,6 +129,17 @@
     const timestamp = new Date(value).getTime();
     if (!Number.isFinite(timestamp)) return 'TBA';
     return eventTimeFormatter.format(new Date(timestamp));
+  }
+
+  function isSeatDelta(value: unknown): value is SeatDelta {
+    if (!value || typeof value !== 'object') return false;
+    const candidate = value as Partial<SeatDelta>;
+    return (
+      typeof candidate.seat_id === 'string' &&
+      candidate.seat_id.length > 0 &&
+      typeof candidate.status === 'string' &&
+      typeof candidate.version === 'number'
+    );
   }
 </script>
 
@@ -158,7 +172,7 @@
     <Panel padding="lg" sticky hMax>
       <div class="mb-6 flex items-center gap-3 border-b border-line pb-4">
         <div class="rounded bg-signal p-2 shadow-md shadow-signal/20">
-          <Layers class="text-carbon" size={18} />
+          <Layers class="text-primary-content" size={18} />
         </div>
         <h2 class="text-sm font-black uppercase tracking-wider text-ink">
           Section Tools
@@ -213,7 +227,7 @@
         </p>
         <p class="flex items-center gap-3">
           <span
-            class="inline-block h-3 w-3 rounded-full bg-signal shadow-[0_0_8px_rgba(250,204,21,0.8)]"
+            class="inline-block h-3 w-3 rounded-full bg-signal shadow-[0_0_8px_rgba(159,29,47,0.8)]"
           ></span> Selected
         </p>
         <p class="flex items-center gap-3">
@@ -224,19 +238,14 @@
         <p class="flex items-center gap-3">
           <span
             class="inline-block h-3 w-3 rounded-full border border-white/20 bg-panel"
-          ></span> Sold
+          ></span> Reserved
         </p>
       </div>
     </Panel>
 
     <section class="min-w-0 flex flex-col gap-4">
       <Panel padding="lg">
-        <div class="grid gap-4 md:grid-cols-[140px_1fr_auto] md:items-end">
-          <img
-            class="h-28 w-full rounded-sm object-cover md:h-32"
-            src={data.event.image_url}
-            alt=""
-          />
+        <div class="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
           <div class="min-w-0">
             <div class="mb-2 flex flex-wrap items-center gap-2">
               <span
@@ -248,7 +257,7 @@
                 class="flex items-center gap-1 rounded-sm border border-line bg-panelSoft px-2 py-1 text-xs font-semibold uppercase text-inkMuted"
               >
                 <CalendarDays size={13} />
-                Sale {formatEventTime(data.event.sale_starts_at)}
+                Starts {formatEventTime(data.event.starts_at)}
               </span>
             </div>
             <h1
@@ -359,7 +368,7 @@
             Selected Seats
           </h2>
           <button
-            class="btn btn-ghost btn-xs flex h-8 w-8 items-center justify-center rounded-sm bg-panelSoft p-0 transition-all hover:bg-signal hover:text-carbon"
+            class="btn btn-ghost btn-xs flex h-8 w-8 items-center justify-center rounded-sm bg-panelSoft p-0 transition-all hover:bg-signal hover:text-primary-content"
             onclick={() =>
               seatState.load(data.snapshot.seats, data.snapshot.server_time_ms)}
           >
@@ -394,7 +403,7 @@
       <div class="mt-6 border-t border-line pt-6">
         <div class="font-mono tabular-nums flex items-center justify-between">
           <span class="text-inkMuted uppercase tracking-widest text-xs"
-            >Total Tickets</span
+            >Reservation tickets</span
           >
           <strong
             class="text-2xl text-ok drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]"
@@ -415,7 +424,7 @@
           onclick={reserve}
         >
           <TicketCheck size={18} />
-          {reserving ? reservingStatus : 'Confirm Reservation'}
+          {reserving ? reservingStatus : 'Reserve'}
         </PrimaryButton>
       </div>
     </Panel>

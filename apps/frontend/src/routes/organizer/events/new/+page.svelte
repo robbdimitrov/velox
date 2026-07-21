@@ -21,16 +21,9 @@
   let eventName = $state('');
   let eventDescription = $state('');
   let eventCategory = $state('Concerts');
-  let eventImageKey = $state('event-midnight-array');
   let eventDate = $state('');
-  let saleStartsAt = $state('');
 
   const categoryOptions = ['Concerts', 'Sports', 'Theatre', 'Festivals'];
-  const imageOptions = [
-    { key: 'event-midnight-array', label: 'Midnight Array' },
-    { key: 'event-final-whistle', label: 'Final Whistle' },
-    { key: 'event-zero-hour', label: 'Zero Hour' }
-  ];
 
   const steps = [
     { id: 1, title: 'Venue', icon: MapPin },
@@ -42,18 +35,12 @@
     loading = true;
     error = '';
     try {
-      if (new Date(saleStartsAt).getTime() > new Date(eventDate).getTime()) {
-        throw new Error('Sale start must be before the event start.');
-      }
-
       const payload = {
         venue_id: selectedVenue,
         name: eventName,
         description: eventDescription,
         category: eventCategory,
-        image_key: eventImageKey,
-        starts_at: new Date(eventDate).toISOString(),
-        sale_starts_at: new Date(saleStartsAt).toISOString()
+        starts_at: new Date(eventDate).toISOString()
       };
 
       const res = await fetch('/api/organizer/events', {
@@ -83,7 +70,7 @@
   <div class="mb-8">
     <h1 class="text-3xl font-black uppercase tracking-tight">Create Event</h1>
     <p class="text-inkMuted text-sm mt-1">
-      Publish a new event to the marketplace.
+      Publish a new event for reservations.
     </p>
   </div>
 
@@ -192,32 +179,11 @@
             {/each}
           </select>
         </label>
-        <label class="form-control space-y-2">
-          <span
-            class="text-xs font-semibold uppercase tracking-wider text-inkMuted"
-          >
-            Event Image
-          </span>
-          <select
-            bind:value={eventImageKey}
-            class="select select-bordered w-full rounded-sm border-line bg-carbon/60 text-ink focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal/50"
-          >
-            {#each imageOptions as image}
-              <option value={image.key}>{image.label}</option>
-            {/each}
-          </select>
-        </label>
         <TextField
           id="date"
           label="Date & Time"
           type="datetime-local"
           bind:value={eventDate}
-        />
-        <TextField
-          id="sale-start"
-          label="Sale Start"
-          type="datetime-local"
-          bind:value={saleStartsAt}
         />
       </div>
     {/if}
@@ -243,29 +209,11 @@
               {eventDate ? new Date(eventDate).toLocaleString() : 'Not set'}
             </div>
           </div>
-          <div class="grid gap-4 sm:grid-cols-2">
-            <div>
-              <div class="text-xs text-inkMuted uppercase font-semibold">
-                Category
-              </div>
-              <div>{eventCategory}</div>
-            </div>
-            <div>
-              <div class="text-xs text-inkMuted uppercase font-semibold">
-                Sale Start
-              </div>
-              <div>
-                {saleStartsAt
-                  ? new Date(saleStartsAt).toLocaleString()
-                  : 'Not set'}
-              </div>
-            </div>
-          </div>
           <div>
             <div class="text-xs text-inkMuted uppercase font-semibold">
-              Image Key
+              Category
             </div>
-            <div>{eventImageKey}</div>
+            <div>{eventCategory}</div>
           </div>
           <div>
             <div class="text-xs text-inkMuted uppercase font-semibold">
@@ -298,8 +246,7 @@
         <ActionButton
           onclick={() => currentStep++}
           disabled={(currentStep === 1 && !selectedVenue) ||
-            (currentStep === 2 &&
-              (!eventName || !eventDate || !saleStartsAt || !eventCategory))}
+            (currentStep === 2 && (!eventName || !eventDate || !eventCategory))}
         >
           Next <ArrowRight size={16} />
         </ActionButton>
@@ -308,7 +255,7 @@
           {#if loading}
             <span class="loading loading-spinner loading-sm"></span>
           {:else}
-            Publish Event <CheckCircle size={16} />
+            Publish event <CheckCircle size={16} />
           {/if}
         </ActionButton>
       {/if}
