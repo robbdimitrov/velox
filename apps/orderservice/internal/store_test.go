@@ -76,9 +76,9 @@ func TestCreateOrder_SetsReservationID(t *testing.T) {
 	mock.ExpectQuery("SELECT status FROM catalog.events").
 		WithArgs(req.EventID).
 		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow("PUBLISHED"))
-	mock.ExpectQuery("SELECT price_amount_minor FROM projection.seat_snapshots").
+	mock.ExpectQuery("SELECT seat_id, price_amount_minor").
 		WithArgs(req.EventID, req.SectionID, "A-1").
-		WillReturnRows(sqlmock.NewRows([]string{"price_amount_minor"}).AddRow(int64(5000)))
+		WillReturnRows(sqlmock.NewRows([]string{"seat_id", "price_amount_minor"}).AddRow("A-1", int64(5000)))
 	mock.ExpectExec("INSERT INTO orders.orders").
 		WithArgs(capturedString{&orderID}, req.UserID, req.IdempotencyKey, sqlmock.AnyArg(), int64(5000), resPrefixed{&orderID}).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -129,9 +129,9 @@ func TestCreateOrder_LocksEventRowForShare(t *testing.T) {
 	mock.ExpectQuery("SELECT status FROM catalog.events WHERE id = \\$1 FOR SHARE").
 		WithArgs(req.EventID).
 		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow("PUBLISHED"))
-	mock.ExpectQuery("SELECT price_amount_minor FROM projection.seat_snapshots").
+	mock.ExpectQuery("SELECT seat_id, price_amount_minor").
 		WithArgs(req.EventID, req.SectionID, "A-1").
-		WillReturnRows(sqlmock.NewRows([]string{"price_amount_minor"}).AddRow(int64(5000)))
+		WillReturnRows(sqlmock.NewRows([]string{"seat_id", "price_amount_minor"}).AddRow("A-1", int64(5000)))
 	mock.ExpectExec("INSERT INTO orders.orders").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec("INSERT INTO orders.order_seats").

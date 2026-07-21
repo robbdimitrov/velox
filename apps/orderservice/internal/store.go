@@ -7,7 +7,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -63,7 +65,9 @@ func (s *Store) CreateOrder(ctx context.Context, req OrderRequest) (string, erro
 	}
 	defer tx.Rollback()
 
-	sort.Strings(req.SeatIDs)
+	seatIDs := append([]string(nil), req.SeatIDs...)
+	sort.Strings(seatIDs)
+	req.SeatIDs = seatIDs
 	reqBytes, _ := json.Marshal(req)
 	hash := sha256.Sum256(reqBytes)
 
@@ -116,13 +120,40 @@ func (s *Store) CreateOrder(ctx context.Context, req OrderRequest) (string, erro
 		SeatID     string
 		PriceMinor int64
 	}
-	var seats []seatInfo
-	for _, seatID := range req.SeatIDs {
+	priceBySeatID := make(map[string]int64, len(seatIDs))
+	seatPricePlaceholders := make([]string, len(seatIDs))
+	seatPriceArgs := make([]any, 0, len(seatIDs)+2)
+	seatPriceArgs = append(seatPriceArgs, req.EventID, req.SectionID)
+	for i, seatID := range seatIDs {
+		seatPricePlaceholders[i] = fmt.Sprintf("$%d", i+3)
+		seatPriceArgs = append(seatPriceArgs, seatID)
+	}
+	rows, err := tx.QueryContext(ctx, fmt.Sprintf(`
+		SELECT seat_id, price_amount_minor
+		FROM projection.seat_snapshots
+		WHERE event_id = $1 AND section_id = $2 AND seat_id IN (%s)
+	`, strings.Join(seatPricePlaceholders, ", ")), seatPriceArgs...)
+	if err != nil {
+		return "", err
+	}
+	for rows.Next() {
+		var seatID string
 		var price int64
-		err := tx.QueryRowContext(ctx, `SELECT price_amount_minor FROM projection.seat_snapshots WHERE event_id = $1 AND section_id = $2 AND seat_id = $3`, req.EventID, req.SectionID, seatID).Scan(&price)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		if err := rows.Scan(&seatID, &price); err != nil {
+			rows.Close()
 			return "", err
 		}
+		priceBySeatID[seatID] = price
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return "", err
+	}
+	rows.Close()
+
+	seats := make([]seatInfo, 0, len(seatIDs))
+	for _, seatID := range seatIDs {
+		price := priceBySeatID[seatID]
 		seats = append(seats, seatInfo{SeatID: seatID, PriceMinor: price})
 		total += price
 	}
