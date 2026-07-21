@@ -86,10 +86,27 @@ printf 'reserving seats for %s section %s\n' "$event_id" "$section_id"
 reservation_json="$(request POST /reservations "$BUYER_COOKIES" \
   "{\"event_id\":\"${event_id}\",\"section_id\":\"${section_id}\",\"seat_ids\":${seat_ids}}")"
 reservation_id="$(jq -r '.order.reservation_id' <<<"$reservation_json")"
+reservation_token="$(jq -r '.order.reservation_token' <<<"$reservation_json")"
 order_id="$(jq -r '.order.id' <<<"$reservation_json")"
+if [[ -z "$reservation_token" || "$reservation_token" == "null" || "$reservation_token" == "$reservation_id" ]]; then
+  printf 'reservation token missing or not signed\n' >&2
+  exit 1
+fi
 
 request GET "/orders/${order_id}" "$BUYER_COOKIES" >/dev/null
-request POST "/reservations/${reservation_id}/confirm" "$BUYER_COOKIES" >/dev/null
+confirm_out="${TMP_DIR}/confirm.json"
+confirm_code="$(curl -sS -o "$confirm_out" -w '%{http_code}' -X POST \
+  -H "Origin: ${BASE_URL}" \
+  -H "Idempotency-Key: smoke-${RUN_ID}-confirm-${reservation_id}" \
+  -H "Reservation-Token: ${reservation_token}" \
+  -b "$BUYER_COOKIES" -c "$BUYER_COOKIES" \
+  "${API_BASE}/reservations/${reservation_id}/confirm")"
+if [[ "$confirm_code" -lt 200 || "$confirm_code" -ge 300 ]]; then
+  printf 'POST /reservations/%s/confirm failed with HTTP %s\n' "$reservation_id" "$confirm_code" >&2
+  cat "$confirm_out" >&2
+  exit 1
+fi
+jq -e '.wallet_ticket_ids | type == "array"' "$confirm_out" >/dev/null
 request GET /wallet/tickets "$BUYER_COOKIES" >/dev/null
 
 printf 'registering organizer %s\n' "$organizer_email"
