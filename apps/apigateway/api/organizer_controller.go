@@ -15,6 +15,14 @@ const (
 	defaultEventCategory      = "Concerts"
 	defaultEventImageKey      = "event-midnight-array"
 	defaultEventTimezone      = "UTC"
+	venueNameMaxLength        = 120
+	venueAddressMaxLength     = 240
+	venueCityMaxLength        = 80
+	maxVenueCapacity          = 250000
+	maxVenueSections          = 8
+	maxVenueRowsPerSection    = 26
+	maxVenueSeatsPerRow       = 50
+	defaultVenuePriceCents    = 8500
 )
 
 var allowedEventCategories = map[string]struct{}{
@@ -40,6 +48,15 @@ type createEventRequest struct {
 	SaleStartsAt time.Time `json:"sale_starts_at"`
 	ImageKey     string    `json:"image_key"`
 	Timezone     string    `json:"timezone"`
+}
+
+type createVenueRequest struct {
+	ID       string                 `json:"id"`
+	Name     string                 `json:"name"`
+	City     string                 `json:"city"`
+	Address  string                 `json:"address"`
+	Capacity int                    `json:"capacity"`
+	Sections []VenueSectionTemplate `json:"sections"`
 }
 
 func (s *Server) handleOrganizerEvents(w http.ResponseWriter, r *http.Request, user User) {
@@ -190,17 +207,18 @@ func (s *Server) handleOrganizerMetricsStream(w http.ResponseWriter, r *http.Req
 }
 
 func (s *Server) handleCreateVenue(w http.ResponseWriter, r *http.Request, user User) {
-	var req Venue
-	if !decodeJSON(w, r, &req) {
+	var req createVenueRequest
+	if _, ok := decodeJSONStrict(w, r, &req); !ok {
 		return
 	}
 
-	if req.ID == "" {
-		req.ID = "ven_" + time.Now().Format("20060102150405")
+	venue, sections, ok := s.normalizeCreateVenueRequest(w, req)
+	if !ok {
+		return
 	}
 
 	if s.store != nil {
-		venue, err := s.store.CreateVenue(r.Context(), user.ID, req)
+		venue, err := s.store.CreateVenue(r.Context(), user.ID, venue, sections)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "internal_error")
 			return
@@ -209,7 +227,91 @@ func (s *Server) handleCreateVenue(w http.ResponseWriter, r *http.Request, user 
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, req)
+	writeJSON(w, http.StatusCreated, venue)
+}
+
+func (s *Server) normalizeCreateVenueRequest(w http.ResponseWriter, req createVenueRequest) (Venue, []VenueSectionTemplate, bool) {
+	name := strings.TrimSpace(req.Name)
+	if name == "" || len(name) > venueNameMaxLength {
+		writeError(w, http.StatusBadRequest, "invalid_venue_name")
+		return Venue{}, nil, false
+	}
+	city := strings.TrimSpace(req.City)
+	if city == "" || len(city) > venueCityMaxLength {
+		writeError(w, http.StatusBadRequest, "invalid_venue_city")
+		return Venue{}, nil, false
+	}
+	address := strings.TrimSpace(req.Address)
+	if address == "" || len(address) > venueAddressMaxLength {
+		writeError(w, http.StatusBadRequest, "invalid_venue_address")
+		return Venue{}, nil, false
+	}
+	if req.Capacity <= 0 || req.Capacity > maxVenueCapacity {
+		writeError(w, http.StatusBadRequest, "invalid_venue_capacity")
+		return Venue{}, nil, false
+	}
+	venueID := strings.TrimSpace(req.ID)
+	if venueID == "" {
+		venueID = "ven_" + s.now().Format("20060102150405")
+	}
+
+	sections := make([]VenueSectionTemplate, 0, len(req.Sections))
+	if len(req.Sections) > maxVenueSections {
+		writeError(w, http.StatusBadRequest, "invalid_venue_sections")
+		return Venue{}, nil, false
+	}
+	seen := map[string]struct{}{}
+	for _, section := range req.Sections {
+		normalized, ok := normalizeVenueSectionTemplate(w, section, seen)
+		if !ok {
+			return Venue{}, nil, false
+		}
+		sections = append(sections, normalized)
+	}
+
+	return Venue{
+		ID:       venueID,
+		Name:     name,
+		City:     city,
+		Address:  address,
+		Capacity: req.Capacity,
+	}, sections, true
+}
+
+func normalizeVenueSectionTemplate(w http.ResponseWriter, section VenueSectionTemplate, seen map[string]struct{}) (VenueSectionTemplate, bool) {
+	sectionID := strings.ToUpper(strings.TrimSpace(section.SectionID))
+	if sectionID == "" || len(sectionID) > 12 {
+		writeError(w, http.StatusBadRequest, "invalid_venue_section")
+		return VenueSectionTemplate{}, false
+	}
+	if _, exists := seen[sectionID]; exists {
+		writeError(w, http.StatusBadRequest, "duplicate_venue_section")
+		return VenueSectionTemplate{}, false
+	}
+	seen[sectionID] = struct{}{}
+	name := strings.TrimSpace(section.Name)
+	if name == "" {
+		name = sectionID + " Section"
+	}
+	if len(name) > venueNameMaxLength {
+		writeError(w, http.StatusBadRequest, "invalid_venue_section")
+		return VenueSectionTemplate{}, false
+	}
+	if section.RowCount <= 0 || section.RowCount > maxVenueRowsPerSection ||
+		section.SeatsPerRow <= 0 || section.SeatsPerRow > maxVenueSeatsPerRow {
+		writeError(w, http.StatusBadRequest, "invalid_venue_section")
+		return VenueSectionTemplate{}, false
+	}
+	if section.PriceCents < 0 {
+		writeError(w, http.StatusBadRequest, "invalid_venue_section")
+		return VenueSectionTemplate{}, false
+	}
+	if section.PriceCents == 0 {
+		section.PriceCents = defaultVenuePriceCents
+	}
+	section.SectionID = sectionID
+	section.Name = name
+	return section, true
 }
 
 func (s *Server) handleListVenues(w http.ResponseWriter, r *http.Request, user User) {

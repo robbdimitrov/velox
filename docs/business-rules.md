@@ -31,10 +31,15 @@ Current gap: password length and complexity bounds are not enforced yet.
 ## Venue And Event Rules
 
 - A venue has name, city, address, and capacity.
-- Store-backed venue creation creates a default section template: sections A
-  and B, rows A-D, seats 01-10, geometry coordinates, accessibility flags on
-  edge seats, and a default price. This is transitional behavior until a venue
-  designer exists.
+- Venue creation accepts optional grid section templates. Each template defines
+  section ID, name, row count, seats per row, default price, and whether edge
+  seats are accessible.
+- If no template is supplied, store-backed venue creation creates a default A/B
+  template: rows A-D, seats 01-10, geometry coordinates, accessibility flags on
+  edge seats, and a default price.
+- Venue names are required and capped at 120 characters. City is capped at 80,
+  address at 240, capacity at 250000, and section templates are capped at 8
+  sections, 26 rows, and 50 seats per row.
 - Organizer event create requires an owned venue in store-backed mode.
 - Event create accepts `venue_id`, `name`, `description`, `category`,
   `starts_at`, `sale_starts_at`, `image_key`, and optional `timezone`.

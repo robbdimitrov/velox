@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql/driver"
 	"testing"
 	"time"
 
@@ -124,7 +125,67 @@ func TestCreateVenueCreatesDefaultSeatTemplate(t *testing.T) {
 	mock.ExpectCommit()
 
 	store := &DatabaseStore{db: db}
-	created, err := store.CreateVenue(context.Background(), "usr_organizer", venue)
+	created, err := store.CreateVenue(context.Background(), "usr_organizer", venue, nil)
+	if err != nil {
+		t.Fatalf("CreateVenue: %v", err)
+	}
+	if created.ID != venue.ID {
+		t.Fatalf("created venue = %+v, want %+v", created, venue)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sqlmock expectations: %v", err)
+	}
+}
+
+func TestCreateVenueCreatesCustomSeatTemplate(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer db.Close()
+
+	venue := Venue{
+		ID:       "ven_custom",
+		Name:     "Custom Hall",
+		City:     "Chicago",
+		Address:  "2 Template Way",
+		Capacity: 6,
+	}
+	sections := []VenueSectionTemplate{{
+		SectionID:           "VIP",
+		Name:                "VIP Floor",
+		RowCount:            2,
+		SeatsPerRow:         3,
+		PriceCents:          12500,
+		AccessibleEdgeSeats: true,
+	}}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`INSERT INTO catalog\.venues`).
+		WithArgs(venue.ID, venue.Name, venue.City, venue.Address, venue.Capacity).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`INSERT INTO catalog\.user_venues`).
+		WithArgs("usr_organizer", venue.ID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`(?s)INSERT INTO catalog\.venue_sections`).
+		WithArgs(venue.ID, "VIP", "VIP Floor", 1, 170, 120, 12500).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	for _, args := range [][]driver.Value{
+		{venue.ID, "VIP", "A-01", "A", 1, 44, 42, true},
+		{venue.ID, "VIP", "A-02", "A", 2, 86, 42, false},
+		{venue.ID, "VIP", "A-03", "A", 3, 128, 42, true},
+		{venue.ID, "VIP", "B-01", "B", 1, 44, 84, true},
+		{venue.ID, "VIP", "B-02", "B", 2, 86, 84, false},
+		{venue.ID, "VIP", "B-03", "B", 3, 128, 84, true},
+	} {
+		mock.ExpectExec(`(?s)INSERT INTO catalog\.venue_seats`).
+			WithArgs(args...).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+	}
+	mock.ExpectCommit()
+
+	store := &DatabaseStore{db: db}
+	created, err := store.CreateVenue(context.Background(), "usr_organizer", venue, sections)
 	if err != nil {
 		t.Fatalf("CreateVenue: %v", err)
 	}

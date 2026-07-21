@@ -176,6 +176,91 @@ func TestOrganizerCreateEventRejectsUnknownFields(t *testing.T) {
 	}
 }
 
+func TestOrganizerCreateVenueRejectsUnknownFields(t *testing.T) {
+	server := NewServerWithStore("test", nil, nil)
+	client := newTestClient(server)
+	cookie := client.login(t, "organizer@velox.local", "organizer")
+
+	body, _ := json.Marshal(map[string]any{
+		"name":       "Unknown Field Venue",
+		"city":       "Chicago",
+		"address":    "1 Unknown Way",
+		"capacity":   100,
+		"unexpected": true,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/organizer/venues", bytes.NewReader(body))
+	req.AddCookie(cookie)
+	rr := httptest.NewRecorder()
+	server.Routes().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d body=%s", rr.Code, http.StatusBadRequest, rr.Body.String())
+	}
+}
+
+func TestOrganizerCreateVenueAcceptsSectionTemplates(t *testing.T) {
+	server := NewServerWithStore("test", nil, nil)
+	client := newTestClient(server)
+	cookie := client.login(t, "organizer@velox.local", "organizer")
+
+	body, _ := json.Marshal(map[string]any{
+		"id":       "ven_custom",
+		"name":     "Custom Hall",
+		"city":     "Chicago",
+		"address":  "1 Custom Way",
+		"capacity": 120,
+		"sections": []map[string]any{{
+			"section_id":            "vip",
+			"name":                  "VIP Floor",
+			"row_count":             3,
+			"seats_per_row":         12,
+			"price_cents":           12500,
+			"accessible_edge_seats": true,
+		}},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/organizer/venues", bytes.NewReader(body))
+	req.AddCookie(cookie)
+	rr := httptest.NewRecorder()
+	server.Routes().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d body=%s", rr.Code, http.StatusCreated, rr.Body.String())
+	}
+	var got Venue
+	if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if got.ID != "ven_custom" || got.Name != "Custom Hall" {
+		t.Fatalf("unexpected venue response: %+v", got)
+	}
+}
+
+func TestOrganizerCreateVenueRejectsInvalidSectionTemplate(t *testing.T) {
+	server := NewServerWithStore("test", nil, nil)
+	client := newTestClient(server)
+	cookie := client.login(t, "organizer@velox.local", "organizer")
+
+	body, _ := json.Marshal(map[string]any{
+		"name":     "Bad Template",
+		"city":     "Chicago",
+		"address":  "1 Bad Way",
+		"capacity": 120,
+		"sections": []map[string]any{{
+			"section_id":    "A",
+			"row_count":     27,
+			"seats_per_row": 12,
+		}},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/organizer/venues", bytes.NewReader(body))
+	req.AddCookie(cookie)
+	rr := httptest.NewRecorder()
+	server.Routes().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d body=%s", rr.Code, http.StatusBadRequest, rr.Body.String())
+	}
+}
+
 func TestOrganizerCreateEventReturnsNotFoundForUnownedVenue(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

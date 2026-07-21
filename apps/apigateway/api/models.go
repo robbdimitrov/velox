@@ -62,6 +62,15 @@ type VenueSection struct {
 	PriceCents   int    `json:"price_cents"`
 }
 
+type VenueSectionTemplate struct {
+	SectionID           string `json:"section_id"`
+	Name                string `json:"name"`
+	RowCount            int    `json:"row_count"`
+	SeatsPerRow         int    `json:"seats_per_row"`
+	PriceCents          int    `json:"price_cents"`
+	AccessibleEdgeSeats bool   `json:"accessible_edge_seats"`
+}
+
 type EventSection struct {
 	EventID      string `json:"event_id"`
 	SectionID    string `json:"section_id"`

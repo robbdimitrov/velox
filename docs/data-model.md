@@ -30,8 +30,8 @@ staff reads. Lifecycle: users are not deleted in the current product.
 Fields: `id text primary key`, `name`, `city`, `address`, `capacity`.
 
 Write owner: organizer venue create. Read owner: organizer venue/event flows.
-Current gap: no country or status fields. Store-backed venue creation also
-creates a default A/B section template with 80 seats.
+Current gap: no country or status fields. Store-backed venue creation creates
+either supplied grid section templates or a default A/B template with 80 seats.
 
 ### `catalog.venue_sections`
 
@@ -48,10 +48,10 @@ Fields: `venue_id references catalog.venues(id)`, `section_id`, `seat_id`,
 `row_label`, `seat_number`, `x`, `y`, `accessibility`.
 Primary key: `(venue_id, section_id, seat_id)`.
 
-Write owner: seeds today; future venue template editor. Read owner: event
-creation, which copies seats into inventory streams and projection snapshots.
-The current organizer venue create path generates sections A/B, rows A-D, and
-seats 01-10 per row.
+Write owner: seeds and organizer venue create. Read owner: event creation,
+which copies seats into inventory streams and projection snapshots. The
+organizer venue create path generates seat IDs, row labels, coordinates, and
+accessibility flags from bounded grid templates.
 
 ### `catalog.user_venues`
 

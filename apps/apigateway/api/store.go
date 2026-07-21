@@ -514,7 +514,7 @@ func (s *DatabaseStore) GetUserByID(ctx context.Context, id string) (User, error
 	return u, err
 }
 
-func (s *DatabaseStore) CreateVenue(ctx context.Context, userID string, venue Venue) (Venue, error) {
+func (s *DatabaseStore) CreateVenue(ctx context.Context, userID string, venue Venue, sections []VenueSectionTemplate) (Venue, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Venue{}, err
@@ -537,7 +537,12 @@ func (s *DatabaseStore) CreateVenue(ctx context.Context, userID string, venue Ve
 		return Venue{}, err
 	}
 
-	if err := createDefaultVenueTemplateTx(ctx, tx, venue.ID); err != nil {
+	if len(sections) == 0 {
+		err = createDefaultVenueTemplateTx(ctx, tx, venue.ID)
+	} else {
+		err = createVenueTemplateTx(ctx, tx, venue.ID, sections)
+	}
+	if err != nil {
 		return Venue{}, err
 	}
 
@@ -545,6 +550,56 @@ func (s *DatabaseStore) CreateVenue(ctx context.Context, userID string, venue Ve
 		return Venue{}, err
 	}
 	return venue, nil
+}
+
+func createVenueTemplateTx(ctx context.Context, tx *sql.Tx, venueID string, sections []VenueSectionTemplate) error {
+	for i, section := range sections {
+		width := 44 + section.SeatsPerRow*42
+		height := 36 + section.RowCount*42
+		_, err := tx.ExecContext(ctx, `
+			INSERT INTO catalog.venue_sections (
+				venue_id, section_id, name, display_order, width, height,
+				default_price_amount_minor
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			ON CONFLICT (venue_id, section_id) DO UPDATE SET
+				name = EXCLUDED.name,
+				display_order = EXCLUDED.display_order,
+				width = EXCLUDED.width,
+				height = EXCLUDED.height,
+				default_price_amount_minor = EXCLUDED.default_price_amount_minor
+		`, venueID, section.SectionID, section.Name, i+1, width, height, section.PriceCents)
+		if err != nil {
+			return err
+		}
+
+		for rowIndex := 0; rowIndex < section.RowCount; rowIndex++ {
+			rowLabel := string(rune('A' + rowIndex))
+			for seatNumber := 1; seatNumber <= section.SeatsPerRow; seatNumber++ {
+				seatID := fmt.Sprintf("%s-%02d", rowLabel, seatNumber)
+				x := 44 + (seatNumber-1)*42
+				y := 42 + rowIndex*42
+				accessible := section.AccessibleEdgeSeats && (seatNumber == 1 || seatNumber == section.SeatsPerRow)
+				_, err := tx.ExecContext(ctx, `
+					INSERT INTO catalog.venue_seats (
+						venue_id, section_id, seat_id, row_label, seat_number, x, y,
+						accessibility
+					)
+					VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+					ON CONFLICT (venue_id, section_id, seat_id) DO UPDATE SET
+						row_label = EXCLUDED.row_label,
+						seat_number = EXCLUDED.seat_number,
+						x = EXCLUDED.x,
+						y = EXCLUDED.y,
+						accessibility = EXCLUDED.accessibility
+				`, venueID, section.SectionID, seatID, rowLabel, seatNumber, x, y, accessible)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func createDefaultVenueTemplateTx(ctx context.Context, tx *sql.Tx, venueID string) error {

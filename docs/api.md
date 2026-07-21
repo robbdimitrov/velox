@@ -381,16 +381,36 @@ Compatibility alias: `GET /api/organizer/venues`.
 
 ### `POST /organizer/venues`
 
-Requires organizer role. Current loose body:
+Requires organizer role and strict JSON. Request:
 
 ```json
-{"id":"ven_optional","name":"Velox Arena","city":"Chicago","address":"100 Arena Way","capacity":10000}
+{
+  "id": "ven_optional",
+  "name": "Velox Arena",
+  "city": "Chicago",
+  "address": "100 Arena Way",
+  "capacity": 10000,
+  "sections": [
+    {
+      "section_id": "A",
+      "name": "Main Floor",
+      "row_count": 4,
+      "seats_per_row": 10,
+      "price_cents": 8500,
+      "accessible_edge_seats": true
+    }
+  ]
+}
 ```
 
 Store-backed mode inserts `catalog.venues` and owner row in
-`catalog.user_venues`, then creates a default A/B section template with 80
-seats total. The default template is transitional behavior until the organizer
-venue designer exists.
+`catalog.user_venues`, then creates section templates and generated venue seats
+in the same transaction. If `sections` is omitted, the gateway creates the
+default A/B template with 80 seats total.
+
+Validation: name, city, address, and positive capacity are required. At most 8
+sections are accepted. Each section requires a unique `section_id`, 1 to 26
+rows, 1 to 50 seats per row, and non-negative `price_cents`.
 
 Compatibility alias: `POST /api/organizer/venues`.
 
