@@ -198,6 +198,9 @@ func (s *DatabaseStore) GetWalletTickets(ctx context.Context, userID string) ([]
 			return nil, err
 		}
 		t.TransferStatus = "AVAILABLE"
+		if t.Status == "CANCELLED" {
+			t.TransferStatus = "LOCKED"
+		}
 		tickets = append(tickets, t)
 	}
 	if err := rows.Err(); err != nil {

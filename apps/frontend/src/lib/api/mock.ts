@@ -111,6 +111,8 @@ export const mockWallet: WalletResponse = {
   tickets: [
     {
       ticket_id: 'velox_8831',
+      event_id: 'evt_mock_midnight',
+      section_id: 'A',
       event: 'Midnight Array',
       venue: 'North Pier Hall',
       seat: 'A-4-12',

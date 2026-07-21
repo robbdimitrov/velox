@@ -102,6 +102,110 @@ func TestApplyEvent_SeatReservationCancelled_NoIssuedTicket_NoError(t *testing.T
 	}
 }
 
+func TestIssueOrBufferWalletTicketIssuesWhenOrderProjected(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to open sqlmock db: %v", err)
+	}
+	defer db.Close()
+	mock.ExpectBegin()
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("BeginTx: %v", err)
+	}
+	defer tx.Rollback()
+
+	event := Event{
+		EventID:          "6f6d0b8e-2b3d-4b7e-9b8b-2b1e9b8b2b33",
+		CorrelationID:    "6f6d0b8e-2b3d-4b7e-9b8b-2b1e9b8b2b44",
+		AggregateVersion: 2,
+		Seat:             Seat{EventID: "evt_1", SectionID: "A", SeatID: "A-01"},
+	}
+
+	mock.ExpectQuery("SELECT user_id FROM projection.order_summaries").
+		WithArgs(event.CorrelationID).
+		WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow("usr_1"))
+	mock.ExpectExec("INSERT INTO projection.wallet_tickets").
+		WithArgs(event.EventID, "usr_1", event.CorrelationID, event.Seat.EventID, event.Seat.SectionID, event.Seat.SeatID, "ISSUED", event.AggregateVersion).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	if err := issueOrBufferWalletTicket(context.Background(), tx, event); err != nil {
+		t.Fatalf("issueOrBufferWalletTicket: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
+func TestIssueOrBufferWalletTicketBuffersWhenOrderMissing(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to open sqlmock db: %v", err)
+	}
+	defer db.Close()
+	mock.ExpectBegin()
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("BeginTx: %v", err)
+	}
+	defer tx.Rollback()
+
+	event := Event{
+		EventID:          "6f6d0b8e-2b3d-4b7e-9b8b-2b1e9b8b2b55",
+		CorrelationID:    "6f6d0b8e-2b3d-4b7e-9b8b-2b1e9b8b2b66",
+		AggregateVersion: 2,
+		Seat:             Seat{EventID: "evt_1", SectionID: "A", SeatID: "A-02"},
+	}
+
+	mock.ExpectQuery("SELECT user_id FROM projection.order_summaries").
+		WithArgs(event.CorrelationID).
+		WillReturnRows(sqlmock.NewRows([]string{"user_id"}))
+	mock.ExpectExec("INSERT INTO projection.pending_wallet_ticket_events").
+		WithArgs(event.EventID, event.CorrelationID, event.Seat.EventID, event.Seat.SectionID, event.Seat.SeatID, event.AggregateVersion).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	if err := issueOrBufferWalletTicket(context.Background(), tx, event); err != nil {
+		t.Fatalf("issueOrBufferWalletTicket: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
+func TestIssuePendingWalletTicketsForOrderCreatesCancelledTicket(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to open sqlmock db: %v", err)
+	}
+	defer db.Close()
+	mock.ExpectBegin()
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("BeginTx: %v", err)
+	}
+	defer tx.Rollback()
+
+	orderID := "6f6d0b8e-2b3d-4b7e-9b8b-2b1e9b8b2b77"
+	mock.ExpectQuery("SELECT p.ticket_id, p.event_id, p.section_id, p.seat_id").
+		WithArgs(orderID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"ticket_id", "event_id", "section_id", "seat_id", "aggregate_version", "user_id", "status",
+		}).AddRow("tkt_1", "evt_1", "A", "A-03", int64(4), "usr_1", "CANCELLED"))
+	mock.ExpectExec("INSERT INTO projection.wallet_tickets").
+		WithArgs("tkt_1", "usr_1", orderID, "evt_1", "A", "A-03", "CANCELLED", int64(4)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("DELETE FROM projection.pending_wallet_ticket_events").
+		WithArgs("tkt_1").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	if err := issuePendingWalletTicketsForOrder(context.Background(), tx, orderID); err != nil {
+		t.Fatalf("issuePendingWalletTicketsForOrder: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
 // TestApplyEvent_SkipsNonUUIDEventID keeps malformed event IDs from
 // crash-looping the UUID-typed processed_events dedup insert.
 func TestApplyEvent_SkipsNonUUIDEventID(t *testing.T) {

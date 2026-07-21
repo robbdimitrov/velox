@@ -277,7 +277,8 @@ Requires auth and ownership. Returns `{"order":...}` or `404`.
 ### `GET /wallet/tickets`
 
 Requires auth. Store-backed mode reads projection tickets and mints short-lived
-QR tokens.
+QR tokens. QR token claims include ticket ID, user ID, event ID, purpose
+`qr_ticket`, and expiry.
 
 ```json
 {"verification_state":"VERIFIED","tickets":[{"ticket_id":"...","status":"ISSUED","qr_token":"..."}]}

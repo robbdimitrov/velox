@@ -225,19 +225,24 @@ Fields: `ticket_id primary key`, `user_id`, `order_id`, `event_id`,
 Index: `(user_id, updated_at desc)`. Status includes `ISSUED`, `TRANSFERRED`,
 `USED`, `UPGRADED`, `CANCELLED`.
 
-Write owner: viewservice from confirmed inventory events. Current gap:
-out-of-order confirmation before order summary can skip issuance. Phase 4 must
-add a durable pending-ticket/reconciliation table or equivalent retry source.
+Write owner: viewservice from confirmed inventory events. If order projection
+lags, viewservice buffers the confirmation in
+`projection.pending_wallet_ticket_events` and drains it when the order summary
+arrives.
 
-## Planned Reconciliation Tables
+### `projection.pending_wallet_ticket_events`
 
-No retry, pending-ticket, or projection-repair table exists yet. Phase 4 must
-choose one of:
+Fields: `ticket_id primary key`, `order_id`, `event_id`, `section_id`,
+`seat_id`, `aggregate_version`, `created_at`.
 
-- `projection.pending_ticket_events`, keyed by inventory event ID and order ID;
-- command-side ticket ID ownership in `orders` with projection-only display;
-- a bounded reconciliation worker that can rebuild missing wallet tickets from
-durable inventory and order state.
+Index: `(order_id, created_at)`. `order_id` is the seat event correlation ID
+and references the eventual order summary by value; no foreign key is used
+because the row exists specifically while `projection.order_summaries` may be
+missing.
 
-The chosen table or ownership boundary must be added here with constraints and
-indexes before implementation.
+Write owner: viewservice. Lifecycle: inserted when
+`SeatReservationConfirmed` is processed before the matching order summary;
+deleted only after the corresponding wallet ticket row is inserted or updated.
+If the seat is cancelled before the order summary arrives, drain creates a
+`CANCELLED` wallet ticket so the buyer sees the lifecycle instead of a missing
+ticket.

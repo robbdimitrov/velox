@@ -26,7 +26,7 @@ func (s *Server) handleWalletTickets(w http.ResponseWriter, r *http.Request, use
 	}
 
 	for i := range tickets {
-		token, expiresAt, err := s.signQRToken(tickets[i].TicketID)
+		token, expiresAt, err := s.signQRToken(tickets[i], user)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "internal_error")
 			return
@@ -43,10 +43,12 @@ func (s *Server) handleWalletTickets(w http.ResponseWriter, r *http.Request, use
 
 // signQRToken mints a short-lived, purpose-scoped ticket token and returns the
 // exact expiry embedded in it.
-func (s *Server) signQRToken(ticketID string) (string, time.Time, error) {
+func (s *Server) signQRToken(ticket WalletTicket, user User) (string, time.Time, error) {
 	expiresAt := s.now().Add(qrTokenTTL)
 	token, err := signHMAC(s.secret, map[string]any{
-		"ticket_id": ticketID,
+		"ticket_id": ticket.TicketID,
+		"user_id":   user.ID,
+		"event_id":  ticket.EventID,
 		"purpose":   "qr_ticket",
 		"exp":       expiresAt.Unix(),
 	})

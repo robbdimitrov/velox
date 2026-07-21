@@ -130,7 +130,7 @@ func (s *DatabaseStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 		}
 
 		if event.Type == "SeatReservationConfirmed" {
-			if err := issueWalletTicket(ctx, tx, event); err != nil {
+			if err := issueOrBufferWalletTicket(ctx, tx, event); err != nil {
 				return err
 			}
 		}
@@ -185,6 +185,9 @@ func (s *DatabaseStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 		if err != nil {
 			return err
 		}
+		if err := issuePendingWalletTicketsForOrder(ctx, tx, event.Order.OrderID); err != nil {
+			return err
+		}
 
 		if event.Order.EventID != "" {
 			organizerNotificationPayload, err := json.Marshal(map[string]any{
@@ -201,26 +204,100 @@ func (s *DatabaseStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 	return tx.Commit()
 }
 
-// issueWalletTicket resolves the owner from the order projection, then creates
-// a wallet ticket. If the order projection lags, ticket issuance is skipped.
-func issueWalletTicket(ctx context.Context, tx *sql.Tx, event Event) error {
+// issueOrBufferWalletTicket resolves the owner from the order projection, then
+// creates a wallet ticket. If the order projection lags, the confirmation is
+// buffered in the same transaction and drained when the order arrives.
+func issueOrBufferWalletTicket(ctx context.Context, tx *sql.Tx, event Event) error {
 	if event.CorrelationID == "" {
 		return nil
 	}
 	var userID string
 	err := tx.QueryRowContext(ctx, "SELECT user_id FROM projection.order_summaries WHERE order_id = $1", event.CorrelationID).Scan(&userID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO projection.pending_wallet_ticket_events (
+				ticket_id, order_id, event_id, section_id, seat_id, aggregate_version
+			)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			ON CONFLICT (ticket_id) DO UPDATE SET
+				order_id = EXCLUDED.order_id,
+				event_id = EXCLUDED.event_id,
+				section_id = EXCLUDED.section_id,
+				seat_id = EXCLUDED.seat_id,
+				aggregate_version = EXCLUDED.aggregate_version
+		`, event.EventID, event.CorrelationID, event.Seat.EventID, event.Seat.SectionID, event.Seat.SeatID, event.AggregateVersion)
+		return err
 	}
 	if err != nil {
 		return err
 	}
 
-	_, err = tx.ExecContext(ctx, `
+	return insertWalletTicket(ctx, tx, event.EventID, userID, event.CorrelationID, event.Seat.EventID, event.Seat.SectionID, event.Seat.SeatID, "ISSUED", event.AggregateVersion)
+}
+
+func issuePendingWalletTicketsForOrder(ctx context.Context, tx *sql.Tx, orderID string) error {
+	if orderID == "" {
+		return nil
+	}
+	rows, err := tx.QueryContext(ctx, `
+		SELECT p.ticket_id, p.event_id, p.section_id, p.seat_id, p.aggregate_version,
+			os.user_id, COALESCE(ss.status, 'SOLD')
+		FROM projection.pending_wallet_ticket_events p
+		JOIN projection.order_summaries os ON os.order_id = p.order_id
+		LEFT JOIN projection.seat_snapshots ss
+			ON ss.event_id = p.event_id AND ss.section_id = p.section_id AND ss.seat_id = p.seat_id
+		WHERE p.order_id = $1
+		ORDER BY p.created_at, p.ticket_id
+	`, orderID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	type pendingTicket struct {
+		ticketID         string
+		eventID          string
+		sectionID        string
+		seatID           string
+		userID           string
+		seatStatus       string
+		aggregateVersion int64
+	}
+	var pending []pendingTicket
+	for rows.Next() {
+		var ticket pendingTicket
+		if err := rows.Scan(&ticket.ticketID, &ticket.eventID, &ticket.sectionID, &ticket.seatID, &ticket.aggregateVersion, &ticket.userID, &ticket.seatStatus); err != nil {
+			return err
+		}
+		pending = append(pending, ticket)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for _, ticket := range pending {
+		status := "ISSUED"
+		if ticket.seatStatus == "CANCELLED" {
+			status = "CANCELLED"
+		}
+		if err := insertWalletTicket(ctx, tx, ticket.ticketID, ticket.userID, orderID, ticket.eventID, ticket.sectionID, ticket.seatID, status, ticket.aggregateVersion); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM projection.pending_wallet_ticket_events WHERE ticket_id = $1", ticket.ticketID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func insertWalletTicket(ctx context.Context, tx *sql.Tx, ticketID, userID, orderID, eventID, sectionID, seatID, status string, aggregateVersion int64) error {
+	_, err := tx.ExecContext(ctx, `
 		INSERT INTO projection.wallet_tickets (ticket_id, user_id, order_id, event_id, section_id, seat_id, status, aggregate_version)
-		VALUES ($1, $2, $3, $4, $5, $6, 'ISSUED', $7)
-		ON CONFLICT (ticket_id) DO NOTHING
-	`, event.EventID, userID, event.CorrelationID, event.Seat.EventID, event.Seat.SectionID, event.Seat.SeatID, event.AggregateVersion)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		ON CONFLICT (ticket_id) DO UPDATE SET
+			status = EXCLUDED.status,
+			updated_at = now()
+	`, ticketID, userID, orderID, eventID, sectionID, seatID, status, aggregateVersion)
 	return err
 }
 

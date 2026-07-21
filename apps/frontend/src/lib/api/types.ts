@@ -106,6 +106,8 @@ export type CheckoutResponse = {
 
 export type WalletTicket = {
   ticket_id: string;
+  event_id: string;
+  section_id: string;
   event: string;
   venue: string;
   seat: string;

@@ -130,14 +130,12 @@ cancel `CONFIRMED` orders because the event itself is no longer valid.
 
 - Wallet reads projection tickets only.
 - QR tokens are short-lived HMAC tokens minted by the gateway.
-- QR token TTL is currently 90 seconds.
+- QR token TTL is currently 90 seconds. Claims include ticket ID, user ID,
+  event ID, purpose, and expiry.
 - Ticket ledger rows come from inventory events and include event type,
   timestamp, actor, and correlation ID.
 - Transfer/use/upgrade actions are not implemented; active controls must be
   absent or disabled.
-
-Current QR gap: token claims include ticket ID, purpose, and expiry. Phase 4
-must add user ID and event ID claims before scanner-like validation exists.
 
 ## Projection Lag
 

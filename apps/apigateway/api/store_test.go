@@ -202,6 +202,38 @@ func TestGetTicketLedgerQueriesByStreamKeyNotCorrelationID(t *testing.T) {
 	}
 }
 
+func TestGetWalletTicketsLocksCancelledTransferState(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer db.Close()
+
+	mock.ExpectQuery(`(?s)SELECT wt\.ticket_id, wt\.order_id::text, wt\.event_id, wt\.section_id, wt\.seat_id, wt\.status,.*FROM projection\.wallet_tickets wt`).
+		WithArgs("usr_1").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"ticket_id", "order_id", "event_id", "section_id", "seat_id", "status", "event", "venue",
+		}).AddRow("tkt_1", "ord_1", "evt_1", "A", "A-01", "CANCELLED", "Event", "Venue"))
+	mock.ExpectQuery(`SELECT event_type, occurred_at, correlation_id\s+FROM inventory\.events\s+WHERE stream_key = \$1\s+ORDER BY aggregate_version ASC`).
+		WithArgs("seat:evt_1:A:A-01").
+		WillReturnRows(sqlmock.NewRows([]string{"event_type", "occurred_at", "correlation_id"}))
+
+	store := &DatabaseStore{db: db}
+	tickets, err := store.GetWalletTickets(context.Background(), "usr_1")
+	if err != nil {
+		t.Fatalf("GetWalletTickets: %v", err)
+	}
+	if len(tickets) != 1 {
+		t.Fatalf("len(tickets) = %d, want 1", len(tickets))
+	}
+	if tickets[0].TransferStatus != "LOCKED" {
+		t.Fatalf("transfer_status = %q, want LOCKED", tickets[0].TransferStatus)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sqlmock expectations: %v", err)
+	}
+}
+
 // TestGetEventVenueIDReturnsVenueWithoutInventoryQuery keeps ownership checks
 // from paying for unrelated inventory aggregation.
 func TestGetEventVenueIDReturnsVenueWithoutInventoryQuery(t *testing.T) {
