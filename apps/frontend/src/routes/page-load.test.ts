@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { mockDiscovery } from '$lib/api/mock';
 import { load } from './+page';
 
 describe('discovery page load', () => {
-  it('uses mock discovery data when the gateway proxy is unavailable', async () => {
+  it('surfaces degraded discovery state when the gateway proxy is unavailable', async () => {
     const fetcher = async () => new Response('Gateway error', { status: 502 });
 
     const result = await load(
@@ -11,7 +10,9 @@ describe('discovery page load', () => {
     );
     if (!result) throw new Error('expected discovery load result');
 
-    expect(result.discovery).toBe(mockDiscovery);
+    expect(result.discovery.events).toEqual([]);
+    expect(result.discovery.meta.cache_status).toBe('unavailable');
+    expect(result.loadError).toContain('Discovery unavailable');
     expect(result.tickerURL).toContain('city=all');
   });
 

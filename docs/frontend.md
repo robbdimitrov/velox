@@ -173,9 +173,8 @@ Rules:
   server time offset, but backend expiry is authoritative.
 - On `SeatReservationExpired`, immediately clear checkout state and return the
   user to the seat map.
-- Current implementation still maps the reservation token from the reservation
-  ID. Phase 3 must replace that with a signed backend token before checkout is
-  considered showcase-complete.
+- Checkout state stores the signed backend reservation token returned by the
+  gateway; the frontend never derives it from the reservation ID.
 
 ## Secure Ticket Wallet and History Ledger
 
