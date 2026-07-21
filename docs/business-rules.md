@@ -26,7 +26,8 @@ Current gap: password length and complexity bounds are not enforced yet.
 - Organizer event actions require ownership through the event venue.
 - Venue ownership is represented by `catalog.user_venues`.
 - Staff listing reads `catalog.user_venues`. Staff assignment is not
-  implemented, so invite controls must not imply persistence.
+  implemented, so the showcase UI exposes read-only venue access and no active
+  invite or assignment controls.
 
 ## Venue And Event Rules
 

@@ -425,8 +425,8 @@ Compatibility alias: `GET /api/organizer/venues/{id}/staff`.
 
 ### `POST /organizer/venues/{venueId}/staff`
 
-Planned, not implemented. Until staff assignment is real, active staff invite
-controls must not claim that membership changes persist.
+Planned, not implemented. The showcase UI exposes only the read-only access
+list until staff assignment persists.
 
 ## Internal Orderservice Routes
 
