@@ -80,6 +80,12 @@ func main() {
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "degraded", "database": "unavailable"})
 			return
 		}
+		if err := cl.Ping(pingCtx); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "degraded", "broker": "unavailable"})
+			return
+		}
+		pipelineHealth.MarkRecovered("outbox", "consumer")
 		if err := pipelineHealth.Err(); err != nil {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "degraded", "pipelines": pipelineHealth.Snapshot()})

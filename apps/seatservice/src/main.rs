@@ -1,5 +1,5 @@
 use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
-use rdkafka::producer::FutureProducer;
+use rdkafka::producer::{FutureProducer, Producer};
 use rdkafka::ClientConfig;
 use seatservice::db_client::DbClient;
 use seatservice::processor::MessageMeta;
@@ -57,6 +57,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let probe_pool = pool.clone();
     let probe_broker_errors = broker_errors.clone();
     let probe_broker_first_error = broker_first_error.clone();
+    let probe_producer = producer.clone();
     tokio::spawn(async move {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
         use tokio::net::TcpListener;
@@ -86,7 +87,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         )
                         .await
                         .is_ok_and(|result| result.is_ok());
-                        db_ready && !broker_degraded(
+                        let broker_ready = probe_producer
+                            .client()
+                            .fetch_metadata(None, Duration::from_secs(2))
+                            .is_ok();
+                        if broker_ready {
+                            note_broker_success(&probe_broker_errors, &probe_broker_first_error);
+                        }
+                        db_ready && broker_ready && !broker_degraded(
                             &probe_broker_errors,
                             &probe_broker_first_error,
                         )

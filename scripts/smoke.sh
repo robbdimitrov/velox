@@ -93,7 +93,23 @@ if [[ -z "$reservation_token" || "$reservation_token" == "null" || "$reservation
   exit 1
 fi
 
-request GET "/orders/${order_id}" "$BUYER_COOKIES" >/dev/null
+printf 'waiting for hold on order %s\n' "$order_id"
+order_status=""
+attempt=0
+while [[ "$attempt" -lt 45 ]]; do
+  attempt=$((attempt + 1))
+  order_json="$(request GET "/orders/${order_id}" "$BUYER_COOKIES")"
+  order_status="$(jq -r '.order.status' <<<"$order_json")"
+  if [[ "$order_status" == "HELD" || "$order_status" == "CONFIRMED" ]]; then
+    break
+  fi
+  sleep 1
+done
+if [[ "$order_status" != "HELD" && "$order_status" != "CONFIRMED" ]]; then
+  printf 'order %s did not become HELD; last status=%s\n' "$order_id" "$order_status" >&2
+  exit 1
+fi
+
 confirm_out="${TMP_DIR}/confirm.json"
 confirm_code="$(curl -sS -o "$confirm_out" -w '%{http_code}' -X POST \
   -H "Origin: ${BASE_URL}" \

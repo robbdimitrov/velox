@@ -43,6 +43,12 @@ Manifests live in `deploy/` and create:
 - service Deployments for `frontend`, `apigateway`, `orderservice`,
   `seatservice`, and `viewservice`.
 
+The checked-in local manifests run one replica of each application deployment
+with no rolling-update surge so the full stack fits a single-node Colima or
+k3s cluster. Infrastructure requests are likewise sized for local scheduling
+while keeping memory limits explicit. Scale replicas and requests explicitly on
+larger clusters.
+
 No manifest sets its own namespace. `scripts/deploy.sh` creates the namespace
 named by `NS` (default `velox`) and applies every manifest into it with
 `kubectl apply -n`. Inter-service addresses use unqualified Service names
@@ -68,7 +74,7 @@ make deploy
 
 The deploy script uses `kubectl` by default, builds service images through
 `make`, applies manifests to the current Kubernetes context, waits for staged
-rollouts, and starts a frontend port-forward:
+rollouts, and starts a frontend port-forward after verifying its health:
 
 - frontend: `http://localhost:8085` by default, configurable with
   `LOCAL_FRONTEND_PORT`
@@ -86,10 +92,14 @@ own build context, so unchanged services keep stable image tags and avoid
 unnecessary rollouts. Set `GIT_SHA` to force one shared tag for every image, or
 set `APIGATEWAY_IMAGE_TAG`, `ORDERSERVICE_IMAGE_TAG`, `SEATSERVICE_IMAGE_TAG`,
 `VIEWSERVICE_IMAGE_TAG`, `FRONTEND_IMAGE_TAG`, or `DATABASE_IMAGE_TAG` for
-per-image overrides. Images are pushed to
-`IMAGE_PREFIX-<service>:<tag>`; when a `velox-control-plane` kind node is
-running, `scripts/deploy.sh` also loads the built images directly into it. Full
-`kind` cluster creation is still follow-up automation work.
+per-image overrides. `scripts/deploy.sh` defaults `IMAGE_DELIVERY=auto`: local
+kind and Colima-style contexts build images into the local runtime without
+requiring a registry, while other contexts push images to
+`IMAGE_PREFIX-<service>:<tag>`. Set `IMAGE_DELIVERY=push` to force registry
+delivery or `IMAGE_DELIVERY=local` to skip pushes for another local runtime.
+When a `velox-control-plane` kind node is running, the script also loads the
+built images directly into it. Full `kind` cluster creation is still follow-up
+automation work.
 
 Deploys apply base manifests first, then infrastructure, provision Kafka topics,
 and finally apply app services. Workloads are annotated with checksums for the
@@ -101,5 +111,5 @@ committed lockfile in the builder stage and copy only the adapter-node build
 output into the Node runner image. Local Rust builds share a repository-level
 Cargo `target/` directory so repeated `seatservice` checks reuse artifacts
 instead of rebuilding under `apps/seatservice/target`. Seatservice Docker
-builds use Alpine's `librdkafka` and a cached dependency layer; local Cargo
-defaults keep bundled Kafka C sources so tests do not need system packages.
+builds use the same bundled Kafka C sources as local Cargo builds, avoiding
+host or Alpine `librdkafka` version drift.

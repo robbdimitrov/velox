@@ -59,6 +59,14 @@ func (h *consumerHealth) markError(err error) {
 	h.errorCount++
 }
 
+func (h *consumerHealth) markRecovered() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.firstErrorAt = time.Time{}
+	h.consecutiveErrors = 0
+	h.lastError = ""
+}
+
 func (h *consumerHealth) snapshot() consumerHealthSnapshot {
 	h.mu.RLock()
 	defer h.mu.RUnlock()

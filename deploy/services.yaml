@@ -18,7 +18,12 @@ metadata:
     app.kubernetes.io/name: apigateway
     app.kubernetes.io/part-of: velox
 spec:
-  replicas: 2
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: apigateway
@@ -120,7 +125,12 @@ metadata:
     app.kubernetes.io/name: orderservice
     app.kubernetes.io/part-of: velox
 spec:
-  replicas: 2
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: orderservice
@@ -210,7 +220,12 @@ metadata:
     app.kubernetes.io/name: seatservice
     app.kubernetes.io/part-of: velox
 spec:
-  replicas: 2
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: seatservice
@@ -305,7 +320,12 @@ metadata:
     app.kubernetes.io/name: viewservice
     app.kubernetes.io/part-of: velox
 spec:
-  replicas: 2
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: viewservice
@@ -396,6 +416,11 @@ metadata:
     app.kubernetes.io/part-of: velox
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: frontend

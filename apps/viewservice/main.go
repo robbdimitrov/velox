@@ -91,6 +91,12 @@ func main() {
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "degraded", "database": "unavailable"})
 			return
 		}
+		if err := cl.Ping(pingCtx); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "degraded", "broker": "unavailable"})
+			return
+		}
+		consumerHealth.markRecovered()
 		if err := consumerHealth.err(); err != nil {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "degraded", "consumer": consumerHealth.snapshot()})

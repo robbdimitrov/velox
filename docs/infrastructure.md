@@ -208,6 +208,9 @@ Consumer and relay readiness uses a sustained-failure policy. A transient poll
 or publish error is recorded, but `/readyz` fails only after five consecutive
 errors or after the first unrecovered error remains present for 30 seconds.
 Successful progress clears the error streak and the failure window.
+Readiness probes also actively revalidate database and broker connectivity so
+idle consumers recover after dependency restarts without waiting for a new
+message.
 `orderservice` and `viewservice` expose the same pipeline and consumer health as
 Prometheus text metrics on `/metrics`, including consecutive errors, unhealthy
 state, and age since last success or first unrecovered error. Metrics include
@@ -228,7 +231,12 @@ Pods run as a non-root UID matching the container image's native user
 (`65532` for the Go/Rust services, `1000` for `frontend`, `70` for
 `database`, `999` for `cache`, `101` for `broker` and
 `broker-topics-init`), drop all Linux capabilities, and deny privilege
-escalation.
+escalation. The database StatefulSet has a narrow root init container with only
+`CHOWN` and `FOWNER` so local-path PVCs are owned by UID 70 before PostgreSQL
+starts.
+
+Dragonfly runs with one proactor thread and an explicit maxmemory below its pod
+limit so its startup sizing check fits the local showcase resource budget.
 
 `readOnlyRootFilesystem` is enabled everywhere except:
 

@@ -239,6 +239,9 @@ Requires auth, `Idempotency-Key`, and `Reservation-Token`. The gateway verifies
 the token signature, purpose, issuer, audience, reservation ID, order ID, user
 ID, and expiry before proxying to orderservice. The gateway also verifies order
 ownership by resolving `reservationId -> orderId`.
+Confirm is valid only after the asynchronous inventory pipeline marks the order
+`HELD`; clients should poll `GET /orders/{orderId}` or consume live state before
+submitting confirm.
 
 Response:
 

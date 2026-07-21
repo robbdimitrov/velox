@@ -3,6 +3,7 @@
 KUBECTL ?= kubectl
 IMAGE_PREFIX ?= localhost:5000/velox
 GIT_SHA ?= $(shell git rev-parse --short HEAD)
+PUSH_IMAGES ?= 1
 
 .PHONY: all
 all: apigateway orderservice seatservice viewservice frontend database
@@ -89,32 +90,32 @@ build:
 .PHONY: frontend
 frontend:
 	DOCKER_BUILDKIT=1 docker build -t $(IMAGE_PREFIX)-frontend:$(GIT_SHA) apps/frontend
-	docker push $(IMAGE_PREFIX)-frontend:$(GIT_SHA)
+	@if [ "$(PUSH_IMAGES)" = "1" ]; then docker push $(IMAGE_PREFIX)-frontend:$(GIT_SHA); else printf 'skipping push for %s\n' "$(IMAGE_PREFIX)-frontend:$(GIT_SHA)"; fi
 
 .PHONY: database
 database:
 	docker build -t $(IMAGE_PREFIX)-database:$(GIT_SHA) apps/database
-	docker push $(IMAGE_PREFIX)-database:$(GIT_SHA)
+	@if [ "$(PUSH_IMAGES)" = "1" ]; then docker push $(IMAGE_PREFIX)-database:$(GIT_SHA); else printf 'skipping push for %s\n' "$(IMAGE_PREFIX)-database:$(GIT_SHA)"; fi
 
 .PHONY: apigateway
 apigateway:
 	docker build -t $(IMAGE_PREFIX)-apigateway:$(GIT_SHA) apps/apigateway
-	docker push $(IMAGE_PREFIX)-apigateway:$(GIT_SHA)
+	@if [ "$(PUSH_IMAGES)" = "1" ]; then docker push $(IMAGE_PREFIX)-apigateway:$(GIT_SHA); else printf 'skipping push for %s\n' "$(IMAGE_PREFIX)-apigateway:$(GIT_SHA)"; fi
 
 .PHONY: orderservice
 orderservice:
 	docker build -t $(IMAGE_PREFIX)-orderservice:$(GIT_SHA) apps/orderservice
-	docker push $(IMAGE_PREFIX)-orderservice:$(GIT_SHA)
+	@if [ "$(PUSH_IMAGES)" = "1" ]; then docker push $(IMAGE_PREFIX)-orderservice:$(GIT_SHA); else printf 'skipping push for %s\n' "$(IMAGE_PREFIX)-orderservice:$(GIT_SHA)"; fi
 
 .PHONY: seatservice
 seatservice:
 	docker build -t $(IMAGE_PREFIX)-seatservice:$(GIT_SHA) apps/seatservice
-	docker push $(IMAGE_PREFIX)-seatservice:$(GIT_SHA)
+	@if [ "$(PUSH_IMAGES)" = "1" ]; then docker push $(IMAGE_PREFIX)-seatservice:$(GIT_SHA); else printf 'skipping push for %s\n' "$(IMAGE_PREFIX)-seatservice:$(GIT_SHA)"; fi
 
 .PHONY: viewservice
 viewservice:
 	docker build -t $(IMAGE_PREFIX)-viewservice:$(GIT_SHA) apps/viewservice
-	docker push $(IMAGE_PREFIX)-viewservice:$(GIT_SHA)
+	@if [ "$(PUSH_IMAGES)" = "1" ]; then docker push $(IMAGE_PREFIX)-viewservice:$(GIT_SHA); else printf 'skipping push for %s\n' "$(IMAGE_PREFIX)-viewservice:$(GIT_SHA)"; fi
 
 .PHONY: deploy-dry-run
 deploy-dry-run:

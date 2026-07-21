@@ -6,6 +6,7 @@ DEPLOY_DIR="${ROOT_DIR}/deploy"
 NS="${NS:-velox}"
 KUBECTL="${KUBECTL:-kubectl}"
 IMAGE_PREFIX="${IMAGE_PREFIX:-localhost:5000/velox}"
+IMAGE_DELIVERY="${IMAGE_DELIVERY:-auto}"
 GIT_SHA="${GIT_SHA:-}"
 APIGATEWAY_IMAGE_TAG="${APIGATEWAY_IMAGE_TAG:-}"
 ORDERSERVICE_IMAGE_TAG="${ORDERSERVICE_IMAGE_TAG:-}"
@@ -39,6 +40,7 @@ Usage: $0 [--dry-run] [--skip-build]
 Environment:
   NS=${NS}
   IMAGE_PREFIX=${IMAGE_PREFIX}
+  IMAGE_DELIVERY=${IMAGE_DELIVERY}
   GIT_SHA=${GIT_SHA:-<optional all-image tag override>}
   APIGATEWAY_IMAGE_TAG=${APIGATEWAY_IMAGE_TAG:-<content checksum>}
   ORDERSERVICE_IMAGE_TAG=${ORDERSERVICE_IMAGE_TAG:-<content checksum>}
@@ -92,6 +94,7 @@ random_secret() {
 require_tools() {
   $KUBECTL version --client >/dev/null 2>&1 || die "kubectl is not available through: ${KUBECTL}"
   command -v openssl >/dev/null || die "missing required tool: openssl"
+  command -v curl >/dev/null || die "missing required tool: curl"
   if [[ -n "$SKIP_BUILD" || -n "$DRY_RUN" ]]; then
     return
   fi
@@ -104,7 +107,7 @@ require_tools() {
 load_images_into_kind() {
   local node="velox-control-plane"
   local image
-  docker container inspect --format '{{.State.Running}}' "$node" 2>/dev/null | grep -qx true || return
+  docker container inspect --format '{{.State.Running}}' "$node" 2>/dev/null | grep -qx true || return 0
   log "loading images into kind node"
   for image in \
     "${IMAGE_PREFIX}-apigateway:${APIGATEWAY_IMAGE_TAG}" \
@@ -115,6 +118,31 @@ load_images_into_kind() {
     "${IMAGE_PREFIX}-database:${DATABASE_IMAGE_TAG}"; do
     docker save "$image" | docker exec -i "$node" ctr --namespace k8s.io images import -
   done
+}
+
+local_cluster_images_visible() {
+  local kube_context docker_context
+  kube_context="$($KUBECTL config current-context 2>/dev/null || true)"
+  docker_context="$(docker context show 2>/dev/null || true)"
+  [[ "$kube_context" == kind-* || "$docker_context" == colima || "$kube_context" == colima ]]
+}
+
+resolve_image_delivery() {
+  case "$IMAGE_DELIVERY" in
+    auto)
+      if local_cluster_images_visible; then
+        printf 'local\n'
+      else
+        printf 'push\n'
+      fi
+      ;;
+    local|push)
+      printf '%s\n' "$IMAGE_DELIVERY"
+      ;;
+    *)
+      die "IMAGE_DELIVERY must be auto, local, or push"
+      ;;
+  esac
 }
 
 context_checksum() {
@@ -165,14 +193,21 @@ build_images() {
   if [[ -n "$SKIP_BUILD" || -n "$DRY_RUN" ]]; then
     return
   fi
+  local image_delivery push_images
+  image_delivery="$(resolve_image_delivery)"
+  push_images=1
+  if [[ "$image_delivery" == "local" ]]; then
+    push_images=0
+  fi
   log "building Velox images"
+  log "image delivery: ${image_delivery}"
   log "image tags: apigateway=${APIGATEWAY_IMAGE_TAG} orderservice=${ORDERSERVICE_IMAGE_TAG} seatservice=${SEATSERVICE_IMAGE_TAG} viewservice=${VIEWSERVICE_IMAGE_TAG} frontend=${FRONTEND_IMAGE_TAG} database=${DATABASE_IMAGE_TAG}"
-  DOCKER_BUILDKIT=1 IMAGE_PREFIX="$IMAGE_PREFIX" GIT_SHA="$APIGATEWAY_IMAGE_TAG" make -C "$ROOT_DIR" apigateway
-  DOCKER_BUILDKIT=1 IMAGE_PREFIX="$IMAGE_PREFIX" GIT_SHA="$ORDERSERVICE_IMAGE_TAG" make -C "$ROOT_DIR" orderservice
-  DOCKER_BUILDKIT=1 IMAGE_PREFIX="$IMAGE_PREFIX" GIT_SHA="$SEATSERVICE_IMAGE_TAG" make -C "$ROOT_DIR" seatservice
-  DOCKER_BUILDKIT=1 IMAGE_PREFIX="$IMAGE_PREFIX" GIT_SHA="$VIEWSERVICE_IMAGE_TAG" make -C "$ROOT_DIR" viewservice
-  DOCKER_BUILDKIT=1 IMAGE_PREFIX="$IMAGE_PREFIX" GIT_SHA="$FRONTEND_IMAGE_TAG" make -C "$ROOT_DIR" frontend
-  DOCKER_BUILDKIT=1 IMAGE_PREFIX="$IMAGE_PREFIX" GIT_SHA="$DATABASE_IMAGE_TAG" make -C "$ROOT_DIR" database
+  DOCKER_BUILDKIT=1 PUSH_IMAGES="$push_images" IMAGE_PREFIX="$IMAGE_PREFIX" GIT_SHA="$APIGATEWAY_IMAGE_TAG" make -C "$ROOT_DIR" apigateway
+  DOCKER_BUILDKIT=1 PUSH_IMAGES="$push_images" IMAGE_PREFIX="$IMAGE_PREFIX" GIT_SHA="$ORDERSERVICE_IMAGE_TAG" make -C "$ROOT_DIR" orderservice
+  DOCKER_BUILDKIT=1 PUSH_IMAGES="$push_images" IMAGE_PREFIX="$IMAGE_PREFIX" GIT_SHA="$SEATSERVICE_IMAGE_TAG" make -C "$ROOT_DIR" seatservice
+  DOCKER_BUILDKIT=1 PUSH_IMAGES="$push_images" IMAGE_PREFIX="$IMAGE_PREFIX" GIT_SHA="$VIEWSERVICE_IMAGE_TAG" make -C "$ROOT_DIR" viewservice
+  DOCKER_BUILDKIT=1 PUSH_IMAGES="$push_images" IMAGE_PREFIX="$IMAGE_PREFIX" GIT_SHA="$FRONTEND_IMAGE_TAG" make -C "$ROOT_DIR" frontend
+  DOCKER_BUILDKIT=1 PUSH_IMAGES="$push_images" IMAGE_PREFIX="$IMAGE_PREFIX" GIT_SHA="$DATABASE_IMAGE_TAG" make -C "$ROOT_DIR" database
   load_images_into_kind
 }
 
@@ -347,6 +382,11 @@ start_port_forward() {
     return
   fi
 
+  if [[ "$service" == "frontend" ]] && frontend_port_forward_ready "$local_port"; then
+    log "frontend already reachable on ${local_port}"
+    return
+  fi
+
   log "starting port-forward service/${service} ${local_port}:${remote_port}"
   nohup bash -c '
     set -u
@@ -357,6 +397,26 @@ start_port_forward() {
     done
   ' bash "$KUBECTL" "$NS" "$service" "$local_port" "$remote_port" >>"$log_file" 2>&1 &
   echo "$!" >"$pid_file"
+}
+
+frontend_port_forward_ready() {
+  local local_port="$1"
+  curl -fsS --max-time 2 "http://127.0.0.1:${local_port}/api/healthz" >/dev/null 2>&1
+}
+
+wait_for_frontend_port_forward() {
+  local local_port="$1"
+  local attempt
+  if [[ -n "$DRY_RUN" ]]; then
+    return
+  fi
+  for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+    if frontend_port_forward_ready "$local_port"; then
+      return
+    fi
+    sleep 1
+  done
+  die "frontend port-forward did not become ready on ${local_port}"
 }
 
 port_forward_running() {
@@ -402,4 +462,5 @@ apply_topics_job
 apply_app_manifests
 wait_for_rollouts "${ROLL_OUT_APPS[@]}"
 start_port_forward frontend "$LOCAL_FRONTEND_PORT" 80 "$FRONTEND_PORT_FORWARD_LOG" "$FRONTEND_PORT_FORWARD_PID_FILE"
+wait_for_frontend_port_forward "$LOCAL_FRONTEND_PORT"
 print_summary

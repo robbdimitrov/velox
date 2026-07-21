@@ -72,6 +72,22 @@ func (h *PipelineHealth) MarkError(name string, err error) {
 	h.statuses[name] = status
 }
 
+func (h *PipelineHealth) MarkRecovered(names ...string) {
+	if h == nil {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, name := range names {
+		status := h.statuses[name]
+		status.Name = name
+		status.FirstErrorAt = time.Time{}
+		status.ConsecutiveErrors = 0
+		status.LastError = ""
+		h.statuses[name] = status
+	}
+}
+
 func (h *PipelineHealth) Snapshot() []PipelineStatus {
 	if h == nil {
 		return nil
