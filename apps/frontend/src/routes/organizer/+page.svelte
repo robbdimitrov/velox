@@ -7,19 +7,14 @@
   let { data } = $props();
 
   let metrics = $state({
-    totalReservations: 14800,
-    activeHolds: 342,
-    seatsRemaining: 4105,
-    demandScore: 98,
-    projectionLagMs: 81,
-    sectionAvailability: {
-      A: 82,
-      B: 71,
-      C: 60,
-      Floor: 49,
-      Balcony: 38
-    } as Record<string, number>
+    totalReservations: 0,
+    activeHolds: 0,
+    seatsRemaining: 0,
+    demandScore: 0,
+    projectionLagMs: 0,
+    sectionAvailability: {} as Record<string, number>
   });
+  let streamState = $state<'connecting' | 'live' | 'degraded'>('connecting');
 
   let summaryCards = $derived([
     {
@@ -47,13 +42,13 @@
 
   onMount(() => {
     if (typeof EventSource === 'undefined') return;
-    let fallbackInterval: ReturnType<typeof setInterval> | undefined;
 
     const source = new EventSource(
       `${data.gatewayBaseURL}/organizer/metrics/stream`
     );
 
     source.onmessage = (event) => {
+      streamState = 'live';
       try {
         const payload = JSON.parse(event.data);
         if (payload.totalReservations !== undefined)
@@ -74,24 +69,12 @@
     };
 
     source.onerror = () => {
+      streamState = 'degraded';
       source.close();
-      fallbackInterval ??= setInterval(() => {
-        metrics.totalReservations += Math.floor(Math.random() * 5);
-        metrics.activeHolds = Math.max(
-          0,
-          metrics.activeHolds + Math.floor(Math.random() * 10) - 5
-        );
-        metrics.seatsRemaining = Math.max(
-          0,
-          metrics.seatsRemaining - Math.floor(Math.random() * 5)
-        );
-        metrics.projectionLagMs = 70 + Math.floor(Math.random() * 20);
-      }, 2000);
     };
 
     return () => {
       source.close();
-      if (fallbackInterval) clearInterval(fallbackInterval);
     };
   });
 </script>
@@ -114,15 +97,28 @@
         class="flex items-center gap-3 rounded-sm border border-line bg-panelSoft/70 px-4 py-2"
       >
         <span class="relative flex h-3 w-3">
+          {#if streamState === 'live'}
+            <span
+              class="animate-ping absolute inline-flex h-full w-full rounded-full bg-signal opacity-75"
+            ></span>
+          {/if}
           <span
-            class="animate-ping absolute inline-flex h-full w-full rounded-full bg-signal opacity-75"
-          ></span>
-          <span class="relative inline-flex rounded-full h-3 w-3 bg-signal"
+            class="relative inline-flex h-3 w-3 rounded-full"
+            class:bg-signal={streamState === 'live'}
+            class:bg-warn={streamState === 'connecting'}
+            class:bg-urgency={streamState === 'degraded'}
           ></span>
         </span>
         <span
-          class="font-mono text-xs font-bold uppercase tracking-widest text-signal"
-          >Live Updates</span
+          class="font-mono text-xs font-bold uppercase tracking-widest"
+          class:text-signal={streamState === 'live'}
+          class:text-warn={streamState === 'connecting'}
+          class:text-urgency={streamState === 'degraded'}
+          >{streamState === 'live'
+            ? 'Live Updates'
+            : streamState === 'connecting'
+              ? 'Connecting'
+              : 'Metrics Degraded'}</span
         >
       </div>
     </div>
@@ -165,6 +161,13 @@
               >
             </div>
           {/each}
+          {#if Object.keys(metrics.sectionAvailability).length === 0}
+            <div
+              class="rounded-sm border border-line bg-panelSoft/70 px-4 py-8 text-center text-sm font-bold uppercase tracking-widest text-inkMuted"
+            >
+              Section metrics unavailable
+            </div>
+          {/if}
         </div>
       </Panel>
 
@@ -208,37 +211,15 @@
 
         <div class="space-y-4 font-mono text-sm flex-1">
           <div class="flex items-start gap-3 border-l-2 border-ok pl-4 py-1">
-            <span class="text-ok mt-0.5 animate-pulse">●</span>
+            <span
+              class="mt-0.5"
+              class:text-ok={streamState === 'live'}
+              class:text-warn={streamState === 'connecting'}
+              class:text-urgency={streamState === 'degraded'}>●</span
+            >
             <div>
-              <p class="font-bold text-ink">CDN Cache Status</p>
-              <p class="text-ink/60 text-xs mt-0.5">stale-while-revalidate</p>
-            </div>
-          </div>
-          <div
-            class="flex items-start gap-3 border-l-2 border-warn pl-4 py-2 bg-warn/10 rounded-r"
-          >
-            <span class="text-warn mt-0.5">▲</span>
-            <div>
-              <p class="text-warn font-bold">Queue Pressure</p>
-              <p class="text-inkMuted text-xs mt-0.5">Elevated on section A</p>
-            </div>
-          </div>
-          <div
-            class="flex items-start gap-3 border-l-2 border-white/10 pl-4 py-1 opacity-60"
-          >
-            <span class="text-ink/40 mt-0.5">●</span>
-            <div>
-              <p class="font-bold text-ink">DLQ Rate</p>
-              <p class="text-ink/60 text-xs mt-0.5">0 payloads/min</p>
-            </div>
-          </div>
-          <div
-            class="flex items-start gap-3 border-l-2 border-white/10 pl-4 py-1 opacity-60"
-          >
-            <span class="text-ink/40 mt-0.5">●</span>
-            <div>
-              <p class="font-bold text-ink">Reservation 429 Rate</p>
-              <p class="text-ink/60 text-xs mt-0.5">0.7% throttled</p>
+              <p class="font-bold text-ink">Metrics Stream</p>
+              <p class="text-ink/60 text-xs mt-0.5">{streamState}</p>
             </div>
           </div>
         </div>

@@ -349,8 +349,10 @@ Requires event ownership. Returns aggregate counts:
 ### `GET /organizer/events/{eventId}/metrics/stream`
 
 Requires event ownership. SSE stream sends metrics JSON from projections in
-store-backed mode. Legacy `GET /organizer/metrics/stream` remains for the
-current organizer overview and chooses the first in-memory organizer event.
+store-backed mode: confirmed reservation count, active holds, available seats,
+section availability percentages, projection lag, and an inventory-derived
+demand score. Legacy `GET /organizer/metrics/stream` remains for the current
+organizer overview and chooses the first in-memory organizer event.
 
 ### `POST /organizer/events/{eventId}/announcements`
 

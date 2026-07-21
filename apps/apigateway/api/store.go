@@ -437,6 +437,8 @@ func (s *DatabaseStore) GetOrganizerMetrics(ctx context.Context, eventID string)
 
 	metrics.ActiveHolds = counts[StatusHeld]
 	metrics.SeatsRemaining = counts[StatusAvailable]
+	soldSeats := counts[StatusSold]
+	totalSeats := metrics.SeatsRemaining + metrics.ActiveHolds + soldSeats
 
 	metrics.SectionAvailability = make(map[string]int)
 	for sec, sc := range sectionCounts {
@@ -448,9 +450,13 @@ func (s *DatabaseStore) GetOrganizerMetrics(ctx context.Context, eventID string)
 		}
 	}
 
-	// Compute fake demand score and lag for demo
-	metrics.DemandScore = 98
-	metrics.ProjectionLagMs = 12
+	if totalSeats > 0 {
+		metrics.DemandScore = ((soldSeats * 100) + (metrics.ActiveHolds * 50)) / totalSeats
+	}
+	metrics.ProjectionLagMs, err = s.GetProjectionLagMS(ctx, eventID)
+	if err != nil {
+		return metrics, err
+	}
 
 	return metrics, nil
 }

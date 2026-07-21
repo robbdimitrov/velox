@@ -37,7 +37,8 @@ is intentionally narrower.
 
 Screen widths use a small set of Tailwind tiers:
 
-- `max-w-7xl`: discovery, seat maps, wallet, organizer dashboards, and other multi-panel workspaces.
+- `max-w-7xl`: discovery, seat maps, wallet, organizer dashboards, and other
+  multi-panel workspaces.
 - `max-w-5xl`: two-panel confirmation and review flows.
 - `max-w-3xl`: forms and single-column organizer setup flows.
 - `max-w-md`: login, registration, and compact modal-like entry screens.
@@ -128,7 +129,9 @@ Layout:
 - An "Event Updates" panel on the event page, newest-first, severity-tinted
   (`INFO` neutral, `SCHEDULE_CHANGE` warning tone, `CANCELLATION` in Control
   Panel Red).
-- On the organizer dashboard, a small post form (title, body, severity).
+- Organizer metrics dashboards render projection-backed counts and explicit
+  degraded states when SSE metrics are unavailable; they do not synthesize
+  queue, DLQ, or demand values in the browser.
 
 Rules:
 

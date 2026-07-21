@@ -295,6 +295,48 @@ func TestGetWalletTicketsLocksCancelledTransferState(t *testing.T) {
 	}
 }
 
+func TestGetOrganizerMetricsUsesProjectionCountsAndLag(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer db.Close()
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\)\s+FROM projection\.order_summaries`).
+		WithArgs("evt_metrics").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(3)))
+	mock.ExpectQuery(`SELECT section_id, status, COUNT\(\*\)\s+FROM projection\.seat_snapshots`).
+		WithArgs("evt_metrics").
+		WillReturnRows(sqlmock.NewRows([]string{"section_id", "status", "count"}).
+			AddRow("A", StatusAvailable, 5).
+			AddRow("A", StatusHeld, 3).
+			AddRow("A", StatusSold, 2))
+	mock.ExpectQuery(`(?s)SELECT COALESCE\(extract\(epoch from \(now\(\) - MAX\(updated_at\)\)\) \* 1000, 0\)::bigint\s+FROM projection\.seat_snapshots`).
+		WithArgs("evt_metrics").
+		WillReturnRows(sqlmock.NewRows([]string{"lag"}).AddRow(int64(42)))
+
+	store := &DatabaseStore{db: db}
+	metrics, err := store.GetOrganizerMetrics(context.Background(), "evt_metrics")
+	if err != nil {
+		t.Fatalf("GetOrganizerMetrics: %v", err)
+	}
+	if metrics.TotalReservations != 3 || metrics.ActiveHolds != 3 || metrics.SeatsRemaining != 5 {
+		t.Fatalf("unexpected metrics: %+v", metrics)
+	}
+	if metrics.DemandScore != 35 {
+		t.Fatalf("DemandScore = %d, want 35", metrics.DemandScore)
+	}
+	if metrics.ProjectionLagMs != 42 {
+		t.Fatalf("ProjectionLagMs = %d, want 42", metrics.ProjectionLagMs)
+	}
+	if metrics.SectionAvailability["A"] != 50 {
+		t.Fatalf("section A availability = %d, want 50", metrics.SectionAvailability["A"])
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sqlmock expectations: %v", err)
+	}
+}
+
 // TestGetEventVenueIDReturnsVenueWithoutInventoryQuery keeps ownership checks
 // from paying for unrelated inventory aggregation.
 func TestGetEventVenueIDReturnsVenueWithoutInventoryQuery(t *testing.T) {
