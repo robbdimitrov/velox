@@ -6,7 +6,7 @@ ALTER TABLE projection.seat_snapshots
 
 ALTER TABLE projection.seat_snapshots
     ADD CONSTRAINT seat_snapshots_status_check
-    CHECK (status IN ('AVAILABLE', 'HELD', 'SOLD', 'TRANSFERRED', 'USED', 'CANCELLED'));
+    CHECK (status IN ('AVAILABLE', 'HELD', 'RESERVED', 'TRANSFERRED', 'USED', 'CANCELLED'));
 
 ALTER TABLE projection.wallet_tickets
     DROP CONSTRAINT wallet_tickets_status_check;

@@ -13,7 +13,6 @@ const (
 	eventNameMaxLength        = 120
 	eventDescriptionMaxLength = 5000
 	defaultEventCategory      = "Concerts"
-	defaultEventImageKey      = "event-midnight-array"
 	defaultEventTimezone      = "UTC"
 	venueNameMaxLength        = 120
 	venueAddressMaxLength     = 240
@@ -22,7 +21,6 @@ const (
 	maxVenueSections          = 8
 	maxVenueRowsPerSection    = 26
 	maxVenueSeatsPerRow       = 50
-	defaultVenuePriceCents    = 8500
 )
 
 var allowedEventCategories = map[string]struct{}{
@@ -32,22 +30,14 @@ var allowedEventCategories = map[string]struct{}{
 	"Festivals": {},
 }
 
-var allowedEventImageKeys = map[string]struct{}{
-	"event-midnight-array": {},
-	"event-final-whistle":  {},
-	"event-zero-hour":      {},
-}
-
 type createEventRequest struct {
-	ID           string    `json:"id"`
-	VenueID      string    `json:"venue_id"`
-	Name         string    `json:"name"`
-	Description  string    `json:"description"`
-	Category     string    `json:"category"`
-	StartsAt     time.Time `json:"starts_at"`
-	SaleStartsAt time.Time `json:"sale_starts_at"`
-	ImageKey     string    `json:"image_key"`
-	Timezone     string    `json:"timezone"`
+	ID          string    `json:"id"`
+	VenueID     string    `json:"venue_id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Category    string    `json:"category"`
+	StartsAt    time.Time `json:"starts_at"`
+	Timezone    string    `json:"timezone"`
 }
 
 type createVenueRequest struct {
@@ -105,7 +95,7 @@ func (s *Server) handleOrganizerInventory(w http.ResponseWriter, r *http.Request
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	counts := map[string]int{StatusAvailable: 0, StatusHeld: 0, StatusSold: 0}
+	counts := map[string]int{StatusAvailable: 0, StatusHeld: 0, StatusReserved: 0}
 	for _, section := range s.seats[eventID] {
 		for _, seat := range section {
 			s.expireSeatIfNeededLocked(seat)
@@ -302,13 +292,6 @@ func normalizeVenueSectionTemplate(w http.ResponseWriter, section VenueSectionTe
 		writeError(w, http.StatusBadRequest, "invalid_venue_section")
 		return VenueSectionTemplate{}, false
 	}
-	if section.PriceCents < 0 {
-		writeError(w, http.StatusBadRequest, "invalid_venue_section")
-		return VenueSectionTemplate{}, false
-	}
-	if section.PriceCents == 0 {
-		section.PriceCents = defaultVenuePriceCents
-	}
 	section.SectionID = sectionID
 	section.Name = name
 	return section, true
@@ -488,28 +471,12 @@ func (s *Server) normalizeCreateEventRequest(w http.ResponseWriter, req createEv
 		writeError(w, http.StatusBadRequest, "invalid_starts_at")
 		return Event{}, false
 	}
-	saleStartsAt := req.SaleStartsAt
-	if saleStartsAt.IsZero() {
-		saleStartsAt = s.now()
-	}
-	if !req.StartsAt.After(saleStartsAt) {
-		writeError(w, http.StatusBadRequest, "invalid_event_dates")
-		return Event{}, false
-	}
 	category := strings.TrimSpace(req.Category)
 	if category == "" {
 		category = defaultEventCategory
 	}
 	if _, ok := allowedEventCategories[category]; !ok {
 		writeError(w, http.StatusBadRequest, "invalid_event_category")
-		return Event{}, false
-	}
-	imageKey := strings.TrimSpace(req.ImageKey)
-	if imageKey == "" {
-		imageKey = defaultEventImageKey
-	}
-	if _, ok := allowedEventImageKeys[imageKey]; !ok {
-		writeError(w, http.StatusBadRequest, "invalid_event_image")
 		return Event{}, false
 	}
 	timezone := strings.TrimSpace(req.Timezone)
@@ -522,16 +489,14 @@ func (s *Server) normalizeCreateEventRequest(w http.ResponseWriter, req createEv
 	}
 
 	return Event{
-		ID:           eventID,
-		VenueID:      venueID,
-		Status:       EventStatusPublished,
-		OrganizerID:  user.OrganizerID,
-		Name:         name,
-		Category:     category,
-		Description:  description,
-		ImageKey:     imageKey,
-		StartsAt:     req.StartsAt,
-		SaleStartsAt: saleStartsAt,
-		Timezone:     timezone,
+		ID:          eventID,
+		VenueID:     venueID,
+		Status:      EventStatusPublished,
+		OrganizerID: user.OrganizerID,
+		Name:        name,
+		Category:    category,
+		Description: description,
+		StartsAt:    req.StartsAt,
+		Timezone:    timezone,
 	}, true
 }

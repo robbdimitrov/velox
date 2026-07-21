@@ -1,17 +1,17 @@
 # Velox
 
-**Velox** is a Kubernetes-first event ticket marketplace built for
-flash-sale contention: many buyers competing for the same reserved seats while
-organizers watch live inventory and order state. It combines a SvelteKit SSR
-frontend with Go and Rust backend services, PostgreSQL-owned stores,
-Redpanda-compatible Kafka event flow, and Dragonfly-backed coordination.
+**Velox** is a Kubernetes-first event reservation platform built for high
+contention: many reservers competing for the same seats while organizers watch
+live inventory and reservation state. It combines a SvelteKit SSR frontend with
+Go and Rust backend services, PostgreSQL-owned stores, Redpanda-compatible
+Kafka event flow, and Dragonfly-backed coordination.
 
 ## Features
 
-- **Authentication & Roles**: Secure JWT-based login and registration flow with distinct `Customer` and `Organizer` RBAC profiles.
+- **Authentication & Roles**: Secure JWT-based login and registration flow with distinct `Reserver` and `Organizer` RBAC profiles.
 - **Seat reservations**: Event discovery, interactive SVG seat maps with Server-Sent Events (SSE) live updates, a 10-minute lock countdown pipeline, and order history.
 - **Organizer dashboard**: Role-protected portal for managing venues, staff, creating events via a multi-step wizard, and live analytics.
-- **Virtual Waiting Room & Rate Limiting**: Token-bucket rate limiting via Dragonfly/Redis at the Go ingress, paired with a frontend virtual waiting room to gracefully handle `429 Too Many Requests` during flash sales.
+- **Virtual Waiting Room & Rate Limiting**: Token-bucket rate limiting via Dragonfly/Redis at the Go ingress, paired with a frontend virtual waiting room to gracefully handle `429 Too Many Requests` during peak reservation demand.
 - **Idempotent commands**: Reservation requests require `Idempotency-Key`; duplicate matching requests return the original order while conflicting bodies are rejected.
 - **Optimistic Concurrency**: Seat double-booking is prevented using Sequence Version Numbers (`VersionMismatch`) in the Rust Event Store, avoiding slow SQL table locks.
 - **Compensating Sagas**: Order lifecycle changes (explicit cancellation via `OrderCancelled`, or a hold timing out in `seatservice`'s own expiry sweep) trigger Kafka-choreographed compensating transactions (`SeatReservationExpired`) to instantly free up inventory.
@@ -59,7 +59,7 @@ graph TD
 
 | Service                           | Language   | Description                                                                                                  |
 | --------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------ |
-| [frontend](apps/frontend)         | TypeScript | SvelteKit SSR reservation and organizer UI with Tailwind, DaisyUI, Lucide icons, live seat state, and checkout. |
+| [frontend](apps/frontend)         | TypeScript | SvelteKit SSR reservation and organizer UI with Tailwind v4, DaisyUI 5, Lucide icons, and live seat state. |
 | [apigateway](apps/apigateway)     | Go         | Public HTTP API, dev login, JWT session cookies, role checks, request bounds, and reservation orchestration. |
 | [orderservice](apps/orderservice) | Go         | Order state, idempotency, reservation confirmation, and transactional outbox behavior.                       |
 | [seatservice](apps/seatservice)   | Rust       | Seat stream concurrency rules, version checks, hold expiry, and ticket issuing rules.                        |
@@ -84,13 +84,13 @@ Architectural specs live in [`docs/`](docs/):
 
 | Doc                                         | Contents                                                                         |
 | ------------------------------------------- | -------------------------------------------------------------------------------- |
-| [api.md](docs/api.md)                       | Public, buyer, organizer, auth, and internal route contracts                     |
+| [api.md](docs/api.md)                       | Public, reserver, organizer, auth, and internal route contracts                  |
 | [architecture.md](docs/architecture.md)     | Service topology, event choreography, consistency model, and security boundaries |
-| [business-rules.md](docs/business-rules.md) | Roles, reservations, event lifecycle, checkout, wallet, and rate-limit rules     |
+| [business-rules.md](docs/business-rules.md) | Roles, reservations, event lifecycle, wallet, and rate-limit rules              |
 | [data-model.md](docs/data-model.md)         | Logical schemas, table ownership, constraints, indexes, and model gaps           |
 | [deployment.md](docs/deployment.md)         | Kubernetes local runtime, generated secrets, port-forwarding, and smoke checks   |
 | [design-system.md](docs/design-system.md)   | Visual tokens, layout rules, seat states, and UI state patterns                  |
-| [frontend.md](docs/frontend.md)             | Buyer and organizer route map, UI behavior, live updates, and accessibility      |
+| [frontend.md](docs/frontend.md)             | Reserver and organizer route map, UI behavior, live updates, and accessibility   |
 | [infrastructure.md](docs/infrastructure.md) | Kafka failure modes, reservation expiry, cache behavior, and backpressure        |
 | [security.md](docs/security.md)             | Session, request, token, event-signing, header, and logging controls             |
 

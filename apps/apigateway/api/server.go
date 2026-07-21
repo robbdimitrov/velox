@@ -181,7 +181,7 @@ func (s *Server) seed() {
 					}()
 					s.seats[event.ID][sectionID][id] = &Seat{
 						EventID: event.ID, SectionID: sectionID, ID: id,
-						Row: string(row), Number: n, PriceCents: 8500 + n*150,
+						Row: string(row), Number: n,
 						Status: StatusAvailable, Version: 1,
 					}
 					event.SeatsTotal++

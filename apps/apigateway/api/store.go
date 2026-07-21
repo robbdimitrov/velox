@@ -96,7 +96,7 @@ func (s *DatabaseStore) GetOrder(ctx context.Context, user User, orderID string)
 func (s *DatabaseStore) ListSeats(ctx context.Context, eventID, sectionID string) ([]Seat, int64, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT seat_id, row_label, seat_number, x, y, accessibility, status, aggregate_version,
-			COALESCE(extract(epoch from expires_at) * 1000, 0)::bigint, price_amount_minor,
+			COALESCE(extract(epoch from expires_at) * 1000, 0)::bigint,
 			COALESCE(extract(epoch from (now() - updated_at)) * 1000, 0)::bigint
 		FROM projection.seat_snapshots
 		WHERE event_id = $1 AND section_id = $2
@@ -113,7 +113,7 @@ func (s *DatabaseStore) ListSeats(ctx context.Context, eventID, sectionID string
 		var ageMS int64
 		seat.EventID = eventID
 		seat.SectionID = sectionID
-		if err := rows.Scan(&seat.ID, &seat.Row, &seat.Number, &seat.X, &seat.Y, &seat.Accessibility, &seat.Status, &seat.Version, &seat.ExpiresAtServerMS, &seat.PriceCents, &ageMS); err != nil {
+		if err := rows.Scan(&seat.ID, &seat.Row, &seat.Number, &seat.X, &seat.Y, &seat.Accessibility, &seat.Status, &seat.Version, &seat.ExpiresAtServerMS, &ageMS); err != nil {
 			return nil, 0, err
 		}
 		if seat.Row == "" || seat.Number == 0 {
@@ -282,7 +282,7 @@ func (s *DatabaseStore) GetOrganizerInventory(ctx context.Context, eventID strin
 		return nil, nil, err
 	}
 	defer rows.Close()
-	counts := map[string]int{StatusAvailable: 0, StatusHeld: 0, StatusSold: 0}
+	counts := map[string]int{StatusAvailable: 0, StatusHeld: 0, StatusReserved: 0}
 	sectionCounts := make(map[string]map[string]int)
 	for rows.Next() {
 		var sectionID, status string
@@ -292,7 +292,7 @@ func (s *DatabaseStore) GetOrganizerInventory(ctx context.Context, eventID strin
 		}
 		counts[status] += count
 		if sectionCounts[sectionID] == nil {
-			sectionCounts[sectionID] = map[string]int{StatusAvailable: 0, StatusHeld: 0, StatusSold: 0}
+			sectionCounts[sectionID] = map[string]int{StatusAvailable: 0, StatusHeld: 0, StatusReserved: 0}
 		}
 		sectionCounts[sectionID][status] = count
 	}
@@ -304,10 +304,10 @@ func loadOrderTx(ctx context.Context, tx *sql.Tx, orderID string) (Order, error)
 	var expiresAt sql.NullTime
 	var createdAt, updatedAt time.Time
 	err := tx.QueryRowContext(ctx, `
-		SELECT id::text, COALESCE(reservation_id, ''), user_id, status, COALESCE(total_amount_minor, 0), reservation_expires_at, created_at, updated_at
+		SELECT id::text, COALESCE(reservation_id, ''), user_id, status, reservation_expires_at, created_at, updated_at
 		FROM orders.orders
 		WHERE id = $1
-	`, orderID).Scan(&order.ID, &order.ReservationID, &order.UserID, &order.Status, &order.TotalCents, &expiresAt, &createdAt, &updatedAt)
+	`, orderID).Scan(&order.ID, &order.ReservationID, &order.UserID, &order.Status, &expiresAt, &createdAt, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Order{}, ErrStoreNotFound
 	}
@@ -335,7 +335,7 @@ func loadOrderTx(ctx context.Context, tx *sql.Tx, orderID string) (Order, error)
 
 func loadOrderSeatsTx(ctx context.Context, tx *sql.Tx, orderID string) ([]Seat, error) {
 	rows, err := tx.QueryContext(ctx, `
-		SELECT event_id, section_id, seat_id, price_amount_minor
+		SELECT event_id, section_id, seat_id
 		FROM orders.order_seats
 		WHERE order_id = $1
 		ORDER BY seat_id
@@ -347,7 +347,7 @@ func loadOrderSeatsTx(ctx context.Context, tx *sql.Tx, orderID string) ([]Seat, 
 	var seats []Seat
 	for rows.Next() {
 		var seat Seat
-		if err := rows.Scan(&seat.EventID, &seat.SectionID, &seat.ID, &seat.PriceCents); err != nil {
+		if err := rows.Scan(&seat.EventID, &seat.SectionID, &seat.ID); err != nil {
 			return nil, err
 		}
 		seat.Row, seat.Number = splitSeatLabel(seat.ID)
@@ -437,12 +437,12 @@ func (s *DatabaseStore) GetOrganizerMetrics(ctx context.Context, eventID string)
 
 	metrics.ActiveHolds = counts[StatusHeld]
 	metrics.SeatsRemaining = counts[StatusAvailable]
-	soldSeats := counts[StatusSold]
-	totalSeats := metrics.SeatsRemaining + metrics.ActiveHolds + soldSeats
+	reservedSeats := counts[StatusReserved]
+	totalSeats := metrics.SeatsRemaining + metrics.ActiveHolds + reservedSeats
 
 	metrics.SectionAvailability = make(map[string]int)
 	for sec, sc := range sectionCounts {
-		total := sc[StatusAvailable] + sc[StatusHeld] + sc[StatusSold]
+		total := sc[StatusAvailable] + sc[StatusHeld] + sc[StatusReserved]
 		if total > 0 {
 			metrics.SectionAvailability[sec] = (sc[StatusAvailable] * 100) / total
 		} else {
@@ -451,7 +451,7 @@ func (s *DatabaseStore) GetOrganizerMetrics(ctx context.Context, eventID string)
 	}
 
 	if totalSeats > 0 {
-		metrics.DemandScore = ((soldSeats * 100) + (metrics.ActiveHolds * 50)) / totalSeats
+		metrics.DemandScore = ((reservedSeats * 100) + (metrics.ActiveHolds * 50)) / totalSeats
 	}
 	metrics.ProjectionLagMs, err = s.GetProjectionLagMS(ctx, eventID)
 	if err != nil {
@@ -564,17 +564,15 @@ func createVenueTemplateTx(ctx context.Context, tx *sql.Tx, venueID string, sect
 		height := 36 + section.RowCount*42
 		_, err := tx.ExecContext(ctx, `
 			INSERT INTO catalog.venue_sections (
-				venue_id, section_id, name, display_order, width, height,
-				default_price_amount_minor
+				venue_id, section_id, name, display_order, width, height
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			VALUES ($1, $2, $3, $4, $5, $6)
 			ON CONFLICT (venue_id, section_id) DO UPDATE SET
 				name = EXCLUDED.name,
 				display_order = EXCLUDED.display_order,
 				width = EXCLUDED.width,
-				height = EXCLUDED.height,
-				default_price_amount_minor = EXCLUDED.default_price_amount_minor
-		`, venueID, section.SectionID, section.Name, i+1, width, height, section.PriceCents)
+				height = EXCLUDED.height
+		`, venueID, section.SectionID, section.Name, i+1, width, height)
 		if err != nil {
 			return err
 		}
@@ -611,10 +609,9 @@ func createVenueTemplateTx(ctx context.Context, tx *sql.Tx, venueID string, sect
 func createDefaultVenueTemplateTx(ctx context.Context, tx *sql.Tx, venueID string) error {
 	_, err := tx.ExecContext(ctx, `
 		INSERT INTO catalog.venue_sections (
-			venue_id, section_id, name, display_order, width, height,
-			default_price_amount_minor
+			venue_id, section_id, name, display_order, width, height
 		)
-		SELECT $1, section_id, section_id || ' Section', display_order, 464, 204, 8500
+		SELECT $1, section_id, section_id || ' Section', display_order, 464, 204
 		FROM (VALUES ('A', 1), ('B', 2)) AS sections(section_id, display_order)
 		ON CONFLICT (venue_id, section_id) DO NOTHING
 	`, venueID)
@@ -701,22 +698,19 @@ func (s *DatabaseStore) CreateEvent(ctx context.Context, event Event) error {
 
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO catalog.events (
-			id, venue_id, name, description, category, starts_at, sale_starts_at,
-			image_key, timezone, status
+			id, venue_id, name, description, category, starts_at, timezone, status
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-	`, event.ID, event.VenueID, event.Name, event.Description, event.Category, event.StartsAt, event.SaleStartsAt, event.ImageKey, event.Timezone, event.Status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, event.ID, event.VenueID, event.Name, event.Description, event.Category, event.StartsAt, event.Timezone, event.Status)
 	if err != nil {
 		return err
 	}
 
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO catalog.event_sections (
-			event_id, section_id, name, display_order, width, height,
-			price_amount_minor
+			event_id, section_id, name, display_order, width, height
 		)
-		SELECT $1, section_id, name, display_order, width, height,
-		       default_price_amount_minor
+		SELECT $1, section_id, name, display_order, width, height
 		FROM catalog.venue_sections
 		WHERE venue_id = $2
 	`, event.ID, event.VenueID)
@@ -726,7 +720,7 @@ func (s *DatabaseStore) CreateEvent(ctx context.Context, event Event) error {
 
 	rows, err := tx.QueryContext(ctx, `
 		SELECT vs.section_id, vs.seat_id, vs.row_label, vs.seat_number, vs.x, vs.y,
-		       vs.accessibility, COALESCE(es.price_amount_minor, 5000)
+		       vs.accessibility
 		FROM catalog.venue_seats vs
 		LEFT JOIN catalog.event_sections es
 			ON es.event_id = $2 AND es.section_id = vs.section_id
@@ -746,7 +740,6 @@ func (s *DatabaseStore) CreateEvent(ctx context.Context, event Event) error {
 		X             int
 		Y             int
 		Accessibility bool
-		PriceCents    int
 	}
 	for rows.Next() {
 		var st struct {
@@ -757,9 +750,8 @@ func (s *DatabaseStore) CreateEvent(ctx context.Context, event Event) error {
 			X             int
 			Y             int
 			Accessibility bool
-			PriceCents    int
 		}
-		if err := rows.Scan(&st.SectionID, &st.SeatID, &st.Row, &st.Number, &st.X, &st.Y, &st.Accessibility, &st.PriceCents); err != nil {
+		if err := rows.Scan(&st.SectionID, &st.SeatID, &st.Row, &st.Number, &st.X, &st.Y, &st.Accessibility); err != nil {
 			return err
 		}
 		seats = append(seats, st)
@@ -783,10 +775,10 @@ func (s *DatabaseStore) CreateEvent(ctx context.Context, event Event) error {
 		_, err = tx.ExecContext(ctx, `
 			INSERT INTO projection.seat_snapshots (
 				event_id, section_id, seat_id, status, aggregate_version,
-				price_amount_minor, row_label, seat_number, x, y, accessibility
+				row_label, seat_number, x, y, accessibility
 			)
-			VALUES ($1, $2, $3, 'AVAILABLE', 0, $4, $5, $6, $7, $8, $9)
-		`, event.ID, st.SectionID, st.SeatID, st.PriceCents, st.Row, st.Number, st.X, st.Y, st.Accessibility)
+			VALUES ($1, $2, $3, 'AVAILABLE', 0, $4, $5, $6, $7, $8)
+		`, event.ID, st.SectionID, st.SeatID, st.Row, st.Number, st.X, st.Y, st.Accessibility)
 		if err != nil {
 			return err
 		}
@@ -797,10 +789,10 @@ func (s *DatabaseStore) CreateEvent(ctx context.Context, event Event) error {
 
 func (s *DatabaseStore) GetEvents(ctx context.Context) ([]Event, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT e.id, e.venue_id, e.name, e.description, e.category, e.image_key,
-		       e.starts_at, e.sale_starts_at, e.timezone, e.status, v.name, v.city,
+		SELECT e.id, e.venue_id, e.name, e.description, e.category,
+		       e.starts_at, e.timezone, e.status, v.name, v.city,
 		       COALESCE(sec.section_ids, ''),
-		       COALESCE(inv.available, 0), COALESCE(inv.held, 0), COALESCE(inv.sold, 0)
+		       COALESCE(inv.available, 0), COALESCE(inv.held, 0), COALESCE(inv.reserved, 0)
 		FROM catalog.events e
 		JOIN catalog.venues v ON v.id = e.venue_id
 		LEFT JOIN (
@@ -812,7 +804,7 @@ func (s *DatabaseStore) GetEvents(ctx context.Context) ([]Event, error) {
 			SELECT event_id,
 			       COUNT(*) FILTER (WHERE status = 'AVAILABLE') AS available,
 			       COUNT(*) FILTER (WHERE status = 'HELD') AS held,
-			       COUNT(*) FILTER (WHERE status = 'SOLD') AS sold
+			       COUNT(*) FILTER (WHERE status = 'RESERVED') AS reserved
 			FROM projection.seat_snapshots
 			GROUP BY event_id
 		) inv ON inv.event_id = e.id
@@ -826,12 +818,12 @@ func (s *DatabaseStore) GetEvents(ctx context.Context) ([]Event, error) {
 	for rows.Next() {
 		var e Event
 		var sectionIDs string
-		var held, sold int
-		if err := rows.Scan(&e.ID, &e.VenueID, &e.Name, &e.Description, &e.Category, &e.ImageKey, &e.StartsAt, &e.SaleStartsAt, &e.Timezone, &e.Status, &e.Venue, &e.City, &sectionIDs, &e.SeatsOpen, &held, &sold); err != nil {
+		var held, reserved int
+		if err := rows.Scan(&e.ID, &e.VenueID, &e.Name, &e.Description, &e.Category, &e.StartsAt, &e.Timezone, &e.Status, &e.Venue, &e.City, &sectionIDs, &e.SeatsOpen, &held, &reserved); err != nil {
 			return nil, err
 		}
 		e.SectionIDs = splitCSV(sectionIDs)
-		e.SeatsTotal = e.SeatsOpen + held + sold
+		e.SeatsTotal = e.SeatsOpen + held + reserved
 
 		events = append(events, e)
 	}
@@ -843,12 +835,12 @@ func (s *DatabaseStore) GetEvents(ctx context.Context) ([]Event, error) {
 func (s *DatabaseStore) GetEvent(ctx context.Context, id string) (Event, error) {
 	var e Event
 	var sectionIDs string
-	var held, sold int
+	var held, reserved int
 	err := s.db.QueryRowContext(ctx, `
-		SELECT e.id, e.venue_id, e.name, e.description, e.category, e.image_key,
-		       e.starts_at, e.sale_starts_at, e.timezone, e.status, v.name, v.city,
+		SELECT e.id, e.venue_id, e.name, e.description, e.category,
+		       e.starts_at, e.timezone, e.status, v.name, v.city,
 		       COALESCE(sec.section_ids, ''),
-		       COALESCE(inv.available, 0), COALESCE(inv.held, 0), COALESCE(inv.sold, 0)
+		       COALESCE(inv.available, 0), COALESCE(inv.held, 0), COALESCE(inv.reserved, 0)
 		FROM catalog.events e
 		JOIN catalog.venues v ON v.id = e.venue_id
 		LEFT JOIN (
@@ -861,13 +853,13 @@ func (s *DatabaseStore) GetEvent(ctx context.Context, id string) (Event, error) 
 			SELECT event_id,
 			       COUNT(*) FILTER (WHERE status = 'AVAILABLE') AS available,
 			       COUNT(*) FILTER (WHERE status = 'HELD') AS held,
-			       COUNT(*) FILTER (WHERE status = 'SOLD') AS sold
+			       COUNT(*) FILTER (WHERE status = 'RESERVED') AS reserved
 			FROM projection.seat_snapshots
 			WHERE event_id = $1
 			GROUP BY event_id
 		) inv ON inv.event_id = e.id
 		WHERE e.id = $1
-	`, id).Scan(&e.ID, &e.VenueID, &e.Name, &e.Description, &e.Category, &e.ImageKey, &e.StartsAt, &e.SaleStartsAt, &e.Timezone, &e.Status, &e.Venue, &e.City, &sectionIDs, &e.SeatsOpen, &held, &sold)
+	`, id).Scan(&e.ID, &e.VenueID, &e.Name, &e.Description, &e.Category, &e.StartsAt, &e.Timezone, &e.Status, &e.Venue, &e.City, &sectionIDs, &e.SeatsOpen, &held, &reserved)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Event{}, ErrStoreNotFound
 	}
@@ -875,7 +867,7 @@ func (s *DatabaseStore) GetEvent(ctx context.Context, id string) (Event, error) 
 		return Event{}, err
 	}
 	e.SectionIDs = splitCSV(sectionIDs)
-	e.SeatsTotal = e.SeatsOpen + held + sold
+	e.SeatsTotal = e.SeatsOpen + held + reserved
 	return e, nil
 }
 

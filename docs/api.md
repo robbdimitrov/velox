@@ -56,7 +56,7 @@ Public discovery read. Query parameters:
 | --- | --- |
 | `q` | Trimmed and lowercased; capped to 120 characters. |
 | `city` | Exact case-insensitive city match; `all` disables the filter. |
-| `available` | Defaults to available-only. `false` includes sold-out events. |
+| `available` | Defaults to available-only. `false` includes fully reserved events. |
 | `date` | `Today`, `This week`, `This month`, or any other value for no filter. |
 
 Response:
@@ -71,11 +71,9 @@ Response:
       "name": "Neon Riot Live",
       "category": "Concerts",
       "description": "Arena-scale synth and alt-pop with synchronized fan drops.",
-      "image_key": "event-final-whistle",
       "venue": "Velox Arena",
       "city": "Chicago",
       "starts_at": "2026-08-15T20:00:00Z",
-      "sale_starts_at": "2026-07-19T18:00:00Z",
       "timezone": "America/Chicago",
       "section_ids": ["A", "B"],
       "seats_total": 80,
@@ -87,8 +85,8 @@ Response:
 }
 ```
 
-The gateway owns event metadata. The frontend maps `image_key` to bundled local
-assets and derives remaining buckets from `seats_open`.
+The gateway owns event metadata. Published events are immediately reservable,
+and the frontend derives remaining buckets from `seats_open`.
 
 ### `GET /events/{eventId}`
 
@@ -117,7 +115,6 @@ Public section seat snapshot read.
       "x": 44,
       "y": 42,
       "accessibility": true,
-      "price_cents": 8650,
       "status": "AVAILABLE",
       "version": 0,
       "expires_at_server_ms": 0
@@ -160,7 +157,7 @@ Public announcement feed, newest first, capped at 100 rows in store-backed mode.
 Loose JSON body today:
 
 ```json
-{"email":"buyer@example.test","password":"secret","role":"reserver"}
+{"email":"reserver@example.test","password":"secret","role":"reserver"}
 ```
 
 `role` may be empty or `reserver`, or `organizer`. Passwords are Argon2id-hashed
@@ -175,7 +172,7 @@ Response: `200 {"user":{"id":"...","email":"...","role":"reserver"}}` plus
 Body:
 
 ```json
-{"email":"buyer@example.test","password":"secret"}
+{"email":"reserver@example.test","password":"secret"}
 ```
 
 Invalid attempts are rate-limited per email and client IP after 5 failures for
@@ -189,7 +186,7 @@ Clears `velox_session`. Response is `204 No Content`.
 
 Requires cookie. Response: `{"user":...}` or `401 {"error":"authentication_required"}`.
 
-## Buyer Routes
+## Reserver Routes
 
 ### `POST /reservations`
 
@@ -212,10 +209,8 @@ Response:
     "event_id": "evt",
     "section_id": "A",
     "seat_ids": ["A-01"],
-    "seats": [{"seat_id": "A-01", "price_cents": 8650}],
+    "seats": [{"seat_id": "A-01"}],
     "status": "PENDING",
-    "total_cents": 8650,
-    "fees_cents": 0,
     "expires_at_server_ms": 1760000000000,
     "server_time_ms": 1759999700000
   }
@@ -309,8 +304,6 @@ Requires organizer role and strict JSON. Request:
   "description": "Short public event copy.",
   "category": "Concerts",
   "starts_at": "2026-09-01T20:00:00Z",
-  "sale_starts_at": "2026-08-01T16:00:00Z",
-  "image_key": "event-midnight-array",
   "timezone": "UTC"
 }
 ```
@@ -319,18 +312,15 @@ Store-backed mode verifies the organizer owns `venue_id`, inserts
 `catalog.events`, materializes `catalog.event_sections`, creates inventory
 streams, and seeds projection seat snapshots from `catalog.venue_seats`.
 
-`id`, `description`, `category`, `sale_starts_at`, `image_key`, and `timezone`
-may be omitted. Defaults are generated ID, empty description, `Concerts`, now,
-`event-midnight-array`, and `UTC`.
+`id`, `description`, `category`, and `timezone` may be omitted. Defaults are a
+generated ID, empty description, `Concerts`, and `UTC`.
 
 Validation:
 
 - `name` is required and capped at 120 characters.
 - `description` is capped at 5000 characters.
-- `starts_at` is required and must be after `sale_starts_at`.
+- `starts_at` is required and must be in the future.
 - `category` must be `Concerts`, `Sports`, `Theatre`, or `Festivals`.
-- `image_key` must be `event-midnight-array`, `event-final-whistle`, or
-  `event-zero-hour`.
 - missing or unowned venues return `404 {"error":"venue_not_found"}`.
 
 Compatibility alias: `POST /api/organizer/events` remains gateway-native for
@@ -347,7 +337,7 @@ state.
 Requires event ownership. Returns aggregate counts:
 
 ```json
-{"inventory":{"AVAILABLE":40,"HELD":2,"SOLD":38},"active_holds":2}
+{"inventory":{"AVAILABLE":40,"HELD":2,"CONFIRMED":38},"active_holds":2}
 ```
 
 ### `GET /organizer/events/{eventId}/metrics/stream`
@@ -402,7 +392,6 @@ Requires organizer role and strict JSON. Request:
       "name": "Main Floor",
       "row_count": 4,
       "seats_per_row": 10,
-      "price_cents": 8500,
       "accessible_edge_seats": true
     }
   ]
@@ -416,7 +405,7 @@ default A/B template with 80 seats total.
 
 Validation: name, city, address, and positive capacity are required. At most 8
 sections are accepted. Each section requires a unique `section_id`, 1 to 26
-rows, 1 to 50 seats per row, and non-negative `price_cents`.
+rows, and 1 to 50 seats per row.
 
 Compatibility alias: `POST /api/organizer/venues`.
 

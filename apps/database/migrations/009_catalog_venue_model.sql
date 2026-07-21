@@ -3,27 +3,14 @@ BEGIN;
 ALTER TABLE catalog.events
     ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'Concerts',
     ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '',
-    ADD COLUMN IF NOT EXISTS image_key TEXT NOT NULL DEFAULT 'event-midnight-array',
-    ADD COLUMN IF NOT EXISTS sale_starts_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'UTC',
     ADD COLUMN IF NOT EXISTS status_reason TEXT,
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
 
-UPDATE catalog.events
-SET sale_starts_at = starts_at - INTERVAL '30 days'
-WHERE sale_starts_at IS NULL;
-
-ALTER TABLE catalog.events
-    ALTER COLUMN sale_starts_at SET NOT NULL;
-
 ALTER TABLE catalog.events
     ADD CONSTRAINT events_category_check
     CHECK (category IN ('Concerts', 'Sports', 'Theatre', 'Festivals'));
-
-ALTER TABLE catalog.events
-    ADD CONSTRAINT events_image_key_check
-    CHECK (image_key IN ('event-midnight-array', 'event-final-whistle', 'event-zero-hour'));
 
 CREATE TABLE IF NOT EXISTS catalog.venue_sections (
     venue_id TEXT NOT NULL REFERENCES catalog.venues(id),
@@ -32,7 +19,6 @@ CREATE TABLE IF NOT EXISTS catalog.venue_sections (
     display_order INTEGER NOT NULL DEFAULT 0,
     width INTEGER NOT NULL CHECK (width > 0),
     height INTEGER NOT NULL CHECK (height > 0),
-    default_price_amount_minor BIGINT NOT NULL DEFAULT 5000 CHECK (default_price_amount_minor >= 0),
     PRIMARY KEY (venue_id, section_id)
 );
 
@@ -49,10 +35,9 @@ INSERT INTO catalog.venue_sections (
     name,
     display_order,
     width,
-    height,
-    default_price_amount_minor
+    height
 )
-SELECT v.id, section_id, section_id || ' Section', display_order, 464, 204, 5000
+SELECT v.id, section_id, section_id || ' Section', display_order, 464, 204
 FROM catalog.venues v
 CROSS JOIN (VALUES ('A', 1), ('B', 2)) AS sections(section_id, display_order)
 ON CONFLICT (venue_id, section_id) DO NOTHING;
@@ -112,8 +97,7 @@ INSERT INTO catalog.venue_sections (
     name,
     display_order,
     width,
-    height,
-    default_price_amount_minor
+    height
 )
 SELECT
     venue_id,
@@ -121,8 +105,7 @@ SELECT
     section_id || ' Section',
     dense_rank() OVER (PARTITION BY venue_id ORDER BY section_id),
     464,
-    204,
-    5000
+    204
 FROM (
     SELECT DISTINCT venue_id, section_id
     FROM catalog.venue_seats
@@ -136,7 +119,6 @@ CREATE TABLE IF NOT EXISTS catalog.event_sections (
     display_order INTEGER NOT NULL DEFAULT 0,
     width INTEGER NOT NULL CHECK (width > 0),
     height INTEGER NOT NULL CHECK (height > 0),
-    price_amount_minor BIGINT NOT NULL DEFAULT 5000 CHECK (price_amount_minor >= 0),
     PRIMARY KEY (event_id, section_id)
 );
 
@@ -146,8 +128,7 @@ INSERT INTO catalog.event_sections (
     name,
     display_order,
     width,
-    height,
-    price_amount_minor
+    height
 )
 SELECT
     e.id,
@@ -155,20 +136,14 @@ SELECT
     vs.name,
     vs.display_order,
     vs.width,
-    vs.height,
-    COALESCE(MIN(ss.price_amount_minor), vs.default_price_amount_minor)
+    vs.height
 FROM catalog.events e
 JOIN catalog.venue_sections vs ON vs.venue_id = e.venue_id
-LEFT JOIN projection.seat_snapshots ss
-    ON ss.event_id = e.id AND ss.section_id = vs.section_id
-GROUP BY e.id, vs.section_id, vs.name, vs.display_order, vs.width, vs.height,
-    vs.default_price_amount_minor
 ON CONFLICT (event_id, section_id) DO UPDATE
 SET name = EXCLUDED.name,
     display_order = EXCLUDED.display_order,
     width = EXCLUDED.width,
-    height = EXCLUDED.height,
-    price_amount_minor = EXCLUDED.price_amount_minor;
+    height = EXCLUDED.height;
 
 ALTER TABLE projection.seat_snapshots
     ADD COLUMN IF NOT EXISTS row_label TEXT NOT NULL DEFAULT '',

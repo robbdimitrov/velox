@@ -7,13 +7,11 @@ CREATE SCHEMA IF NOT EXISTS projection;
 CREATE TABLE IF NOT EXISTS orders.orders (
     id uuid PRIMARY KEY,
     user_id text NOT NULL,
-    status text NOT NULL CHECK (status IN ('PENDING', 'AWAITING_PAYMENT', 'CONFIRMED', 'FAILED', 'EXPIRED')),
+    status text NOT NULL CHECK (status IN ('PENDING', 'HELD', 'CONFIRMED', 'CANCELLED', 'FAILED', 'EXPIRED')),
     idempotency_key text NOT NULL,
     request_hash bytea NOT NULL,
     reservation_id text,
     reservation_expires_at timestamptz,
-    currency char(3) NOT NULL DEFAULT 'USD',
-    total_amount_minor bigint NOT NULL DEFAULT 0 CHECK (total_amount_minor >= 0),
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     UNIQUE (user_id, idempotency_key)
@@ -27,24 +25,7 @@ CREATE TABLE IF NOT EXISTS orders.order_seats (
     event_id text NOT NULL,
     section_id text NOT NULL,
     seat_id text NOT NULL,
-    price_amount_minor bigint NOT NULL CHECK (price_amount_minor >= 0),
-    currency char(3) NOT NULL DEFAULT 'USD',
     PRIMARY KEY (order_id, event_id, section_id, seat_id)
-);
-
-CREATE TABLE IF NOT EXISTS orders.payments (
-    id uuid PRIMARY KEY,
-    order_id uuid NOT NULL REFERENCES orders.orders (id) ON DELETE CASCADE,
-    provider text NOT NULL,
-    provider_payment_id text,
-    status text NOT NULL CHECK (status IN ('PENDING', 'CONFIRMED', 'FAILED')),
-    idempotency_key text NOT NULL,
-    amount_minor bigint NOT NULL CHECK (amount_minor >= 0),
-    currency char(3) NOT NULL DEFAULT 'USD',
-    failure_code text,
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now(),
-    UNIQUE (provider, idempotency_key)
 );
 
 CREATE TABLE IF NOT EXISTS orders.idempotency_keys (
@@ -137,9 +118,8 @@ CREATE TABLE IF NOT EXISTS projection.seat_snapshots (
     event_id text NOT NULL,
     section_id text NOT NULL,
     seat_id text NOT NULL,
-    status text NOT NULL CHECK (status IN ('AVAILABLE', 'HELD', 'SOLD', 'TRANSFERRED', 'USED')),
+    status text NOT NULL CHECK (status IN ('AVAILABLE', 'HELD', 'RESERVED', 'TRANSFERRED', 'USED')),
     aggregate_version integer NOT NULL CHECK (aggregate_version >= 0),
-    price_amount_minor bigint NOT NULL DEFAULT 0 CHECK (price_amount_minor >= 0),
     reservation_id text,
     held_by_user_id text,
     expires_at timestamptz,
@@ -148,9 +128,6 @@ CREATE TABLE IF NOT EXISTS projection.seat_snapshots (
     PRIMARY KEY (event_id, section_id, seat_id)
 );
 
-ALTER TABLE projection.seat_snapshots
-    ADD COLUMN IF NOT EXISTS price_amount_minor bigint NOT NULL DEFAULT 0 CHECK (price_amount_minor >= 0);
-
 CREATE INDEX IF NOT EXISTS idx_projection_seat_snapshots_section
     ON projection.seat_snapshots (event_id, section_id, status);
 
@@ -158,8 +135,6 @@ CREATE TABLE IF NOT EXISTS projection.order_summaries (
     order_id uuid PRIMARY KEY,
     user_id text NOT NULL,
     status text NOT NULL,
-    total_amount_minor bigint NOT NULL CHECK (total_amount_minor >= 0),
-    currency char(3) NOT NULL,
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 

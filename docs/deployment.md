@@ -82,7 +82,7 @@ rollouts, and starts a frontend port-forward after verifying its health:
 Use `scripts/deploy.sh --dry-run` for client-side manifest validation and
 `scripts/deploy.sh --skip-build` when images are already available locally.
 After the frontend port-forward is up, run `scripts/smoke.sh` or `make smoke`
-to exercise health, buyer reservation/confirmation/wallet reads, organizer
+to exercise health, reserver reservation/confirmation/wallet reads, organizer
 venue/event creation, announcements, and cancellation through the frontend
 `/api` proxy. Set `BASE_URL` for a non-default frontend URL or `API_BASE` to
 call a directly forwarded gateway.

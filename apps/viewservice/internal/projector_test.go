@@ -12,7 +12,7 @@ func TestDropsDuplicateEventID(t *testing.T) {
 	if err := p.Apply(event); err != nil {
 		t.Fatal(err)
 	}
-	event.Seat.Status = "SOLD"
+	event.Seat.Status = "RESERVED"
 	if err := p.Apply(event); err != nil {
 		t.Fatal(err)
 	}
@@ -109,8 +109,7 @@ const orderConfirmedEnvelope = `{
 		"order_id": "order-42",
 		"user_id": "user-9",
 		"event_id": "evt_neon_riot",
-		"status": "CONFIRMED",
-		"total_amount_minor": 8500
+		"status": "CONFIRMED"
 	}
 }`
 

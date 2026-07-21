@@ -33,9 +33,6 @@ func TestReserverCanReserveAndConfirmSeat(t *testing.T) {
 	if order.Status != OrderPending {
 		t.Fatalf("status = %s, want %s", order.Status, OrderPending)
 	}
-	if order.TotalCents <= 0 {
-		t.Fatalf("total_cents = %d, want positive seat total", order.TotalCents)
-	}
 
 	req := httptest.NewRequest(http.MethodPost, "/reservations/"+order.ReservationID+"/confirm", nil)
 	req.Header.Set("Idempotency-Key", "confirm-1")
@@ -154,8 +151,8 @@ func TestReservationCreateReturnsSignedToken(t *testing.T) {
 	if got, want := time.Duration(order.ExpiresAtServerMS-order.ServerTimeMS)*time.Millisecond, reservationHoldDuration; got != want {
 		t.Fatalf("expiry duration = %s, want %s", got, want)
 	}
-	if len(order.Seats) != 1 || order.Seats[0].ID != "A-07" || order.Seats[0].PriceCents <= 0 {
-		t.Fatalf("selected seat prices missing: %+v", order.Seats)
+	if len(order.Seats) != 1 || order.Seats[0].ID != "A-07" {
+		t.Fatalf("selected seat missing: %+v", order.Seats)
 	}
 }
 

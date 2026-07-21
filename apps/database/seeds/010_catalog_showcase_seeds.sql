@@ -6,8 +6,7 @@ INSERT INTO catalog.venue_sections (
     name,
     display_order,
     width,
-    height,
-    default_price_amount_minor
+    height
 )
 SELECT
     venue_id,
@@ -15,25 +14,23 @@ SELECT
     section_id || ' Section',
     display_order,
     464,
-    204,
-    default_price_amount_minor
+    204
 FROM (
     VALUES
-        ('ven_velox_arena', 'A', 1, 8650),
-        ('ven_velox_arena', 'B', 2, 8650),
-        ('ven_north_pier', 'A', 1, 7450),
-        ('ven_north_pier', 'B', 2, 7450),
-        ('ven_civic_bowl', 'A', 1, 9250),
-        ('ven_civic_bowl', 'B', 2, 9250),
-        ('ven_moonlight', 'A', 1, 6800),
-        ('ven_moonlight', 'B', 2, 6800)
-) AS sections(venue_id, section_id, display_order, default_price_amount_minor)
+        ('ven_velox_arena', 'A', 1),
+        ('ven_velox_arena', 'B', 2),
+        ('ven_north_pier', 'A', 1),
+        ('ven_north_pier', 'B', 2),
+        ('ven_civic_bowl', 'A', 1),
+        ('ven_civic_bowl', 'B', 2),
+        ('ven_moonlight', 'A', 1),
+        ('ven_moonlight', 'B', 2)
+) AS sections(venue_id, section_id, display_order)
 ON CONFLICT (venue_id, section_id) DO UPDATE
 SET name = EXCLUDED.name,
     display_order = EXCLUDED.display_order,
     width = EXCLUDED.width,
-    height = EXCLUDED.height,
-    default_price_amount_minor = EXCLUDED.default_price_amount_minor;
+    height = EXCLUDED.height;
 
 WITH generated_seats AS (
     SELECT
@@ -88,16 +85,14 @@ SET row_label = EXCLUDED.row_label,
 UPDATE catalog.events
 SET description = data.description,
     category = data.category,
-    sale_starts_at = data.sale_starts_at::timestamptz,
-    image_key = data.image_key,
     timezone = data.timezone
 FROM (
     VALUES
-        ('evt_neon_riot', 'Arena-scale synth and alt-pop with synchronized fan drops.', 'Concerts', '2026-07-19 18:00:00+00', 'event-final-whistle', 'America/Chicago'),
-        ('evt_north_pier', 'A waterfront symphony program with limited reserved seating.', 'Concerts', '2026-08-01 17:00:00+00', 'event-zero-hour', 'America/Los_Angeles'),
-        ('evt_civic_bowl', 'Championship football with live inventory across lower bowl sections.', 'Sports', '2026-08-20 16:00:00+00', 'event-zero-hour', 'America/Denver'),
-        ('evt_summer_fests', 'Outdoor festival entry with reserved viewing sections.', 'Festivals', '2026-07-19 09:00:00+00', 'event-final-whistle', 'America/Chicago')
-) AS data(event_id, description, category, sale_starts_at, image_key, timezone)
+        ('evt_neon_riot', 'Arena-scale synth and alt-pop with synchronized fan drops.', 'Concerts', 'America/Chicago'),
+        ('evt_north_pier', 'A waterfront symphony program with limited reserved seating.', 'Concerts', 'America/Los_Angeles'),
+        ('evt_civic_bowl', 'Championship football with live inventory across lower bowl sections.', 'Sports', 'America/Denver'),
+        ('evt_summer_fests', 'Outdoor festival entry with reserved viewing sections.', 'Festivals', 'America/Chicago')
+) AS data(event_id, description, category, timezone)
 WHERE catalog.events.id = data.event_id;
 
 INSERT INTO catalog.event_sections (
@@ -106,8 +101,7 @@ INSERT INTO catalog.event_sections (
     name,
     display_order,
     width,
-    height,
-    price_amount_minor
+    height
 )
 SELECT
     e.id,
@@ -115,15 +109,13 @@ SELECT
     vs.name,
     vs.display_order,
     vs.width,
-    vs.height,
-    vs.default_price_amount_minor
+    vs.height
 FROM catalog.events e
 JOIN catalog.venue_sections vs ON vs.venue_id = e.venue_id
 ON CONFLICT (event_id, section_id) DO UPDATE
 SET name = EXCLUDED.name,
     display_order = EXCLUDED.display_order,
     width = EXCLUDED.width,
-    height = EXCLUDED.height,
-    price_amount_minor = EXCLUDED.price_amount_minor;
+    height = EXCLUDED.height;
 
 COMMIT;

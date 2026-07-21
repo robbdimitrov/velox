@@ -96,7 +96,7 @@ func TestHandleCreateOrderRejectsUnknownFields(t *testing.T) {
 		},
 	}}
 
-	reqBody := `{"event_id":"e1","section_id":"s1","seat_ids":["seat1"],"idempotency_key":"ok-key","user_id":"u1","price":1}`
+	reqBody := `{"event_id":"e1","section_id":"s1","seat_ids":["seat1"],"idempotency_key":"ok-key","user_id":"u1","unexpected":1}`
 	req := httptest.NewRequest(http.MethodPost, "/orders", bytes.NewReader([]byte(reqBody)))
 	rr := httptest.NewRecorder()
 

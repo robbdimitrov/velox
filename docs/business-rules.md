@@ -19,7 +19,7 @@ the target, the gap is called out explicitly.
 
 ## Roles And Ownership
 
-- Buyers can browse, reserve, confirm/cancel their own reservations, read their
+- Reservers can browse, reserve, confirm/cancel their own reservations, read their
   own orders, and read their own wallet.
 - Organizers can use organizer routes only after role check.
 - Organizer event actions require ownership through the event venue.
@@ -32,24 +32,25 @@ the target, the gap is called out explicitly.
 
 - A venue has name, city, address, and capacity.
 - Venue creation accepts optional grid section templates. Each template defines
-  section ID, name, row count, seats per row, default price, and whether edge
-  seats are accessible.
+  section ID, name, row count, seats per row, and whether edge seats are
+  accessible.
 - If no template is supplied, store-backed venue creation creates a default A/B
   template: rows A-D, seats 01-10, geometry coordinates, accessibility flags on
-  edge seats, and a default price.
+  edge seats.
 - Venue names are required and capped at 120 characters. City is capped at 80,
   address at 240, capacity at 250000, and section templates are capped at 8
   sections, 26 rows, and 50 seats per row.
 - Organizer event create requires an owned venue in store-backed mode.
 - Event create accepts `venue_id`, `name`, `description`, `category`,
-  `starts_at`, `sale_starts_at`, `image_key`, and optional `timezone`.
+  `starts_at`, and optional `timezone`.
 - Event names are required and capped at 120 characters. Descriptions are capped
   at 5000 characters.
-- `starts_at` must be after `sale_starts_at`.
+- `starts_at` must be in the future.
 - Categories are `Concerts`, `Sports`, `Theatre`, and `Festivals`.
-- Image keys are `event-midnight-array`, `event-final-whistle`, and
-  `event-zero-hour`.
+- New UI is image-less and must not expose artwork selection.
 - Events are bookable only when `catalog.events.status = PUBLISHED`.
+- Published events are immediately reservable. There is no public opening
+  timestamp.
 - `CANCELLED` events are not bookable.
 - Draft and completed statuses are target states, not implemented states.
 
@@ -87,14 +88,14 @@ the target, the gap is called out explicitly.
 - Confirmation after expiry must be rejected or corrected by seatservice if a
   stale order mirror briefly accepted it.
 
-## Checkout Decision
+## Reservation Decision
 
-Velox currently uses reservation-only checkout. The user confirms a held
-reservation; no real payment processor or payment form is part of the product.
+Velox is reservation-only. The user confirms a held reservation and receives a
+reservation ticket. No external processor, processor form, or transaction copy is
+part of the product.
 
-If a local payment simulator is added later, it must persist simulated payment
-state and use idempotent confirmation. Until then UI copy should use
-"reservation" or "confirm reservation", not "charge" or "payment".
+Visible copy must use Reserve, Confirm reservation, Cancel reservation, and
+Reservation ticket.
 
 ## Order Lifecycle
 
@@ -102,8 +103,8 @@ Order states:
 
 - `PENDING`: order row created; seatservice has not yet confirmed the hold.
 - `HELD`: inventory hold succeeded.
-- `CONFIRMED`: buyer confirmed a held reservation.
-- `CANCELLED`: buyer cancellation or event cancellation.
+- `CONFIRMED`: reserver confirmed a held reservation.
+- `CANCELLED`: reserver cancellation or event cancellation.
 - `FAILED`: seat hold failed.
 - `EXPIRED`: hold expired before confirmation.
 
@@ -126,7 +127,7 @@ cancel `CONFIRMED` orders because the event itself is no longer valid.
 - Catalog status changes to `CANCELLED`.
 - Orderservice bulk-cancels outstanding orders in one transaction and writes
   one outbox row per cancelled order plus one `EventCancelled` row.
-- Seatservice marks held, sold, and never-touched seats as terminal cancelled
+- Seatservice marks held, confirmed, and never-touched seats as terminal cancelled
   so no seat appears bookable after cancellation.
 - Wallet tickets for cancelled events become `CANCELLED`.
 

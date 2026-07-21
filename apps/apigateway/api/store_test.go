@@ -45,43 +45,40 @@ func TestCreateEventCopiesGeometryToInventoryAndProjectionRows(t *testing.T) {
 	defer db.Close()
 
 	startsAt := time.Now().Add(48 * time.Hour).UTC().Truncate(time.Second)
-	saleStartsAt := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
 	event := Event{
-		ID:           "evt_geometry",
-		VenueID:      "ven_geometry",
-		Name:         "Geometry Event",
-		Description:  "Geometry-backed seats",
-		Category:     "Theatre",
-		ImageKey:     "event-zero-hour",
-		StartsAt:     startsAt,
-		SaleStartsAt: saleStartsAt,
-		Timezone:     "America/New_York",
-		Status:       EventStatusPublished,
+		ID:          "evt_geometry",
+		VenueID:     "ven_geometry",
+		Name:        "Geometry Event",
+		Description: "Geometry-backed seats",
+		Category:    "Theatre",
+		StartsAt:    startsAt,
+		Timezone:    "America/New_York",
+		Status:      EventStatusPublished,
 	}
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`(?s)INSERT INTO catalog\.events .*VALUES`).
-		WithArgs(event.ID, event.VenueID, event.Name, event.Description, event.Category, event.StartsAt, event.SaleStartsAt, event.ImageKey, event.Timezone, event.Status).
+		WithArgs(event.ID, event.VenueID, event.Name, event.Description, event.Category, event.StartsAt, event.Timezone, event.Status).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`(?s)INSERT INTO catalog\.event_sections .*FROM catalog\.venue_sections`).
 		WithArgs(event.ID, event.VenueID).
 		WillReturnResult(sqlmock.NewResult(0, 2))
-	mock.ExpectQuery(`(?s)SELECT vs\.section_id, vs\.seat_id, vs\.row_label, vs\.seat_number, vs\.x, vs\.y,\s+vs\.accessibility, COALESCE\(es\.price_amount_minor, 5000\).*FROM catalog\.venue_seats vs`).
+	mock.ExpectQuery(`(?s)SELECT vs\.section_id, vs\.seat_id, vs\.row_label, vs\.seat_number, vs\.x, vs\.y,\s+vs\.accessibility\s+FROM catalog\.venue_seats vs`).
 		WithArgs(event.VenueID, event.ID).
-		WillReturnRows(sqlmock.NewRows([]string{"section_id", "seat_id", "row_label", "seat_number", "x", "y", "accessibility", "price_amount_minor"}).
-			AddRow("A", "A-01", "A", 1, 44, 42, true, 8650).
-			AddRow("A", "A-02", "A", 2, 86, 42, false, 8650))
+		WillReturnRows(sqlmock.NewRows([]string{"section_id", "seat_id", "row_label", "seat_number", "x", "y", "accessibility"}).
+			AddRow("A", "A-01", "A", 1, 44, 42, true).
+			AddRow("A", "A-02", "A", 2, 86, 42, false))
 	mock.ExpectExec(`INSERT INTO inventory\.event_streams`).
 		WithArgs("seat:evt_geometry:A:A-01", event.ID, "A", "A-01").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`(?s)INSERT INTO projection\.seat_snapshots .*VALUES`).
-		WithArgs(event.ID, "A", "A-01", 8650, "A", 1, 44, 42, true).
+		WithArgs(event.ID, "A", "A-01", "A", 1, 44, 42, true).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`INSERT INTO inventory\.event_streams`).
 		WithArgs("seat:evt_geometry:A:A-02", event.ID, "A", "A-02").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`(?s)INSERT INTO projection\.seat_snapshots .*VALUES`).
-		WithArgs(event.ID, "A", "A-02", 8650, "A", 2, 86, 42, false).
+		WithArgs(event.ID, "A", "A-02", "A", 2, 86, 42, false).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
@@ -156,7 +153,6 @@ func TestCreateVenueCreatesCustomSeatTemplate(t *testing.T) {
 		Name:                "VIP Floor",
 		RowCount:            2,
 		SeatsPerRow:         3,
-		PriceCents:          12500,
 		AccessibleEdgeSeats: true,
 	}}
 
@@ -168,7 +164,7 @@ func TestCreateVenueCreatesCustomSeatTemplate(t *testing.T) {
 		WithArgs("usr_organizer", venue.ID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`(?s)INSERT INTO catalog\.venue_sections`).
-		WithArgs(venue.ID, "VIP", "VIP Floor", 1, 170, 120, 12500).
+		WithArgs(venue.ID, "VIP", "VIP Floor", 1, 170, 120).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	for _, args := range [][]driver.Value{
 		{venue.ID, "VIP", "A-01", "A", 1, 44, 42, true},
@@ -208,8 +204,8 @@ func TestListSeatsReturnsProjectionGeometry(t *testing.T) {
 		WithArgs("evt_geometry", "A").
 		WillReturnRows(sqlmock.NewRows([]string{
 			"seat_id", "row_label", "seat_number", "x", "y", "accessibility",
-			"status", "aggregate_version", "expires_at_server_ms", "price_amount_minor", "age_ms",
-		}).AddRow("A-01", "A", 1, 44, 42, true, StatusAvailable, 0, int64(0), 8650, int64(4)))
+			"status", "aggregate_version", "expires_at_server_ms", "age_ms",
+		}).AddRow("A-01", "A", 1, 44, 42, true, StatusAvailable, 0, int64(0), int64(4)))
 
 	store := &DatabaseStore{db: db}
 	seats, snapshotAgeMS, err := store.ListSeats(context.Background(), "evt_geometry", "A")
@@ -310,7 +306,7 @@ func TestGetOrganizerMetricsUsesProjectionCountsAndLag(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"section_id", "status", "count"}).
 			AddRow("A", StatusAvailable, 5).
 			AddRow("A", StatusHeld, 3).
-			AddRow("A", StatusSold, 2))
+			AddRow("A", StatusReserved, 2))
 	mock.ExpectQuery(`(?s)SELECT COALESCE\(extract\(epoch from \(now\(\) - MAX\(updated_at\)\)\) \* 1000, 0\)::bigint\s+FROM projection\.seat_snapshots`).
 		WithArgs("evt_metrics").
 		WillReturnRows(sqlmock.NewRows([]string{"lag"}).AddRow(int64(42)))

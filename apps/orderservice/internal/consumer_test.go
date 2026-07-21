@@ -59,8 +59,8 @@ func TestHandleSeatReservationExpired(t *testing.T) {
 	mock.ExpectExec("UPDATE orders.orders SET status = 'EXPIRED'").
 		WithArgs(orderID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	rows := sqlmock.NewRows([]string{"event_id", "total_amount_minor"}).AddRow("evt-1", int64(9250))
-	mock.ExpectQuery("SELECT s.event_id, o.total_amount_minor").
+	rows := sqlmock.NewRows([]string{"event_id"}).AddRow("evt-1")
+	mock.ExpectQuery("SELECT event_id").
 		WithArgs(orderID).
 		WillReturnRows(rows)
 	mock.ExpectExec("INSERT INTO orders.outbox_events").
@@ -112,8 +112,8 @@ func TestHandleSeatReservationConfirmationFailed(t *testing.T) {
 			mock.ExpectExec("UPDATE orders.orders SET status = \\$2").
 				WithArgs(orderID, "EXPIRED").
 				WillReturnResult(sqlmock.NewResult(0, 1))
-			rows := sqlmock.NewRows([]string{"event_id", "total_amount_minor"}).AddRow("evt-1", int64(9250))
-			mock.ExpectQuery("SELECT s.event_id, o.total_amount_minor").
+			rows := sqlmock.NewRows([]string{"event_id"}).AddRow("evt-1")
+			mock.ExpectQuery("SELECT event_id").
 				WithArgs(orderID).
 				WillReturnRows(rows)
 			mock.ExpectExec("INSERT INTO orders.outbox_events").
@@ -171,8 +171,8 @@ func TestHandleSeatReservationConfirmationFailed_EventCancelled(t *testing.T) {
 	mock.ExpectExec("UPDATE orders.orders SET status = \\$2").
 		WithArgs(orderID, "CANCELLED").
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	rows := sqlmock.NewRows([]string{"event_id", "total_amount_minor"}).AddRow("evt-1", int64(9250))
-	mock.ExpectQuery("SELECT s.event_id, o.total_amount_minor").
+	rows := sqlmock.NewRows([]string{"event_id"}).AddRow("evt-1")
+	mock.ExpectQuery("SELECT event_id").
 		WithArgs(orderID).
 		WillReturnRows(rows)
 	var payload []byte

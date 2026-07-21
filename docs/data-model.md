@@ -35,8 +35,7 @@ either supplied grid section templates or a default A/B template with 80 seats.
 
 ### `catalog.venue_sections`
 
-Fields: `venue_id`, `section_id`, `name`, `display_order`, `width`, `height`,
-`default_price_amount_minor`.
+Fields: `venue_id`, `section_id`, `name`, `display_order`, `width`, `height`.
 
 Primary key: `(venue_id, section_id)`. Write owner: venue create and seed
 bootstrap. Read owner: event creation. Lifecycle: copied into event sections
@@ -66,21 +65,20 @@ implemented.
 ### `catalog.events`
 
 Fields: `id text primary key`, `venue_id references catalog.venues(id)`,
-`name`, `description`, `category`, `image_key`, `starts_at timestamptz`,
-`sale_starts_at timestamptz`, `timezone`, `status`, `status_reason`,
-`created_at`, `updated_at`.
+`name`, `description`, `category`, `starts_at timestamptz`, `timezone`,
+`status`, `status_reason`, `created_at`, `updated_at`.
 
 Write owner: organizer event create and event cancel. Read owners: discovery,
 event detail, orderservice booking gate. Current statuses are `PUBLISHED` and
-`CANCELLED`; draft/completed are planned.
+`CANCELLED`; draft/completed are planned. `PUBLISHED` means immediately
+reservable.
 
-Category and image keys are constrained to the allowlists documented in
-`docs/api.md`.
+Category values are constrained to the allowlist documented in `docs/api.md`.
+Artwork and opening timestamp fields are not part of the product contract.
 
 ### `catalog.event_sections`
 
-Fields: `event_id`, `section_id`, `name`, `display_order`, `width`, `height`,
-`price_amount_minor`.
+Fields: `event_id`, `section_id`, `name`, `display_order`, `width`, `height`.
 
 Primary key: `(event_id, section_id)`. Write owner: event creation and seeds.
 Read owner: public event detail through `section_ids` today; richer section DTOs
@@ -102,7 +100,7 @@ Write owner: organizer announcement create. Read owner: public event page.
 
 Fields include `id uuid primary key`, `user_id`, `status`,
 `idempotency_key`, `request_hash`, `reservation_id`,
-`reservation_expires_at`, `currency`, `total_amount_minor`, timestamps.
+`reservation_expires_at`, timestamps.
 
 Constraints: status in `PENDING`, `HELD`, `CONFIRMED`, `CANCELLED`, `FAILED`,
 `EXPIRED`; unique `(user_id, idempotency_key)`.
@@ -114,17 +112,11 @@ Write owner: orderservice. Read owner: gateway order APIs and projections.
 ### `orders.order_seats`
 
 Fields: `order_id references orders.orders(id)`, `event_id`, `section_id`,
-`seat_id`, `price_amount_minor`, `currency`.
+`seat_id`.
 
 Primary key: `(order_id, event_id, section_id, seat_id)`.
 
 Write owner: orderservice create order. Lifecycle follows parent order.
-
-### `orders.payments`
-
-Exists from the early payment-oriented schema but is not used by the current
-reservation-only checkout path. Do not expose payment controls unless Phase 3
-chooses and implements a local payment simulator.
 
 ### `orders.idempotency_keys`
 
@@ -197,20 +189,20 @@ Unique source offset prevents duplicate application.
 ### `projection.seat_snapshots`
 
 Fields: `event_id`, `section_id`, `seat_id`, `status`, `aggregate_version`,
-`price_amount_minor`, `row_label`, `seat_number`, `x`, `y`, `accessibility`,
-`reservation_id`, `held_by_user_id`, `expires_at`, `ticket_id`, `updated_at`.
+`row_label`, `seat_number`, `x`, `y`, `accessibility`, `reservation_id`,
+`held_by_user_id`, `expires_at`, `ticket_id`, `updated_at`.
 
 Primary key: `(event_id, section_id, seat_id)`. Index:
-`(event_id, section_id, status)`. Status includes `AVAILABLE`, `HELD`, `SOLD`,
-`TRANSFERRED`, `USED`, `CANCELLED`.
+`(event_id, section_id, status)`. Product-facing status includes `AVAILABLE`,
+`HELD`, `RESERVED`, `TRANSFERRED`, `USED`, `CANCELLED`.
 
 Write owner: viewservice and event bootstrap. Read owner: gateway seat and
 inventory reads.
 
 ### `projection.order_summaries`
 
-Fields: `order_id uuid primary key`, `user_id`, `status`,
-`total_amount_minor`, `currency`, `updated_at`, `event_id`.
+Fields: `order_id uuid primary key`, `user_id`, `status`, `updated_at`,
+`event_id`.
 
 Indexes: `(user_id, updated_at desc)`, `event_id`.
 
@@ -244,5 +236,5 @@ Write owner: viewservice. Lifecycle: inserted when
 `SeatReservationConfirmed` is processed before the matching order summary;
 deleted only after the corresponding wallet ticket row is inserted or updated.
 If the seat is cancelled before the order summary arrives, drain creates a
-`CANCELLED` wallet ticket so the buyer sees the lifecycle instead of a missing
-ticket.
+`CANCELLED` wallet ticket so the reserver sees the lifecycle instead of a
+missing ticket.

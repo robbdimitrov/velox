@@ -47,12 +47,11 @@ type Seat struct {
 }
 
 type Order struct {
-	OutboxEventID    string `json:"outbox_event_id"`
-	OrderID          string `json:"order_id"`
-	UserID           string `json:"user_id"`
-	EventID          string `json:"event_id"`
-	Status           string
-	TotalAmountMinor int64 `json:"total_amount_minor"`
+	OutboxEventID string `json:"outbox_event_id"`
+	OrderID       string `json:"order_id"`
+	UserID        string `json:"user_id"`
+	EventID       string `json:"event_id"`
+	Status        string
 }
 
 type Projector struct {

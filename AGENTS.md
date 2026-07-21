@@ -2,7 +2,7 @@
 
 ## Architecture
 
-Velox is a high-scale event ticket marketplace using SvelteKit SSR with Svelte
+Velox is a high-scale event reservation platform using SvelteKit SSR with Svelte
 5, Tailwind, DaisyUI, Lucide icons, Go, Rust, Kafka, and isolated persistence
 per service. Keep product and architecture documents in `docs/`.
 
@@ -50,7 +50,7 @@ scripts/deploy.sh  # build images, apply manifests, and port-forward
   duplicates.
 - Every network call needs an explicit timeout and safe error mapping. Retries
   require a bounded policy and an idempotent operation.
-- Treat flash-sale correctness, idempotency, and Kafka event compatibility as
+- Treat surge correctness, idempotency, and Kafka event compatibility as
   first-class concerns.
 
 ## Engineering Standards
@@ -97,7 +97,7 @@ Security controls are design constraints, not review-time additions.
   SSE messages, Kafka payloads, pagination, collection sizes, and stream
   reads before parsing or allocation.
 - Authentication and authorization default to deny. Never trust client-supplied
-  user IDs, prices, seat states, reservation expiry, or fee totals. Derive
+  user IDs, seat states, reservation expiry, or capacity totals. Derive
   identity from validated tokens and keep ownership checks next to protected
   operations.
 - Use parameterized SQL exclusively. Make check-then-act operations atomic with
@@ -112,8 +112,8 @@ Security controls are design constraints, not review-time additions.
   against an explicit scheme and origin policy.
 - Log structured operational metadata without credentials, session values,
   request bodies, unnecessary personal data, or raw user-controlled text.
-- Justify new dependencies by their maintenance, security, image-size, and
-  runtime cost.
+- Justify new dependencies by their maintenance, security, image size, and
+  runtime footprint.
 
 ## Go Conventions
 

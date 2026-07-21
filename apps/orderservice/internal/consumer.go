@@ -166,13 +166,11 @@ func handleSeatReservationExpired(ctx context.Context, db *sql.DB, orderID strin
 	}
 
 	var eventIDStr string
-	var totalAmount int64
 	if err := tx.QueryRowContext(ctx, `
-		SELECT s.event_id, o.total_amount_minor
-		FROM orders.order_seats s
-		JOIN orders.orders o ON o.id = s.order_id
-		WHERE s.order_id = $1 LIMIT 1
-	`, orderID).Scan(&eventIDStr, &totalAmount); err != nil {
+		SELECT event_id
+		FROM orders.order_seats
+		WHERE order_id = $1 LIMIT 1
+	`, orderID).Scan(&eventIDStr); err != nil {
 		slog.Error("failed to get order event id", "error", err)
 		return err
 	}
@@ -181,11 +179,10 @@ func handleSeatReservationExpired(ctx context.Context, db *sql.DB, orderID strin
 	envelope := map[string]any{
 		"Type": "OrderExpired",
 		"Order": map[string]any{
-			"outbox_event_id":    eventID,
-			"order_id":           orderID,
-			"event_id":           eventIDStr,
-			"status":             "EXPIRED",
-			"total_amount_minor": totalAmount,
+			"outbox_event_id": eventID,
+			"order_id":        orderID,
+			"event_id":        eventIDStr,
+			"status":          "EXPIRED",
 		},
 	}
 	payloadBytes, _ := json.Marshal(envelope)
@@ -240,13 +237,11 @@ func handleSeatReservationConfirmationFailed(ctx context.Context, db *sql.DB, or
 	}
 
 	var eventIDStr string
-	var totalAmount int64
 	if err := tx.QueryRowContext(ctx, `
-		SELECT s.event_id, o.total_amount_minor
-		FROM orders.order_seats s
-		JOIN orders.orders o ON o.id = s.order_id
-		WHERE s.order_id = $1 LIMIT 1
-	`, orderID).Scan(&eventIDStr, &totalAmount); err != nil {
+		SELECT event_id
+		FROM orders.order_seats
+		WHERE order_id = $1 LIMIT 1
+	`, orderID).Scan(&eventIDStr); err != nil {
 		slog.Error("failed to get order event id", "error", err)
 		return err
 	}
@@ -258,7 +253,7 @@ func handleSeatReservationConfirmationFailed(ctx context.Context, db *sql.DB, or
 	headersBytes, _ := json.Marshal(headers)
 
 	if eventCancelled {
-		outboxEventID, payloadBytes, err := buildOrderCancelledEnvelope(orderID, eventIDStr, totalAmount, reason)
+		outboxEventID, payloadBytes, err := buildOrderCancelledEnvelope(orderID, eventIDStr, reason)
 		if err != nil {
 			return err
 		}
@@ -276,11 +271,10 @@ func handleSeatReservationConfirmationFailed(ctx context.Context, db *sql.DB, or
 	envelope := map[string]any{
 		"Type": "OrderExpired",
 		"Order": map[string]any{
-			"outbox_event_id":    eventID,
-			"order_id":           orderID,
-			"event_id":           eventIDStr,
-			"status":             "EXPIRED",
-			"total_amount_minor": totalAmount,
+			"outbox_event_id": eventID,
+			"order_id":        orderID,
+			"event_id":        eventIDStr,
+			"status":          "EXPIRED",
 		},
 	}
 	payloadBytes, _ := json.Marshal(envelope)

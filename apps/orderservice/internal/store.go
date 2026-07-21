@@ -7,9 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -114,48 +112,12 @@ func (s *Store) CreateOrder(ctx context.Context, req OrderRequest) (string, erro
 
 	orderID := uuid.New().String()
 
-	var total int64 = 0
-
 	type seatInfo struct {
-		SeatID     string
-		PriceMinor int64
+		SeatID string
 	}
-	priceBySeatID := make(map[string]int64, len(seatIDs))
-	seatPricePlaceholders := make([]string, len(seatIDs))
-	seatPriceArgs := make([]any, 0, len(seatIDs)+2)
-	seatPriceArgs = append(seatPriceArgs, req.EventID, req.SectionID)
-	for i, seatID := range seatIDs {
-		seatPricePlaceholders[i] = fmt.Sprintf("$%d", i+3)
-		seatPriceArgs = append(seatPriceArgs, seatID)
-	}
-	rows, err := tx.QueryContext(ctx, fmt.Sprintf(`
-		SELECT seat_id, price_amount_minor
-		FROM projection.seat_snapshots
-		WHERE event_id = $1 AND section_id = $2 AND seat_id IN (%s)
-	`, strings.Join(seatPricePlaceholders, ", ")), seatPriceArgs...)
-	if err != nil {
-		return "", err
-	}
-	for rows.Next() {
-		var seatID string
-		var price int64
-		if err := rows.Scan(&seatID, &price); err != nil {
-			rows.Close()
-			return "", err
-		}
-		priceBySeatID[seatID] = price
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return "", err
-	}
-	rows.Close()
-
 	seats := make([]seatInfo, 0, len(seatIDs))
 	for _, seatID := range seatIDs {
-		price := priceBySeatID[seatID]
-		seats = append(seats, seatInfo{SeatID: seatID, PriceMinor: price})
-		total += price
+		seats = append(seats, seatInfo{SeatID: seatID})
 	}
 
 	// Keep reservation_id reversible for apigateway forwardOrderAction, even
@@ -163,18 +125,18 @@ func (s *Store) CreateOrder(ctx context.Context, req OrderRequest) (string, erro
 	reservationID := "res_" + orderID
 
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO orders.orders (id, user_id, status, idempotency_key, request_hash, total_amount_minor, reservation_id)
-		VALUES ($1, $2, 'PENDING', $3, $4, $5, $6)
-	`, orderID, req.UserID, req.IdempotencyKey, hash[:], total, reservationID)
+		INSERT INTO orders.orders (id, user_id, status, idempotency_key, request_hash, reservation_id)
+		VALUES ($1, $2, 'PENDING', $3, $4, $5)
+	`, orderID, req.UserID, req.IdempotencyKey, hash[:], reservationID)
 	if err != nil {
 		return "", err
 	}
 
 	for _, seat := range seats {
 		_, err = tx.ExecContext(ctx, `
-			INSERT INTO orders.order_seats (order_id, event_id, section_id, seat_id, price_amount_minor)
-			VALUES ($1, $2, $3, $4, $5)
-		`, orderID, req.EventID, req.SectionID, seat.SeatID, seat.PriceMinor)
+			INSERT INTO orders.order_seats (order_id, event_id, section_id, seat_id)
+			VALUES ($1, $2, $3, $4)
+		`, orderID, req.EventID, req.SectionID, seat.SeatID)
 		if err != nil {
 			return "", err
 		}
@@ -184,16 +146,15 @@ func (s *Store) CreateOrder(ctx context.Context, req OrderRequest) (string, erro
 	envelope := map[string]any{
 		"Type": "OrderCreated",
 		"Order": map[string]any{
-			"outbox_event_id":    eventID,
-			"order_id":           orderID,
-			"user_id":            req.UserID,
-			"event_id":           req.EventID,
-			"section_id":         req.SectionID,
-			"seat_ids":           req.SeatIDs,
-			"reservation_id":     orderID,
-			"status":             "PENDING",
-			"total_amount_minor": total,
-			"created_at":         time.Now(),
+			"outbox_event_id": eventID,
+			"order_id":        orderID,
+			"user_id":         req.UserID,
+			"event_id":        req.EventID,
+			"section_id":      req.SectionID,
+			"seat_ids":        req.SeatIDs,
+			"reservation_id":  orderID,
+			"status":          "PENDING",
+			"created_at":      time.Now(),
 		},
 	}
 	payloadBytes, _ := json.Marshal(envelope)
@@ -253,14 +214,12 @@ func (s *Store) ConfirmOrder(ctx context.Context, orderID string) (string, error
 		return "", ErrOrderNotConfirmable
 	}
 
-	var totalAmount int64
 	var eventIDStr string
 	if err := tx.QueryRowContext(ctx, `
-		SELECT o.total_amount_minor, s.event_id
-		FROM orders.orders o
-		JOIN orders.order_seats s ON s.order_id = o.id
-		WHERE o.id = $1 LIMIT 1
-	`, orderID).Scan(&totalAmount, &eventIDStr); err != nil {
+		SELECT event_id
+		FROM orders.order_seats
+		WHERE order_id = $1 LIMIT 1
+	`, orderID).Scan(&eventIDStr); err != nil {
 		return "", err
 	}
 
@@ -272,11 +231,10 @@ func (s *Store) ConfirmOrder(ctx context.Context, orderID string) (string, error
 	envelope := map[string]any{
 		"Type": "OrderConfirmed",
 		"Order": map[string]any{
-			"outbox_event_id":    eventID,
-			"order_id":           orderID,
-			"event_id":           eventIDStr,
-			"status":             "CONFIRMED",
-			"total_amount_minor": totalAmount,
+			"outbox_event_id": eventID,
+			"order_id":        orderID,
+			"event_id":        eventIDStr,
+			"status":          "CONFIRMED",
 		},
 	}
 	payloadBytes, _ := json.Marshal(envelope)
@@ -339,17 +297,16 @@ func (s *Store) CancelOrder(ctx context.Context, orderID string) (string, error)
 
 // buildOrderCancelledEnvelope is the shared payload builder for single-order
 // and event-wide cancellation paths; reason is recorded for observability.
-func buildOrderCancelledEnvelope(orderID, eventID string, totalAmount int64, reason string) (outboxEventID string, payloadBytes []byte, err error) {
+func buildOrderCancelledEnvelope(orderID, eventID string, reason string) (outboxEventID string, payloadBytes []byte, err error) {
 	outboxEventID = uuid.New().String()
 	envelope := map[string]any{
 		"Type": "OrderCancelled",
 		"Order": map[string]any{
-			"outbox_event_id":    outboxEventID,
-			"order_id":           orderID,
-			"event_id":           eventID,
-			"status":             "CANCELLED",
-			"total_amount_minor": totalAmount,
-			"reason":             reason,
+			"outbox_event_id": outboxEventID,
+			"order_id":        orderID,
+			"event_id":        eventID,
+			"status":          "CANCELLED",
+			"reason":          reason,
 		},
 	}
 	payloadBytes, err = json.Marshal(envelope)
@@ -359,14 +316,12 @@ func buildOrderCancelledEnvelope(orderID, eventID string, totalAmount int64, rea
 // cancelOrderTx writes the CANCELLED state and outbox row inside tx. The caller
 // must already hold the row lock and have verified the status is cancellable.
 func cancelOrderTx(ctx context.Context, tx *sql.Tx, orderID, reason string) error {
-	var totalAmount int64
 	var eventIDStr string
 	if err := tx.QueryRowContext(ctx, `
-		SELECT o.total_amount_minor, s.event_id
-		FROM orders.orders o
-		JOIN orders.order_seats s ON s.order_id = o.id
-		WHERE o.id = $1 LIMIT 1
-	`, orderID).Scan(&totalAmount, &eventIDStr); err != nil {
+		SELECT event_id
+		FROM orders.order_seats
+		WHERE order_id = $1 LIMIT 1
+	`, orderID).Scan(&eventIDStr); err != nil {
 		return err
 	}
 
@@ -374,7 +329,7 @@ func cancelOrderTx(ctx context.Context, tx *sql.Tx, orderID, reason string) erro
 		return err
 	}
 
-	outboxEventID, payloadBytes, err := buildOrderCancelledEnvelope(orderID, eventIDStr, totalAmount, reason)
+	outboxEventID, payloadBytes, err := buildOrderCancelledEnvelope(orderID, eventIDStr, reason)
 	if err != nil {
 		return err
 	}
@@ -407,19 +362,18 @@ func (s *Store) CancelOrdersForEvent(ctx context.Context, eventID string) (int, 
 		SET status = 'CANCELLED', updated_at = now()
 		WHERE id IN (SELECT DISTINCT order_id FROM orders.order_seats WHERE event_id = $1)
 		  AND status IN ('PENDING', 'HELD', 'CONFIRMED')
-		RETURNING id, total_amount_minor
+		RETURNING id
 	`, eventID)
 	if err != nil {
 		return 0, err
 	}
 	type cancelledOrder struct {
-		id          string
-		totalAmount int64
+		id string
 	}
 	var cancelledOrders []cancelledOrder
 	for rows.Next() {
 		var o cancelledOrder
-		if err := rows.Scan(&o.id, &o.totalAmount); err != nil {
+		if err := rows.Scan(&o.id); err != nil {
 			rows.Close()
 			return 0, err
 		}
@@ -438,7 +392,7 @@ func (s *Store) CancelOrdersForEvent(ctx context.Context, eventID string) (int, 
 	headersBytes, _ := json.Marshal(headers)
 
 	for _, o := range cancelledOrders {
-		outboxEventID, payloadBytes, err := buildOrderCancelledEnvelope(o.id, eventID, o.totalAmount, "EVENT_CANCELLED")
+		outboxEventID, payloadBytes, err := buildOrderCancelledEnvelope(o.id, eventID, "EVENT_CANCELLED")
 		if err != nil {
 			return 0, err
 		}

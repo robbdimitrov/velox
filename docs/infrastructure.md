@@ -142,7 +142,7 @@ Rules:
 
 - Include `projection_lag_ms` in read API metadata.
 - Seat selector must favor live deltas over stale snapshot reads.
-- Checkout must validate reservation tokens against command services, not
+- Reservation review must validate reservation tokens against command services, not
   projections.
 - If lag exceeds the configured threshold, freeze risky actions and show stale
   status indicators.
@@ -182,7 +182,7 @@ Rules:
 - Discovery endpoints can serve stale cached data.
 - Reservation endpoints return `429` or `503` when Redis, Kafka, or
   `seatservice` health is degraded.
-- Checkout must fail closed if idempotency storage is unavailable.
+- Reservation review must fail closed if idempotency storage is unavailable.
 - Live gateways should drop nonessential ticker messages before seat-state
   messages.
 

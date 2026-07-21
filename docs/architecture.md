@@ -33,9 +33,12 @@ projections, audit, and replay.
 - Use SvelteKit SSR as the browser-facing application boundary.
 - Use Svelte 5 with Runes for selected seats, filter state, countdown offsets,
   and SSE deltas.
-- Use Tailwind for layout and utility styling.
-- Use DaisyUI for accessible, themeable controls where it fits the product UI.
+- Use Tailwind v4 for layout and utility styling.
+- Use DaisyUI 5 for accessible, themeable controls where it fits the product UI.
 - Use Lucide icons for actions, navigation, and tool buttons.
+- Use system fonts only and keep discovery/detail screens image-less.
+- Support System, Light, and Dark preferences. Logout clears the local theme
+  preference.
 - Use Canvas for individual seat nodes once a section exceeds 1,000 seats; use
   SVG for low-density sections and semantic outlines.
 - Maintain a local `seatVersionById` map. Apply only monotonic updates.
@@ -84,7 +87,7 @@ projections, audit, and replay.
   the event. Unlike the single-order cancel, `CONFIRMED` orders are eligible
   here since the event itself is being called off. All matching orders
   transition together in one batched `UPDATE ... RETURNING` inside a single
-  transaction (not one transaction per order — this trades per-order failure
+  transaction (not one transaction per order - this trades per-order failure
   isolation for avoiding an O(orders) sequence of round trips on a large
   event), followed by one outbox row per cancelled order and a single
   `EventCancelled` outbox row, all in that same transaction. The endpoint is
@@ -94,7 +97,7 @@ projections, audit, and replay.
   SHARE` inside its own transaction. Row-level locking applies regardless of
   isolation level, so this blocks against (and always observes the outcome
   of) `apigateway`'s non-transactional `CancelEvent` update, rather than
-  relying on serializable-snapshot conflict detection — which would not fire
+  relying on serializable-snapshot conflict detection - which would not fire
   here, since only one side of that race is a serializable transaction.
 - Store orders in PostgreSQL with states `PENDING`, `HELD`, `CONFIRMED`,
   `CANCELLED`, `FAILED`, `EXPIRED`.
@@ -154,7 +157,7 @@ SeatTicketUpgraded
 `SeatReservationCancelled` is a terminal transition, distinct from
 `SeatReservationExpired`: the seat does not become available again, it
 becomes permanently unbookable because its event was cancelled. It fires from
-either `Held` or `Sold` (unlike expiry, which only fires from `Held`), guarded
+either `Held` or `Confirmed` (unlike expiry, which only fires from `Held`), guarded
 by the same compare-and-append discipline as every other stream mutation.
 
 ## Storage Profiles
@@ -176,7 +179,7 @@ OrderCreated     -> SeatReservationHeld
 OrderConfirmed   -> SeatReservationConfirmed
 OrderCancelled   -> SeatReservationExpired
 EventCancelled   -> SeatReservationCancelled (fanned out to every stream for
-                    the event still Held or Sold)
+                    the event still Held or Confirmed)
 hold expires (seatservice sweep, no order trigger) -> SeatReservationExpired
 ```
 
@@ -214,7 +217,7 @@ Successful path:
     writes outbox OrderConfirmed
 11. Outbox relay publishes OrderConfirmed to Kafka
 12. `seatservice` consumes OrderConfirmed and appends SeatReservationConfirmed
-13. `viewservice` marks seat SOLD and issues a wallet ticket ISSUED
+13. `viewservice` marks seat RESERVED and issues a wallet ticket ISSUED
 ```
 
 Cancellation path (explicit user action):
@@ -246,7 +249,7 @@ Event cancellation path (organizer action, whole event called off):
 6. `viewservice` applies each OrderCancelled into order_summary as usual
 7. `seatservice` consumes EventCancelled and appends SeatReservationCancelled
    to every seat stream for event_id not already Cancelled - including seats
-   that were never held or sold, so no seat is left looking bookable after
+   that were never held or confirmed, so no seat is left looking bookable after
    its event is cancelled. Streams are processed in bounded batches (guarded
    by compare-and-append, same as every other stream mutation) rather than
    locking every stream for the event at once, so a large venue's
@@ -359,7 +362,8 @@ order service.
 ## Zero-Trust Security and Rate Limiting
 
 - Validate JWT issuer, audience, expiry, subject, and scopes at ingress.
-- Never trust user-supplied price, seat status, expiry, or fee totals.
+- Never trust user-supplied seat status, reservation expiry, totals, or user
+  identity.
 - Use Redis token buckets per IP, account, device fingerprint, event, and
   endpoint.
 - Apply stricter buckets to `/reservations` and reservation confirmation than

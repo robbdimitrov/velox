@@ -73,8 +73,6 @@ func TestOrganizerCreateEventStoreBackedOwnedVenueSucceeds(t *testing.T) {
 	server.store = &DatabaseStore{db: db}
 
 	startsAt := time.Now().Add(48 * time.Hour).UTC().Truncate(time.Second)
-	saleStartsAt := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
-
 	mock.ExpectQuery("SELECT id, email, password_hash, role, created_at").
 		WithArgs("usr_organizer_1").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "password_hash", "role", "created_at"}).
@@ -85,33 +83,31 @@ func TestOrganizerCreateEventStoreBackedOwnedVenueSucceeds(t *testing.T) {
 			AddRow("ven_velox_arena", "Velox Arena", "Chicago", "100 Arena Way", 10000))
 	mock.ExpectBegin()
 	mock.ExpectExec(`(?s)INSERT INTO catalog\.events .*VALUES`).
-		WithArgs("evt_store_created", "ven_velox_arena", "Store Created", "Details", "Concerts", startsAt, saleStartsAt, "event-final-whistle", "America/Chicago", EventStatusPublished).
+		WithArgs("evt_store_created", "ven_velox_arena", "Store Created", "Details", "Concerts", startsAt, "America/Chicago", EventStatusPublished).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`(?s)INSERT INTO catalog\.event_sections .*FROM catalog\.venue_sections`).
 		WithArgs("evt_store_created", "ven_velox_arena").
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectQuery(`(?s)SELECT vs\.section_id, vs\.seat_id, vs\.row_label, vs\.seat_number, vs\.x, vs\.y,\s+vs\.accessibility, COALESCE\(es\.price_amount_minor, 5000\).*FROM catalog\.venue_seats vs`).
+	mock.ExpectQuery(`(?s)SELECT vs\.section_id, vs\.seat_id, vs\.row_label, vs\.seat_number, vs\.x, vs\.y,\s+vs\.accessibility\s+FROM catalog\.venue_seats vs`).
 		WithArgs("ven_velox_arena", "evt_store_created").
-		WillReturnRows(sqlmock.NewRows([]string{"section_id", "seat_id", "row_label", "seat_number", "x", "y", "accessibility", "price_amount_minor"}).
-			AddRow("A", "A-01", "A", 1, 44, 42, true, 8650))
+		WillReturnRows(sqlmock.NewRows([]string{"section_id", "seat_id", "row_label", "seat_number", "x", "y", "accessibility"}).
+			AddRow("A", "A-01", "A", 1, 44, 42, true))
 	mock.ExpectExec(`INSERT INTO inventory\.event_streams`).
 		WithArgs("seat:evt_store_created:A:A-01", "evt_store_created", "A", "A-01").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`(?s)INSERT INTO projection\.seat_snapshots .*VALUES`).
-		WithArgs("evt_store_created", "A", "A-01", 8650, "A", 1, 44, 42, true).
+		WithArgs("evt_store_created", "A", "A-01", "A", 1, 44, 42, true).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	body, _ := json.Marshal(map[string]any{
-		"id":             "evt_store_created",
-		"venue_id":       "ven_velox_arena",
-		"name":           "Store Created",
-		"description":    "Details",
-		"category":       "Concerts",
-		"starts_at":      startsAt.Format(time.RFC3339),
-		"sale_starts_at": saleStartsAt.Format(time.RFC3339),
-		"image_key":      "event-final-whistle",
-		"timezone":       "America/Chicago",
+		"id":          "evt_store_created",
+		"venue_id":    "ven_velox_arena",
+		"name":        "Store Created",
+		"description": "Details",
+		"category":    "Concerts",
+		"starts_at":   startsAt.Format(time.RFC3339),
+		"timezone":    "America/Chicago",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/organizer/events", bytes.NewReader(body))
 	req.AddCookie(cookie)
@@ -125,7 +121,7 @@ func TestOrganizerCreateEventStoreBackedOwnedVenueSucceeds(t *testing.T) {
 	if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if got.ID != "evt_store_created" || got.Category != "Concerts" || got.ImageKey != "event-final-whistle" {
+	if got.ID != "evt_store_created" || got.Category != "Concerts" {
 		t.Fatalf("unexpected event response: %+v", got)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -133,17 +129,14 @@ func TestOrganizerCreateEventStoreBackedOwnedVenueSucceeds(t *testing.T) {
 	}
 }
 
-func TestOrganizerCreateEventRejectsInvalidDateOrdering(t *testing.T) {
+func TestOrganizerCreateEventRejectsMissingStart(t *testing.T) {
 	server := NewServerWithStore("test", nil, nil)
 	client := newTestClient(server)
 	cookie := client.login(t, "organizer@velox.local", "organizer")
 
-	startsAt := time.Now().Add(2 * time.Hour).UTC()
 	body, _ := json.Marshal(map[string]any{
-		"venue_id":       "ven_northstar",
-		"name":           "Bad Dates",
-		"starts_at":      startsAt.Format(time.RFC3339),
-		"sale_starts_at": startsAt.Add(time.Hour).Format(time.RFC3339),
+		"venue_id": "ven_northstar",
+		"name":     "Bad Dates",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/organizer/events", bytes.NewReader(body))
 	req.AddCookie(cookie)
@@ -214,7 +207,6 @@ func TestOrganizerCreateVenueAcceptsSectionTemplates(t *testing.T) {
 			"name":                  "VIP Floor",
 			"row_count":             3,
 			"seats_per_row":         12,
-			"price_cents":           12500,
 			"accessible_edge_seats": true,
 		}},
 	})

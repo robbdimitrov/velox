@@ -12,7 +12,7 @@ hashes passwords with Argon2id. Demo in-memory mode still accepts seeded
 plaintext passwords and is not a production security boundary.
 
 Organizer routes require the `organizer` role and then an ownership check next
-to the protected venue or event operation. Buyer order and wallet reads are
+to the protected venue or event operation. Reserver order and wallet reads are
 filtered by the authenticated user ID; client-supplied user IDs are ignored on
 public routes.
 
@@ -60,22 +60,22 @@ over `kubectl port-forward`.
 `apps/frontend/svelte.config.js` uses SvelteKit nonce CSP:
 
 ```text
-default-src 'self'; script-src 'self' <per-request nonce>; style-src 'self' https://fonts.googleapis.com;
-style-src-attr 'unsafe-inline'; img-src 'self'; connect-src 'self'; font-src 'self' https://fonts.gstatic.com;
+default-src 'self'; script-src 'self' <per-request nonce>; style-src 'self';
+style-src-attr 'unsafe-inline'; img-src 'self'; connect-src 'self'; font-src 'self';
 object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; frame-src 'none'
 ```
 
 Directive rationale:
 
-- Google Fonts stays allowed because `app.css` imports fonts from
-  `fonts.googleapis.com` and `fonts.gstatic.com`.
+- Remote fonts are disallowed. The frontend uses system fonts only.
 - `style-src-attr 'unsafe-inline'` is limited to inline style attributes used
   for live seat-map sizing, cursor state, and health-panel gauges.
-- `img-src 'self'` is enough because event images are bundled local SVGs.
+- `img-src 'self'` remains available for framework assets, but event screens are
+  image-less.
 - `connect-src 'self'` is enough because browser gateway traffic uses the
   same-origin `/api` proxy; the proxy calls `GATEWAY_URL` server-side.
-- Framing is denied because checkout and reservation actions are
-  clickjacking-sensitive and the app does not use iframes.
+- Framing is denied because reservation actions are clickjacking-sensitive and
+  the app does not use iframes.
 
 The frontend also omits `Strict-Transport-Security` and
 `upgrade-insecure-requests` for the same no-TLS local-runtime reason.

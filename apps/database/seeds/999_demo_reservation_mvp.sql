@@ -13,18 +13,6 @@ SET description = CASE id
         WHEN 'evt_summer_fests' THEN 'Festivals'
         ELSE 'Concerts'
     END,
-    image_key = CASE id
-        WHEN 'evt_neon_riot' THEN 'event-final-whistle'
-        WHEN 'evt_summer_fests' THEN 'event-final-whistle'
-        ELSE 'event-zero-hour'
-    END,
-    sale_starts_at = CASE id
-        WHEN 'evt_neon_riot' THEN '2026-07-19 18:00:00+00'::timestamptz
-        WHEN 'evt_north_pier' THEN '2026-08-01 17:00:00+00'::timestamptz
-        WHEN 'evt_civic_bowl' THEN '2026-08-20 16:00:00+00'::timestamptz
-        WHEN 'evt_summer_fests' THEN '2026-07-19 09:00:00+00'::timestamptz
-        ELSE sale_starts_at
-    END,
     timezone = CASE id
         WHEN 'evt_north_pier' THEN 'America/Los_Angeles'
         WHEN 'evt_civic_bowl' THEN 'America/Denver'
@@ -38,8 +26,7 @@ INSERT INTO catalog.venue_sections (
     name,
     display_order,
     width,
-    height,
-    default_price_amount_minor
+    height
 )
 SELECT
     venue_id,
@@ -47,25 +34,23 @@ SELECT
     section_id || ' Section',
     display_order,
     464,
-    204,
-    default_price_amount_minor
+    204
 FROM (
     VALUES
-        ('ven_velox_arena', 'A', 1, 8650),
-        ('ven_velox_arena', 'B', 2, 8650),
-        ('ven_north_pier', 'A', 1, 7450),
-        ('ven_north_pier', 'B', 2, 7450),
-        ('ven_civic_bowl', 'A', 1, 9250),
-        ('ven_civic_bowl', 'B', 2, 9250),
-        ('ven_moonlight', 'A', 1, 6800),
-        ('ven_moonlight', 'B', 2, 6800)
-) AS sections(venue_id, section_id, display_order, default_price_amount_minor)
+        ('ven_velox_arena', 'A', 1),
+        ('ven_velox_arena', 'B', 2),
+        ('ven_north_pier', 'A', 1),
+        ('ven_north_pier', 'B', 2),
+        ('ven_civic_bowl', 'A', 1),
+        ('ven_civic_bowl', 'B', 2),
+        ('ven_moonlight', 'A', 1),
+        ('ven_moonlight', 'B', 2)
+) AS sections(venue_id, section_id, display_order)
 ON CONFLICT (venue_id, section_id) DO UPDATE
 SET name = EXCLUDED.name,
     display_order = EXCLUDED.display_order,
     width = EXCLUDED.width,
-    height = EXCLUDED.height,
-    default_price_amount_minor = EXCLUDED.default_price_amount_minor;
+    height = EXCLUDED.height;
 
 WITH generated_seats AS (
     SELECT
@@ -123,8 +108,7 @@ INSERT INTO catalog.event_sections (
     name,
     display_order,
     width,
-    height,
-    price_amount_minor
+    height
 )
 SELECT
     e.id,
@@ -132,16 +116,14 @@ SELECT
     vs.name,
     vs.display_order,
     vs.width,
-    vs.height,
-    vs.default_price_amount_minor
+    vs.height
 FROM catalog.events e
 JOIN catalog.venue_sections vs ON vs.venue_id = e.venue_id
 ON CONFLICT (event_id, section_id) DO UPDATE
 SET name = EXCLUDED.name,
     display_order = EXCLUDED.display_order,
     width = EXCLUDED.width,
-    height = EXCLUDED.height,
-    price_amount_minor = EXCLUDED.price_amount_minor;
+    height = EXCLUDED.height;
 
 WITH generated_seats AS (
     SELECT
@@ -176,8 +158,7 @@ WITH generated_seats AS (
         vs.seat_number,
         vs.x,
         vs.y,
-        vs.accessibility,
-        es.price_amount_minor
+        vs.accessibility
     FROM catalog.events e
     JOIN catalog.venue_seats vs ON vs.venue_id = e.venue_id
     JOIN catalog.event_sections es
@@ -189,7 +170,6 @@ INSERT INTO projection.seat_snapshots (
     seat_id,
     status,
     aggregate_version,
-    price_amount_minor,
     row_label,
     seat_number,
     x,
@@ -202,7 +182,6 @@ SELECT
     seat_id,
     'AVAILABLE',
     0,
-    price_amount_minor,
     row_label,
     seat_number,
     x,
@@ -210,8 +189,7 @@ SELECT
     accessibility
 FROM generated_seats
 ON CONFLICT (event_id, section_id, seat_id) DO UPDATE
-SET price_amount_minor = EXCLUDED.price_amount_minor,
-    row_label = EXCLUDED.row_label,
+SET row_label = EXCLUDED.row_label,
     seat_number = EXCLUDED.seat_number,
     x = EXCLUDED.x,
     y = EXCLUDED.y,

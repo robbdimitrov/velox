@@ -76,11 +76,8 @@ func TestCreateOrder_SetsReservationID(t *testing.T) {
 	mock.ExpectQuery("SELECT status FROM catalog.events").
 		WithArgs(req.EventID).
 		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow("PUBLISHED"))
-	mock.ExpectQuery("SELECT seat_id, price_amount_minor").
-		WithArgs(req.EventID, req.SectionID, "A-1").
-		WillReturnRows(sqlmock.NewRows([]string{"seat_id", "price_amount_minor"}).AddRow("A-1", int64(5000)))
 	mock.ExpectExec("INSERT INTO orders.orders").
-		WithArgs(capturedString{&orderID}, req.UserID, req.IdempotencyKey, sqlmock.AnyArg(), int64(5000), resPrefixed{&orderID}).
+		WithArgs(capturedString{&orderID}, req.UserID, req.IdempotencyKey, sqlmock.AnyArg(), resPrefixed{&orderID}).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec("INSERT INTO orders.order_seats").
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -129,9 +126,6 @@ func TestCreateOrder_LocksEventRowForShare(t *testing.T) {
 	mock.ExpectQuery("SELECT status FROM catalog.events WHERE id = \\$1 FOR SHARE").
 		WithArgs(req.EventID).
 		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow("PUBLISHED"))
-	mock.ExpectQuery("SELECT seat_id, price_amount_minor").
-		WithArgs(req.EventID, req.SectionID, "A-1").
-		WillReturnRows(sqlmock.NewRows([]string{"seat_id", "price_amount_minor"}).AddRow("A-1", int64(5000)))
 	mock.ExpectExec("INSERT INTO orders.orders").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec("INSERT INTO orders.order_seats").
@@ -203,9 +197,9 @@ func TestConfirmOrder_ConfirmsHeldOrder(t *testing.T) {
 	mock.ExpectQuery("SELECT status FROM orders.orders WHERE id = \\$1 FOR UPDATE").
 		WithArgs(orderID).
 		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow("HELD"))
-	mock.ExpectQuery("SELECT o.total_amount_minor, s.event_id").
+	mock.ExpectQuery("SELECT event_id").
 		WithArgs(orderID).
-		WillReturnRows(sqlmock.NewRows([]string{"total_amount_minor", "event_id"}).AddRow(int64(9250), "evt-1"))
+		WillReturnRows(sqlmock.NewRows([]string{"event_id"}).AddRow("evt-1"))
 	mock.ExpectExec("UPDATE orders.orders SET status = 'CONFIRMED'").
 		WithArgs(orderID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -320,9 +314,9 @@ func TestCancelOrder_CancelsPendingOrHeldOrder(t *testing.T) {
 			mock.ExpectQuery("SELECT status FROM orders.orders WHERE id = \\$1 FOR UPDATE").
 				WithArgs(orderID).
 				WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow(initialStatus))
-			mock.ExpectQuery("SELECT o.total_amount_minor, s.event_id").
+			mock.ExpectQuery("SELECT event_id").
 				WithArgs(orderID).
-				WillReturnRows(sqlmock.NewRows([]string{"total_amount_minor", "event_id"}).AddRow(int64(9250), "evt-1"))
+				WillReturnRows(sqlmock.NewRows([]string{"event_id"}).AddRow("evt-1"))
 			mock.ExpectExec("UPDATE orders.orders SET status = 'CANCELLED'").
 				WithArgs(orderID).
 				WillReturnResult(sqlmock.NewResult(0, 1))
@@ -383,18 +377,17 @@ func TestCancelOrdersForEvent_TransitionsPendingHeldAndConfirmed(t *testing.T) {
 
 	eventID := "evt-1"
 	orders := []struct {
-		id          string
-		totalAmount int64
+		id string
 	}{
-		{"ord-1", int64(1000)},
-		{"ord-2", int64(2000)},
-		{"ord-3", int64(3000)},
+		{"ord-1"},
+		{"ord-2"},
+		{"ord-3"},
 	}
 
 	mock.ExpectBegin()
-	rows := sqlmock.NewRows([]string{"id", "total_amount_minor"})
+	rows := sqlmock.NewRows([]string{"id"})
 	for _, o := range orders {
-		rows.AddRow(o.id, o.totalAmount)
+		rows.AddRow(o.id)
 	}
 	mock.ExpectQuery("UPDATE orders.orders").
 		WithArgs(eventID).
@@ -438,7 +431,7 @@ func TestCancelOrdersForEvent_SkipsAlreadyCancelled(t *testing.T) {
 	// never returned; only ord-2 transitions and is counted.
 	mock.ExpectQuery("UPDATE orders.orders").
 		WithArgs(eventID).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "total_amount_minor"}).AddRow("ord-2", int64(1000)))
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("ord-2"))
 	mock.ExpectExec("INSERT INTO orders.outbox_events").
 		WithArgs(sqlmock.AnyArg(), "ord-2", sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -472,7 +465,7 @@ func TestCancelOrdersForEvent_NoOrdersForEvent(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectQuery("UPDATE orders.orders").
 		WithArgs(eventID).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "total_amount_minor"}))
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
 	mock.ExpectExec("INSERT INTO orders.outbox_events").
 		WithArgs(sqlmock.AnyArg(), eventID, sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))

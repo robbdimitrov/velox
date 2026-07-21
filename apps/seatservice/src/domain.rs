@@ -5,7 +5,7 @@ pub enum SeatStatus {
         order_id: String,
         expires_at_ms: i64,
     },
-    Sold {
+    Reserved {
         order_id: String,
     },
     Cancelled {
@@ -53,8 +53,8 @@ impl SeatState {
         self.version += 1;
     }
 
-    pub fn apply_sold(&mut self, order_id: String) {
-        self.status = SeatStatus::Sold { order_id };
+    pub fn apply_confirmed(&mut self, order_id: String) {
+        self.status = SeatStatus::Reserved { order_id };
         self.version += 1;
     }
 
@@ -162,9 +162,9 @@ mod tests {
     }
 
     #[test]
-    fn cancels_sold_seat_and_blocks_further_reservation() {
+    fn cancels_confirmed_seat_and_blocks_further_reservation() {
         let mut seat = SeatState::default();
-        seat.apply_sold("ord1".into());
+        seat.apply_confirmed("ord1".into());
 
         seat.apply_cancelled("ord1".into());
         assert_eq!(
@@ -202,12 +202,12 @@ mod tests {
     }
 
     #[test]
-    fn does_not_skip_cancellation_for_held_or_sold_seat() {
+    fn does_not_skip_cancellation_for_held_or_confirmed_seat() {
         assert!(!should_skip_cancellation(&SeatStatus::Held {
             order_id: "ord1".into(),
             expires_at_ms: 1000,
         }));
-        assert!(!should_skip_cancellation(&SeatStatus::Sold {
+        assert!(!should_skip_cancellation(&SeatStatus::Reserved {
             order_id: "ord1".into()
         }));
     }

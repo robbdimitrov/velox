@@ -72,7 +72,7 @@ func TestEventsListingExcludesUnavailableEventsByDefault(t *testing.T) {
 	server.mu.Lock()
 	for _, section := range server.seats["evt_neon_riot"] {
 		for _, seat := range section {
-			seat.Status = StatusSold
+			seat.Status = StatusReserved
 		}
 	}
 	server.mu.Unlock()
@@ -92,7 +92,7 @@ func TestEventsListingExcludesUnavailableEventsByDefault(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(resp.Events) != 0 {
-		t.Fatalf("expected sold-out event to be hidden by default, got %+v", resp.Events)
+		t.Fatalf("expected fully reserved event to be hidden by default, got %+v", resp.Events)
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/events?q=neon&available=false", nil)
@@ -105,7 +105,7 @@ func TestEventsListingExcludesUnavailableEventsByDefault(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(resp.Events) != 1 || resp.Events[0].SeatsOpen != 0 {
-		t.Fatalf("expected sold-out event when availability filter is disabled, got %+v", resp.Events)
+		t.Fatalf("expected fully reserved event when availability filter is disabled, got %+v", resp.Events)
 	}
 }
 

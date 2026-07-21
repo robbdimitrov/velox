@@ -174,14 +174,13 @@ func (s *DatabaseStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 	case "OrderCreated", "OrderConfirmed", "OrderCancelled", "OrderExpired":
 		// Project order state.
 		_, err = tx.ExecContext(ctx, `
-			INSERT INTO projection.order_summaries (order_id, user_id, status, total_amount_minor, currency, event_id)
-			VALUES ($1, $2, $3, $4, 'USD', $5)
+			INSERT INTO projection.order_summaries (order_id, user_id, status, event_id)
+			VALUES ($1, $2, $3, $4)
 			ON CONFLICT (order_id) DO UPDATE SET
 				status = EXCLUDED.status,
-				total_amount_minor = EXCLUDED.total_amount_minor,
 				event_id = EXCLUDED.event_id,
 				updated_at = now()
-		`, event.Order.OrderID, event.Order.UserID, event.Order.Status, event.Order.TotalAmountMinor, event.Order.EventID)
+		`, event.Order.OrderID, event.Order.UserID, event.Order.Status, event.Order.EventID)
 		if err != nil {
 			return err
 		}
@@ -241,7 +240,7 @@ func issuePendingWalletTicketsForOrder(ctx context.Context, tx *sql.Tx, orderID 
 	}
 	rows, err := tx.QueryContext(ctx, `
 		SELECT p.ticket_id, p.event_id, p.section_id, p.seat_id, p.aggregate_version,
-			os.user_id, COALESCE(ss.status, 'SOLD')
+			os.user_id, COALESCE(ss.status, 'RESERVED')
 		FROM projection.pending_wallet_ticket_events p
 		JOIN projection.order_summaries os ON os.order_id = p.order_id
 		LEFT JOIN projection.seat_snapshots ss

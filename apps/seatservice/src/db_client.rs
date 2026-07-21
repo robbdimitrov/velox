@@ -200,7 +200,7 @@ impl DbClient {
                         .and_then(|v| v.as_str())
                         .unwrap_or("")
                         .to_string();
-                    state.apply_sold(order_id);
+                    state.apply_confirmed(order_id);
                 }
                 "SeatReservationExpired" => {
                     state.apply_expired();
@@ -732,7 +732,7 @@ impl DbClient {
                     event_id: held.event_id,
                     section_id: held.section_id,
                     seat_id: held.seat_id,
-                    status: "SOLD".into(),
+                    status: "RESERVED".into(),
                     version: version as u64,
                     expires_at_ms: 0,
                 },
@@ -1011,6 +1011,6 @@ mod tests {
         assert_eq!(payload["seat_id"], "seat-99");
     }
 
-    // Live-DB coverage still needed: virgin/raced/held/sold/already-cancelled
+    // Live-DB coverage still needed: virgin/raced/held/confirmed/already-cancelled
     // streams and multi-batch process_event_cancelled pagination.
 }

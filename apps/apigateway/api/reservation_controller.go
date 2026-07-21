@@ -390,7 +390,7 @@ func (s *Server) releasePendingReservation(eventID, sectionID string, seatIDs []
 func (s *Server) completePendingReservation(ctx context.Context, userID, eventID, sectionID string, seatIDs []string, pendingID, hash, orderID, status string) (Order, error) {
 	reservationID := "res_" + orderID
 	now := s.now()
-	selectedSeats, totalCents, err := s.selectedReservationSeats(ctx, eventID, sectionID, seatIDs)
+	selectedSeats, err := s.selectedReservationSeats(ctx, eventID, sectionID, seatIDs)
 	if err != nil {
 		return Order{}, err
 	}
@@ -403,7 +403,6 @@ func (s *Server) completePendingReservation(ctx context.Context, userID, eventID
 		SeatIDs:           append([]string(nil), seatIDs...),
 		Seats:             selectedSeats,
 		Status:            status,
-		TotalCents:        totalCents,
 		ExpiresAtServerMS: now.Add(s.holdTTL).UnixMilli(),
 		ServerTimeMS:      now.UnixMilli(),
 		CreatedAt:         now.UnixMilli(),
@@ -436,27 +435,25 @@ func (s *Server) completePendingReservation(ctx context.Context, userID, eventID
 	return order, nil
 }
 
-func (s *Server) selectedReservationSeats(ctx context.Context, eventID, sectionID string, seatIDs []string) ([]Seat, int, error) {
+func (s *Server) selectedReservationSeats(ctx context.Context, eventID, sectionID string, seatIDs []string) ([]Seat, error) {
 	wanted := make(map[string]struct{}, len(seatIDs))
 	for _, seatID := range seatIDs {
 		wanted[seatID] = struct{}{}
 	}
 	selected := make([]Seat, 0, len(seatIDs))
-	totalCents := 0
 	if s.store != nil {
 		seats, _, err := s.store.ListSeats(ctx, eventID, sectionID)
 		if err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 		for _, seat := range seats {
 			if _, ok := wanted[seat.ID]; !ok {
 				continue
 			}
 			selected = append(selected, seat)
-			totalCents += seat.PriceCents
 		}
 		sort.Slice(selected, func(i, j int) bool { return selected[i].ID < selected[j].ID })
-		return selected, totalCents, nil
+		return selected, nil
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -464,9 +461,8 @@ func (s *Server) selectedReservationSeats(ctx context.Context, eventID, sectionI
 	for _, seatID := range seatIDs {
 		seat := section[seatID]
 		selected = append(selected, *seat)
-		totalCents += seat.PriceCents
 	}
-	return selected, totalCents, nil
+	return selected, nil
 }
 
 func (s *Server) signReservationToken(order Order, issuedAt time.Time) (string, error) {

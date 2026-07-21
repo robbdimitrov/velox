@@ -5,11 +5,11 @@ BASE_URL="${BASE_URL:-http://localhost:8085}"
 API_BASE="${API_BASE:-${BASE_URL}/api}"
 RUN_ID="${RUN_ID:-$(date +%s)}"
 TMP_DIR="${TMPDIR:-/tmp}/velox-smoke-${RUN_ID}"
-BUYER_COOKIES="${TMP_DIR}/buyer.cookies"
+RESERVER_COOKIES="${TMP_DIR}/reserver.cookies"
 ORGANIZER_COOKIES="${TMP_DIR}/organizer.cookies"
 
 mkdir -p "$TMP_DIR"
-touch "$BUYER_COOKIES" "$ORGANIZER_COOKIES"
+touch "$RESERVER_COOKIES" "$ORGANIZER_COOKIES"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 need() {
@@ -55,27 +55,27 @@ need curl
 need jq
 
 printf 'checking gateway endpoints at %s\n' "$API_BASE"
-request GET /healthz "$BUYER_COOKIES" >/dev/null
-request GET /readyz "$BUYER_COOKIES" >/dev/null
+request GET /healthz "$RESERVER_COOKIES" >/dev/null
+request GET /readyz "$RESERVER_COOKIES" >/dev/null
 
-buyer_email="buyer-${RUN_ID}@velox.local"
+reserver_email="reserver-${RUN_ID}@velox.local"
 organizer_email="organizer-${RUN_ID}@velox.local"
 password="velox-smoke-${RUN_ID}"
 
-printf 'registering buyer %s\n' "$buyer_email"
-request POST /auth/register "$BUYER_COOKIES" \
-  "{\"email\":\"${buyer_email}\",\"password\":\"${password}\",\"role\":\"reserver\"}" >/dev/null
+printf 'registering reserver %s\n' "$reserver_email"
+request POST /auth/register "$RESERVER_COOKIES" \
+  "{\"email\":\"${reserver_email}\",\"password\":\"${password}\",\"role\":\"reserver\"}" >/dev/null
 
-events_json="$(request GET /events "$BUYER_COOKIES")"
+events_json="$(request GET /events "$RESERVER_COOKIES")"
 event_id="$(jq -r '.events[] | select(.seats_open > 1 and .status == "PUBLISHED") | .id' <<<"$events_json" | head -n 1)"
 if [[ -z "$event_id" || "$event_id" == "null" ]]; then
   printf 'no published event with at least two open seats\n' >&2
   exit 1
 fi
 
-event_json="$(request GET "/events/${event_id}" "$BUYER_COOKIES")"
+event_json="$(request GET "/events/${event_id}" "$RESERVER_COOKIES")"
 section_id="$(jq -r '.event.section_ids[0] // "A"' <<<"$event_json")"
-seats_json="$(request GET "/events/${event_id}/sections/${section_id}/seats" "$BUYER_COOKIES")"
+seats_json="$(request GET "/events/${event_id}/sections/${section_id}/seats" "$RESERVER_COOKIES")"
 seat_ids="$(jq -r '[.seats[] | select(.status == "AVAILABLE") | .seat_id][0:2] | @json' <<<"$seats_json")"
 if [[ "$seat_ids" == "[]" || "$seat_ids" == "null" ]]; then
   printf 'no available seats for %s section %s\n' "$event_id" "$section_id" >&2
@@ -83,7 +83,7 @@ if [[ "$seat_ids" == "[]" || "$seat_ids" == "null" ]]; then
 fi
 
 printf 'reserving seats for %s section %s\n' "$event_id" "$section_id"
-reservation_json="$(request POST /reservations "$BUYER_COOKIES" \
+reservation_json="$(request POST /reservations "$RESERVER_COOKIES" \
   "{\"event_id\":\"${event_id}\",\"section_id\":\"${section_id}\",\"seat_ids\":${seat_ids}}")"
 reservation_id="$(jq -r '.order.reservation_id' <<<"$reservation_json")"
 reservation_token="$(jq -r '.order.reservation_token' <<<"$reservation_json")"
@@ -98,7 +98,7 @@ order_status=""
 attempt=0
 while [[ "$attempt" -lt 45 ]]; do
   attempt=$((attempt + 1))
-  order_json="$(request GET "/orders/${order_id}" "$BUYER_COOKIES")"
+  order_json="$(request GET "/orders/${order_id}" "$RESERVER_COOKIES")"
   order_status="$(jq -r '.order.status' <<<"$order_json")"
   if [[ "$order_status" == "HELD" || "$order_status" == "CONFIRMED" ]]; then
     break
@@ -115,7 +115,7 @@ confirm_code="$(curl -sS -o "$confirm_out" -w '%{http_code}' -X POST \
   -H "Origin: ${BASE_URL}" \
   -H "Idempotency-Key: smoke-${RUN_ID}-confirm-${reservation_id}" \
   -H "Reservation-Token: ${reservation_token}" \
-  -b "$BUYER_COOKIES" -c "$BUYER_COOKIES" \
+  -b "$RESERVER_COOKIES" -c "$RESERVER_COOKIES" \
   "${API_BASE}/reservations/${reservation_id}/confirm")"
 if [[ "$confirm_code" -lt 200 || "$confirm_code" -ge 300 ]]; then
   printf 'POST /reservations/%s/confirm failed with HTTP %s\n' "$reservation_id" "$confirm_code" >&2
@@ -123,7 +123,7 @@ if [[ "$confirm_code" -lt 200 || "$confirm_code" -ge 300 ]]; then
   exit 1
 fi
 jq -e '.wallet_ticket_ids | type == "array"' "$confirm_out" >/dev/null
-request GET /wallet/tickets "$BUYER_COOKIES" >/dev/null
+request GET /wallet/tickets "$RESERVER_COOKIES" >/dev/null
 
 printf 'registering organizer %s\n' "$organizer_email"
 request POST /auth/register "$ORGANIZER_COOKIES" \
@@ -135,12 +135,11 @@ request POST /organizer/venues "$ORGANIZER_COOKIES" \
 
 event_new_id="evt_smoke_${RUN_ID}"
 starts_at="$(date -u -v+30d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -d '+30 days' '+%Y-%m-%dT%H:%M:%SZ')"
-sale_starts_at="$(date -u -v+1d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -d '+1 day' '+%Y-%m-%dT%H:%M:%SZ')"
 request POST /organizer/events "$ORGANIZER_COOKIES" \
-  "{\"id\":\"${event_new_id}\",\"venue_id\":\"${venue_id}\",\"name\":\"Smoke Event ${RUN_ID}\",\"description\":\"Smoke flow event created by scripts/smoke.sh.\",\"category\":\"Concerts\",\"starts_at\":\"${starts_at}\",\"sale_starts_at\":\"${sale_starts_at}\",\"image_key\":\"event-midnight-array\"}" >/dev/null
+  "{\"id\":\"${event_new_id}\",\"venue_id\":\"${venue_id}\",\"name\":\"Smoke Event ${RUN_ID}\",\"description\":\"Smoke flow event created by scripts/smoke.sh.\",\"category\":\"Concerts\",\"starts_at\":\"${starts_at}\"}" >/dev/null
 
 request POST "/organizer/events/${event_new_id}/announcements" "$ORGANIZER_COOKIES" \
   '{"title":"Doors update","body":"Doors open on schedule.","severity":"INFO"}' >/dev/null
 request POST "/organizer/events/${event_new_id}/cancel" "$ORGANIZER_COOKIES" >/dev/null
 
-printf 'smoke flow completed: buyer_order=%s organizer_event=%s\n' "$order_id" "$event_new_id"
+printf 'smoke flow completed: reserver_order=%s organizer_event=%s\n' "$order_id" "$event_new_id"
