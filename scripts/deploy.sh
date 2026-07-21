@@ -124,7 +124,14 @@ local_cluster_images_visible() {
   local kube_context docker_context
   kube_context="$($KUBECTL config current-context 2>/dev/null || true)"
   docker_context="$(docker context show 2>/dev/null || true)"
-  [[ "$kube_context" == kind-* || "$docker_context" == colima || "$kube_context" == colima ]]
+  if [[ "$kube_context" == colima && "$docker_context" == colima ]]; then
+    return 0
+  fi
+  if [[ "$kube_context" == kind-velox ]]; then
+    docker container inspect velox-control-plane >/dev/null 2>&1
+    return
+  fi
+  return 1
 }
 
 resolve_image_delivery() {

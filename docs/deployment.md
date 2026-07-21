@@ -92,12 +92,13 @@ own build context, so unchanged services keep stable image tags and avoid
 unnecessary rollouts. Set `GIT_SHA` to force one shared tag for every image, or
 set `APIGATEWAY_IMAGE_TAG`, `ORDERSERVICE_IMAGE_TAG`, `SEATSERVICE_IMAGE_TAG`,
 `VIEWSERVICE_IMAGE_TAG`, `FRONTEND_IMAGE_TAG`, or `DATABASE_IMAGE_TAG` for
-per-image overrides. `scripts/deploy.sh` defaults `IMAGE_DELIVERY=auto`: local
-kind and Colima-style contexts build images into the local runtime without
-requiring a registry, while other contexts push images to
-`IMAGE_PREFIX-<service>:<tag>`. Set `IMAGE_DELIVERY=push` to force registry
+per-image overrides. `scripts/deploy.sh` defaults `IMAGE_DELIVERY=auto`: the
+Colima Kubernetes context paired with the Colima Docker context, or the
+`kind-velox` context with a running `velox-control-plane` node, build images
+into the local runtime without requiring a registry. Other contexts push images
+to `IMAGE_PREFIX-<service>:<tag>`. Set `IMAGE_DELIVERY=push` to force registry
 delivery or `IMAGE_DELIVERY=local` to skip pushes for another local runtime.
-When a `velox-control-plane` kind node is running, the script also loads the
+When the `velox-control-plane` kind node is running, the script also loads the
 built images directly into it. Full `kind` cluster creation is still follow-up
 automation work.
 
