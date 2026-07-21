@@ -101,8 +101,9 @@ Required controls:
 1. `seatservice` owns reservation deadlines.
 2. `SeatReservationHeld` stores `expires_at_server_ms` computed by `seatservice`
    using a monotonic clock plus persisted wall timestamp.
-3. Clients display countdown from server time offset, but cannot extend or
-   validate holds.
+3. Gateway reservation tokens and response countdowns use the same 10-minute
+   hold duration; clients display countdown from server time offset, but cannot
+   extend or validate holds.
 4. Expiry append uses compare-and-append:
 
 ```text

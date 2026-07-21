@@ -77,16 +77,15 @@ the target, the gap is called out explicitly.
 
 ## Hold Deadlines
 
-- Target authority: seatservice computes the hold deadline and persists it in
+- Seatservice computes the 10-minute hold deadline and persists it in
   `SeatReservationHeld`.
+- Gateway reservation responses and signed reservation tokens use the same
+  10-minute duration for the client countdown and command-token expiry.
 - Clients display countdowns from server timestamps but cannot extend holds.
 - Expiry appends `SeatReservationExpired` only if the latest seat event is
   still held and current time is past the persisted deadline.
 - Confirmation after expiry must be rejected or corrected by seatservice if a
   stale order mirror briefly accepted it.
-
-Current gap: gateway reservation responses still set `expires_at_server_ms`
-from gateway hold TTL, so Phase 3 must reconcile the single TTL owner.
 
 ## Checkout Decision
 

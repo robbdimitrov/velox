@@ -176,9 +176,9 @@ Fields: `reservation_id primary key`, `order_id`, `user_id`, `status`,
 Constraints: status in `HELD`, `EXPIRED`, `CONFIRMED`. Index:
 held reservations by `expires_at`.
 
-Write owner: seatservice. Current product gap: gateway reservation responses
-still derive hold expiry locally instead of returning the seatservice-owned
-deadline end to end.
+Write owner: seatservice. Gateway reservation responses mirror the same
+10-minute hold duration used by seatservice for countdown and signed-token
+expiry.
 
 ### `inventory.processed_events`
 

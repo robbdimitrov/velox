@@ -133,6 +133,8 @@ func TestReservationCreateReturnsSignedToken(t *testing.T) {
 	defer mockOrderSvc.Close()
 
 	server := NewServerWithStore("test", nil, nil)
+	now := time.Date(2026, 7, 21, 10, 0, 0, 0, time.UTC)
+	server.now = func() time.Time { return now }
 	server.SetOrderServiceURL(mockOrderSvc.URL)
 	server.SetHTTPClient(mockOrderSvc.Client())
 
@@ -148,6 +150,9 @@ func TestReservationCreateReturnsSignedToken(t *testing.T) {
 	}
 	if order.ServerTimeMS == 0 || order.ExpiresAtServerMS <= order.ServerTimeMS {
 		t.Fatalf("server/expiry timestamps are invalid: server=%d expires=%d", order.ServerTimeMS, order.ExpiresAtServerMS)
+	}
+	if got, want := time.Duration(order.ExpiresAtServerMS-order.ServerTimeMS)*time.Millisecond, reservationHoldDuration; got != want {
+		t.Fatalf("expiry duration = %s, want %s", got, want)
 	}
 	if len(order.Seats) != 1 || order.Seats[0].ID != "A-07" || order.Seats[0].PriceCents <= 0 {
 		t.Fatalf("selected seat prices missing: %+v", order.Seats)

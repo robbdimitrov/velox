@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 const EXPIRY_SCHEDULER_CAUSATION_ID: &str = "seatservice:expiry-scheduler";
 const MAX_EXPIRING_RESERVATIONS_PER_SWEEP: i64 = 100;
+const RESERVATION_HOLD_MINUTES: i64 = 10;
 /// Bounds event-cancellation fanout per transaction so large venues do not
 /// lock every seat stream for one long sweep.
 const MAX_CANCELLING_STREAMS_PER_BATCH: i64 = 500;
@@ -331,7 +332,7 @@ impl DbClient {
         let mut folded = Vec::with_capacity(order.seat_ids.len());
         let mut all_available = true;
 
-        let expires_at = now + chrono::Duration::minutes(10);
+        let expires_at = now + chrono::Duration::minutes(RESERVATION_HOLD_MINUTES);
         let expires_at_ms = expires_at.timestamp_millis();
 
         for seat_id in &order.seat_ids {

@@ -35,11 +35,13 @@ type Server struct {
 	tokenAudience    string
 }
 
+const reservationHoldDuration = 10 * time.Minute
+
 func NewServerWithStore(secret string, store *DatabaseStore, cacheClient *redis.Client) *Server {
 	s := &Server{
 		secret:           []byte(secret),
 		now:              time.Now,
-		holdTTL:          5 * time.Minute,
+		holdTTL:          reservationHoldDuration,
 		users:            map[string]User{},
 		events:           map[string]Event{},
 		seats:            map[string]map[string]map[string]*Seat{},
