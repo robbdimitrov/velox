@@ -284,8 +284,9 @@ QR tokens. QR token claims include ticket ID, user ID, event ID, purpose
 {"verification_state":"VERIFIED","tickets":[{"ticket_id":"...","status":"ISSUED","qr_token":"..."}]}
 ```
 
-Current gap: ticket issuance can still be skipped by projection ordering; Phase
-4 must add durable buffering or retry.
+Viewservice buffers confirmed inventory events in
+`projection.pending_wallet_ticket_events` when the matching order summary has
+not arrived yet, then drains those rows when order projection catches up.
 
 ## Organizer Routes
 
