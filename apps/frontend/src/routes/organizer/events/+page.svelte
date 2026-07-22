@@ -13,8 +13,8 @@
 
 <div class="mb-8 flex items-end justify-between">
   <div>
-    <h1 class="text-3xl font-black uppercase tracking-tight">Your Events</h1>
-    <p class="text-inkMuted text-sm mt-1">
+    <h1 class="text-3xl font-black tracking-tight uppercase">Your Events</h1>
+    <p class="text-inkMuted mt-1 text-sm">
       Manage your upcoming and past events.
     </p>
   </div>
@@ -34,16 +34,16 @@
     </ActionLink>
   </EmptyState>
 {:else}
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+  <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
     {#each data.events as event}
       <Panel padding="lg" overflowHidden flexColumn>
         <div
-          class="absolute inset-0 bg-gradient-to-br from-signal/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"
+          class="from-signal/5 absolute inset-0 bg-gradient-to-br to-transparent opacity-0 transition-opacity group-hover:opacity-100"
         ></div>
-        <div class="relative z-10 flex-1 flex flex-col">
-          <div class="flex justify-between items-start mb-4">
+        <div class="relative z-10 flex flex-1 flex-col">
+          <div class="mb-4 flex items-start justify-between">
             <div
-              class="flex h-10 w-10 items-center justify-center rounded bg-signal/20 text-signal shadow-inner"
+              class="bg-signal/20 text-signal flex h-10 w-10 items-center justify-center rounded shadow-inner"
             >
               <Calendar size={20} />
             </div>
@@ -51,19 +51,19 @@
               {new Date(event.startDate).toLocaleDateString()}
             </span>
           </div>
-          <h3 class="font-bold text-lg leading-tight mb-1">{event.name}</h3>
-          <p class="text-inkMuted text-sm mb-4 line-clamp-2 flex-1">
+          <h3 class="mb-1 text-lg leading-tight font-bold">{event.name}</h3>
+          <p class="text-inkMuted mb-4 line-clamp-2 flex-1 text-sm">
             {event.description || 'No description provided.'}
           </p>
           <div
-            class="mt-auto flex items-center justify-between border-t border-line pt-4"
+            class="border-line mt-auto flex items-center justify-between border-t pt-4"
           >
-            <div class="text-sm text-inkMuted">
+            <div class="text-inkMuted text-sm">
               {event.status === 'published' ? 'Published' : 'Draft'}
             </div>
             <a
               href={`/organizer/events/${event.id}/dashboard`}
-              class="btn btn-xs btn-ghost rounded text-signal hover:bg-signal/10"
+              class="btn btn-xs btn-ghost text-signal hover:bg-signal/10 rounded"
             >
               Manage <ExternalLink size={14} />
             </a>

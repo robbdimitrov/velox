@@ -18,9 +18,9 @@
 </script>
 
 <Panel padding="lg">
-  <div class="mb-6 flex items-center gap-2 border-b border-line pb-4">
+  <div class="border-line mb-6 flex items-center gap-2 border-b pb-4">
     <Activity class="text-signal" size={20} />
-    <h3 class="text-sm font-black uppercase tracking-wider text-ink">
+    <h3 class="text-ink text-sm font-black tracking-wider uppercase">
       System Health
     </h3>
   </div>
@@ -28,22 +28,22 @@
   <div class="grid grid-cols-2 gap-4">
     {#each metrics as metric}
       {@const Icon = metric.icon}
-      <div class="rounded-sm border border-line bg-panelSoft/70 p-4">
-        <div class="mb-2 flex items-center gap-2 text-inkMuted">
+      <div class="border-line bg-panelSoft/70 rounded-sm border p-4">
+        <div class="text-inkMuted mb-2 flex items-center gap-2">
           <Icon size={14} />
-          <span class="text-xs font-bold uppercase tracking-widest">
+          <span class="text-xs font-bold tracking-widest uppercase">
             {metric.label}
           </span>
         </div>
-        <div class="font-mono tabular-nums text-2xl text-ink">
+        <div class="text-ink font-mono text-2xl tabular-nums">
           {metric.value}
         </div>
         {#if metric.progress !== undefined}
           <div
-            class="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-carbon/70"
+            class="bg-carbon/70 mt-3 h-1.5 w-full overflow-hidden rounded-full"
           >
             <div
-              class="h-full rounded-full bg-signal"
+              class="bg-signal h-full rounded-full"
               style="width: {metric.progress}%"
             ></div>
           </div>

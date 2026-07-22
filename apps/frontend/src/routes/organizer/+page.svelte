@@ -82,24 +82,24 @@
 <main>
   <Panel padding="lg">
     <div
-      class="flex flex-col justify-between gap-4 border-b border-line pb-6 sm:flex-row sm:items-end"
+      class="border-line flex flex-col justify-between gap-4 border-b pb-6 sm:flex-row sm:items-end"
     >
       <div>
-        <h1 class="text-3xl font-black uppercase tracking-tight text-ink">
+        <h1 class="text-ink text-3xl font-black tracking-tight uppercase">
           Organizer Analytics
         </h1>
-        <p class="mt-1 text-sm text-inkMuted">
+        <p class="text-inkMuted mt-1 text-sm">
           Live operational read model for reservation health and inventory
           movement.
         </p>
       </div>
       <div
-        class="flex items-center gap-3 rounded-sm border border-line bg-panelSoft/70 px-4 py-2"
+        class="border-line bg-panelSoft/70 flex items-center gap-3 rounded-sm border px-4 py-2"
       >
         <span class="relative flex h-3 w-3">
           {#if streamState === 'live'}
             <span
-              class="animate-ping absolute inline-flex h-full w-full rounded-full bg-signal opacity-75"
+              class="bg-signal absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
             ></span>
           {/if}
           <span
@@ -110,7 +110,7 @@
           ></span>
         </span>
         <span
-          class="font-mono text-xs font-bold uppercase tracking-widest"
+          class="font-mono text-xs font-bold tracking-widest uppercase"
           class:text-signal={streamState === 'live'}
           class:text-warn={streamState === 'connecting'}
           class:text-urgency={streamState === 'degraded'}
@@ -132,10 +132,10 @@
     <div class="mt-8 grid gap-6 lg:grid-cols-[1fr_400px]">
       <Panel padding="lg">
         <div
-          class="mb-6 flex items-center justify-between border-b border-line pb-4"
+          class="border-line mb-6 flex items-center justify-between border-b pb-4"
         >
           <h2
-            class="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-ink"
+            class="text-ink flex items-center gap-2 text-sm font-black tracking-wider uppercase"
           >
             <Activity size={18} class="text-signal" /> Section Availability
           </h2>
@@ -143,9 +143,9 @@
         <div class="space-y-4">
           {#each Object.entries(metrics.sectionAvailability) as [section, percentage]}
             <div
-              class="grid grid-cols-[90px_1fr_80px] items-center gap-4 rounded-sm border border-line bg-panelSoft/70 px-4 py-3 transition-colors hover:border-signal/40"
+              class="border-line bg-panelSoft/70 hover:border-signal/40 grid grid-cols-[90px_1fr_80px] items-center gap-4 rounded-sm border px-4 py-3 transition-colors"
             >
-              <span class="font-mono text-sm font-bold text-ink"
+              <span class="text-ink font-mono text-sm font-bold"
                 >SEC {section}</span
               >
               <progress
@@ -156,14 +156,14 @@
                 value={percentage}
                 max="100"
               ></progress>
-              <span class="text-right font-mono text-sm font-black text-ink"
+              <span class="text-ink text-right font-mono text-sm font-black"
                 >{percentage}%</span
               >
             </div>
           {/each}
           {#if Object.keys(metrics.sectionAvailability).length === 0}
             <div
-              class="rounded-sm border border-line bg-panelSoft/70 px-4 py-8 text-center text-sm font-bold uppercase tracking-widest text-inkMuted"
+              class="border-line bg-panelSoft/70 text-inkMuted rounded-sm border px-4 py-8 text-center text-sm font-bold tracking-widest uppercase"
             >
               Section metrics unavailable
             </div>
@@ -173,44 +173,44 @@
 
       <Panel padding="lg" flexColumn>
         <div
-          class="mb-6 flex items-center justify-between border-b border-line pb-4"
+          class="border-line mb-6 flex items-center justify-between border-b pb-4"
         >
           <h2
-            class="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-ink"
+            class="text-ink flex items-center gap-2 text-sm font-black tracking-wider uppercase"
           >
             <RadioTower size={18} class="text-signal" /> System Health
           </h2>
         </div>
 
-        <div class="grid grid-cols-2 gap-4 mb-8">
+        <div class="mb-8 grid grid-cols-2 gap-4">
           <div
-            class="rounded-sm border border-line bg-panelSoft/70 p-4 shadow-inner"
+            class="border-line bg-panelSoft/70 rounded-sm border p-4 shadow-inner"
           >
             <p
-              class="text-[10px] uppercase font-bold tracking-widest text-inkMuted mb-1"
+              class="text-inkMuted mb-1 text-[10px] font-bold tracking-widest uppercase"
             >
               Projection Lag
             </p>
-            <p class="font-mono text-2xl font-black text-warn">
+            <p class="text-warn font-mono text-2xl font-black">
               {metrics.projectionLagMs}ms
             </p>
           </div>
           <div
-            class="rounded-sm border border-line bg-panelSoft/70 p-4 shadow-inner"
+            class="border-line bg-panelSoft/70 rounded-sm border p-4 shadow-inner"
           >
             <p
-              class="text-[10px] uppercase font-bold tracking-widest text-inkMuted mb-1"
+              class="text-inkMuted mb-1 text-[10px] font-bold tracking-widest uppercase"
             >
               Demand Score
             </p>
-            <p class="font-mono text-2xl font-black text-ok">
-              {metrics.demandScore}<span class="text-sm text-ink/40">/100</span>
+            <p class="text-ok font-mono text-2xl font-black">
+              {metrics.demandScore}<span class="text-ink/40 text-sm">/100</span>
             </p>
           </div>
         </div>
 
-        <div class="space-y-4 font-mono text-sm flex-1">
-          <div class="flex items-start gap-3 border-l-2 border-ok pl-4 py-1">
+        <div class="flex-1 space-y-4 font-mono text-sm">
+          <div class="border-ok flex items-start gap-3 border-l-2 py-1 pl-4">
             <span
               class="mt-0.5"
               class:text-ok={streamState === 'live'}
@@ -218,8 +218,8 @@
               class:text-urgency={streamState === 'degraded'}>●</span
             >
             <div>
-              <p class="font-bold text-ink">Metrics Stream</p>
-              <p class="text-ink/60 text-xs mt-0.5">{streamState}</p>
+              <p class="text-ink font-bold">Metrics Stream</p>
+              <p class="text-ink/60 mt-0.5 text-xs">{streamState}</p>
             </div>
           </div>
         </div>

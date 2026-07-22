@@ -20,7 +20,7 @@
   {type}
   {disabled}
   {onclick}
-  class="btn btn-primary btn-sm rounded-sm text-primary-content shadow-[0_12px_30px_rgba(242,184,75,0.22)] transition-transform hover:scale-[1.02] disabled:bg-inkMuted/30 disabled:text-ink/40 disabled:shadow-none disabled:hover:scale-100"
+  class="btn btn-primary btn-sm text-primary-content disabled:bg-inkMuted/30 disabled:text-ink/40 rounded-sm shadow-[0_12px_30px_rgba(242,184,75,0.22)] transition-transform hover:scale-[1.02] disabled:shadow-none disabled:hover:scale-100"
   class:w-full={fullWidth}
 >
   {@render children()}

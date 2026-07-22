@@ -143,23 +143,23 @@
 <main class="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[1fr_360px]">
   {#if reservationState.reservation}
     <Panel padding="xl" flexColumn>
-      <h1 class="text-3xl font-black uppercase tracking-tight text-ink">
+      <h1 class="text-ink text-3xl font-black tracking-tight uppercase">
         Confirm Reservation
       </h1>
 
       <div
-        class="my-6 rounded border border-urgency/20 bg-urgency/5 py-6 text-center shadow-inner relative overflow-hidden shrink-0"
+        class="border-urgency/20 bg-urgency/5 relative my-6 shrink-0 overflow-hidden rounded border py-6 text-center shadow-inner"
       >
         <div
-          class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-urgency/10 to-transparent blur-xl"
+          class="from-urgency/10 absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] to-transparent blur-xl"
         ></div>
         <p
-          class="text-xs font-bold uppercase tracking-widest text-urgency mb-1 relative"
+          class="text-urgency relative mb-1 text-xs font-bold tracking-widest uppercase"
         >
           Hold expires in
         </p>
         <p
-          class="font-mono tabular-nums relative text-5xl font-black text-urgency drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]"
+          class="text-urgency relative font-mono text-5xl font-black tabular-nums drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]"
         >
           {formatCountdown(remaining)}
         </p>
@@ -167,25 +167,25 @@
 
       <div class="flex-grow">
         <h3
-          class="text-sm font-black uppercase tracking-widest text-inkMuted mb-4"
+          class="text-inkMuted mb-4 text-sm font-black tracking-widest uppercase"
         >
           Reservation Tickets
         </h3>
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {#each reservationState.reservation.seats as seat}
             <div
-              class="flex items-center justify-center rounded-sm border border-line bg-panelSoft/70 p-4 font-mono tabular-nums shadow-sm transition-colors hover:border-signal/30"
+              class="border-line bg-panelSoft/70 hover:border-signal/30 flex items-center justify-center rounded-sm border p-4 font-mono tabular-nums shadow-sm transition-colors"
             >
-              <span class="text-xl font-bold text-ink">{seat.seat_id}</span>
+              <span class="text-ink text-xl font-bold">{seat.seat_id}</span>
             </div>
           {/each}
         </div>
       </div>
 
       <div
-        class="mt-6 flex items-center justify-between border-t border-line pt-6 text-xs text-inkMuted"
+        class="border-line text-inkMuted mt-6 flex items-center justify-between border-t pt-6 text-xs"
       >
-        <span class="uppercase tracking-widest">Reservation version</span>
+        <span class="tracking-widest uppercase">Reservation version</span>
         <span class="font-mono tabular-nums"
           >{reservationState.reservation.version}</span
         >
@@ -193,17 +193,17 @@
     </Panel>
 
     <Panel padding="lg" sticky hMax>
-      <div class="mb-6 flex items-center gap-3 border-b border-line pb-4">
-        <div class="rounded bg-signal p-2 shadow-md shadow-signal/20">
+      <div class="border-line mb-6 flex items-center gap-3 border-b pb-4">
+        <div class="bg-signal shadow-signal/20 rounded p-2 shadow-md">
           <CheckCircle2 class="text-primary-content" size={20} />
         </div>
-        <h2 class="text-lg font-black uppercase tracking-wider text-ink">
+        <h2 class="text-ink text-lg font-black tracking-wider uppercase">
           Review & Complete
         </h2>
       </div>
 
       <label
-        class="group mb-6 flex cursor-pointer items-start gap-3 rounded-sm border border-line bg-panelSoft/70 p-4 text-sm transition-colors hover:border-signal/40"
+        class="group border-line bg-panelSoft/70 hover:border-signal/40 mb-6 flex cursor-pointer items-start gap-3 rounded-sm border p-4 text-sm transition-colors"
       >
         <input
           bind:checked={termsAccepted}
@@ -211,16 +211,16 @@
           type="checkbox"
         />
         <span
-          class="text-inkMuted group-hover:text-ink transition-colors leading-tight"
+          class="text-inkMuted group-hover:text-ink leading-tight transition-colors"
           >I accept the transfer, refund, and venue entry terms.</span
         >
       </label>
 
       {#if reservationState.error}
         <div
-          class="mb-6 flex items-start gap-2 rounded border border-urgency/50 bg-urgency/10 p-3 text-sm text-urgency"
+          class="border-urgency/50 bg-urgency/10 text-urgency mb-6 flex items-start gap-2 rounded border p-3 text-sm"
         >
-          <AlertTriangle size={18} class="shrink-0 mt-0.5" />
+          <AlertTriangle size={18} class="mt-0.5 shrink-0" />
           <p>{reservationState.error}</p>
         </div>
       {/if}
@@ -236,7 +236,7 @@
       </PrimaryButton>
 
       <button
-        class="btn btn-ghost btn-block mt-3 rounded-sm border border-line text-inkMuted hover:border-urgency/40 hover:text-urgency"
+        class="btn btn-ghost btn-block border-line text-inkMuted hover:border-urgency/40 hover:text-urgency mt-3 rounded-sm border"
         disabled={reservationState.submitted || cancelling}
         onclick={cancel}
       >
@@ -250,13 +250,13 @@
         <div
           class="flex min-h-[400px] flex-col items-center justify-center text-center"
         >
-          <div class="mb-6 rounded bg-white/5 p-4 text-signal">
+          <div class="text-signal mb-6 rounded bg-white/5 p-4">
             <AlertTriangle size={48} />
           </div>
-          <h1 class="mb-3 text-3xl font-black uppercase text-ink">
+          <h1 class="text-ink mb-3 text-3xl font-black uppercase">
             No Active Reservation
           </h1>
-          <p class="text-inkMuted text-lg max-w-md">
+          <p class="text-inkMuted max-w-md text-lg">
             Your hold has expired or you haven't selected any seats yet. Return
             to the seat map and reserve seats.
           </p>

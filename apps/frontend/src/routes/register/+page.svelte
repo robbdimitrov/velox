@@ -46,7 +46,7 @@
   >
     {#if error}
       <div
-        class="mb-6 rounded-sm border border-urgency/50 bg-urgency/20 p-3 text-sm text-urgency backdrop-blur-sm"
+        class="border-urgency/50 bg-urgency/20 text-urgency mb-6 rounded-sm border p-3 text-sm backdrop-blur-sm"
       >
         {error}
       </div>
@@ -89,11 +89,11 @@
       </PrimaryButton>
     </form>
 
-    <p class="mt-6 text-center text-sm text-inkMuted">
+    <p class="text-inkMuted mt-6 text-center text-sm">
       Already have an account?
       <a
         href="/login"
-        class="font-semibold text-signal transition-colors hover:text-signal/80"
+        class="text-signal hover:text-signal/80 font-semibold transition-colors"
         >Log in</a
       >
     </p>

@@ -18,12 +18,12 @@
 <Panel padding="xl">
   <div class="flex flex-col items-center justify-center text-center">
     <div
-      class="mb-4 flex h-16 w-16 items-center justify-center rounded-sm bg-signal/10 text-signal shadow-inner"
+      class="bg-signal/10 text-signal mb-4 flex h-16 w-16 items-center justify-center rounded-sm shadow-inner"
     >
       <Icon size={32} />
     </div>
     <h3 class="mb-2 text-xl font-bold">{title}</h3>
-    <p class="mb-6 max-w-md text-inkMuted">{description}</p>
+    <p class="text-inkMuted mb-6 max-w-md">{description}</p>
     {@render children?.()}
   </div>
 </Panel>

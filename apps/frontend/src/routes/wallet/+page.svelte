@@ -44,22 +44,22 @@
 <main class="w-full">
   <Panel padding="lg">
     <div
-      class="mb-6 flex flex-col justify-between gap-4 border-b border-line pb-6 sm:flex-row sm:items-center"
+      class="border-line mb-6 flex flex-col justify-between gap-4 border-b pb-6 sm:flex-row sm:items-center"
     >
       <div>
         <h1
-          class="flex items-center gap-3 text-3xl font-black uppercase tracking-tight text-ink"
+          class="text-ink flex items-center gap-3 text-3xl font-black tracking-tight uppercase"
         >
           <Ticket class="text-signal" size={28} /> Reservation Wallet
         </h1>
         <p
-          class="text-sm font-bold uppercase tracking-widest text-inkMuted mt-2"
+          class="text-inkMuted mt-2 text-sm font-bold tracking-widest uppercase"
         >
           {data.wallet.tickets.length} reservation tickets
         </p>
       </div>
       <div
-        class="font-mono tabular-nums flex items-center gap-2 rounded-sm border border-ok/20 bg-ok/10 px-4 py-2 text-sm font-bold text-ok"
+        class="border-ok/20 bg-ok/10 text-ok flex items-center gap-2 rounded-sm border px-4 py-2 font-mono text-sm font-bold tabular-nums"
       >
         <ShieldCheck size={18} />
         {data.wallet.verification_state}
@@ -67,10 +67,10 @@
     </div>
 
     {#if !data.authRequired && data.wallet.tickets.length > 0}
-      <div class="flex flex-wrap items-center gap-2 mb-6">
+      <div class="mb-6 flex flex-wrap items-center gap-2">
         {#each HISTORY_FILTERS as label}
           <button
-            class="btn btn-xs rounded-sm border-0 px-4 transition-all hover:bg-panel hover:text-ink"
+            class="btn btn-xs hover:bg-panel hover:text-ink rounded-sm border-0 px-4 transition-all"
             class:bg-signal={historyFilter === label}
             class:font-bold={historyFilter === label}
             class:text-primary-content={historyFilter === label}
@@ -86,18 +86,18 @@
 
     {#if data.authRequired}
       <div
-        class="grid min-h-[320px] place-items-center rounded-sm border border-line bg-panelSoft/70 p-8 text-center"
+        class="border-line bg-panelSoft/70 grid min-h-[320px] place-items-center rounded-sm border p-8 text-center"
       >
         <div>
           <div
-            class="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-sm bg-signal text-primary-content"
+            class="bg-signal text-primary-content mx-auto mb-4 grid h-14 w-14 place-items-center rounded-sm"
           >
             <LockKeyhole size={28} />
           </div>
-          <h2 class="text-xl font-black uppercase tracking-tight text-ink">
+          <h2 class="text-ink text-xl font-black tracking-tight uppercase">
             Sign In Required
           </h2>
-          <p class="mt-2 max-w-md text-sm text-inkMuted">
+          <p class="text-inkMuted mt-2 max-w-md text-sm">
             Reservation ticket wallet access is limited to the signed-in
             reserver.
           </p>
@@ -105,18 +105,18 @@
       </div>
     {:else if data.wallet.tickets.length === 0}
       <div
-        class="grid min-h-[320px] place-items-center rounded-sm border border-line bg-panelSoft/70 p-8 text-center"
+        class="border-line bg-panelSoft/70 grid min-h-[320px] place-items-center rounded-sm border p-8 text-center"
       >
         <div>
           <div
-            class="mx-auto mb-4 grid h-14 w-14 place-items-center rounded bg-panel text-signal"
+            class="bg-panel text-signal mx-auto mb-4 grid h-14 w-14 place-items-center rounded"
           >
             <Ticket size={28} />
           </div>
-          <h2 class="text-xl font-black uppercase tracking-tight text-ink">
+          <h2 class="text-ink text-xl font-black tracking-tight uppercase">
             No Reservation Tickets Yet
           </h2>
-          <p class="mt-2 max-w-md text-sm text-inkMuted">
+          <p class="text-inkMuted mt-2 max-w-md text-sm">
             Confirmed reservations will appear here with signed entry tokens and
             provenance.
           </p>
@@ -124,9 +124,9 @@
       </div>
     {:else if filteredTickets.length === 0}
       <div
-        class="grid min-h-[240px] place-items-center rounded-sm border border-line bg-panelSoft/70 p-8 text-center"
+        class="border-line bg-panelSoft/70 grid min-h-[240px] place-items-center rounded-sm border p-8 text-center"
       >
-        <p class="text-sm font-bold uppercase tracking-widest text-inkMuted">
+        <p class="text-inkMuted text-sm font-bold tracking-widest uppercase">
           No reservation tickets match this status
         </p>
       </div>
@@ -153,31 +153,31 @@
                       ></span>
                     {/each}
                   </div>
-                  <div class="min-w-0 flex-1 flex flex-col justify-center">
+                  <div class="flex min-w-0 flex-1 flex-col justify-center">
                     <h2
-                      class="truncate text-xl font-black uppercase tracking-tight text-ink transition-colors group-hover:text-signal"
+                      class="text-ink group-hover:text-signal truncate text-xl font-black tracking-tight uppercase transition-colors"
                     >
                       {ticket.event}
                     </h2>
-                    <p class="text-sm text-inkMuted font-medium">
+                    <p class="text-inkMuted text-sm font-medium">
                       {ticket.venue}
                     </p>
                     <div
-                      class="font-mono tabular-nums mt-2 inline-block rounded-sm border border-line bg-panel/70 px-2 py-1 text-xs font-bold text-ink shadow-sm"
+                      class="border-line bg-panel/70 text-ink mt-2 inline-block rounded-sm border px-2 py-1 font-mono text-xs font-bold tabular-nums shadow-sm"
                     >
                       {ticket.seat} <span class="text-ink/40 mx-1">|</span>
                       {ticket.status}
                     </div>
-                    <p class="mt-2 truncate font-mono text-[11px] text-ink/40">
+                    <p class="text-ink/40 mt-2 truncate font-mono text-[11px]">
                       {tokenFragment(ticket.qr_token)}
                     </p>
                   </div>
                 </div>
                 <div
-                  class="flex items-center justify-between border-t border-line bg-panelSoft/60 px-5 py-3"
+                  class="border-line bg-panelSoft/60 flex items-center justify-between border-t px-5 py-3"
                 >
                   <span
-                    class="font-mono tabular-nums flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-inkMuted"
+                    class="text-inkMuted flex items-center gap-2 font-mono text-xs font-bold tracking-widest uppercase tabular-nums"
                   >
                     <span
                       class="h-1.5 w-1.5 rounded-full {ticket.transfer_status ===
@@ -188,7 +188,7 @@
                     {ticket.transfer_status}
                   </span>
                   <span
-                    class="rounded-sm border border-line bg-panel px-3 py-2 text-xs font-bold uppercase tracking-widest text-inkMuted"
+                    class="border-line bg-panel text-inkMuted rounded-sm border px-3 py-2 text-xs font-bold tracking-widest uppercase"
                   >
                     Entry token expires {new Date(
                       ticket.qr_token_expires_at
@@ -205,38 +205,38 @@
 
         <Panel padding="lg" hMax>
           <h2
-            class="mb-4 border-b border-line pb-4 text-sm font-black uppercase tracking-wider text-ink"
+            class="border-line text-ink mb-4 border-b pb-4 text-sm font-black tracking-wider uppercase"
           >
             Provenance Ledger
           </h2>
           <div class="space-y-4">
             {#each filteredTickets as ticket}
               <details
-                class="group overflow-hidden rounded-sm border border-line bg-panelSoft/70"
+                class="group border-line bg-panelSoft/70 overflow-hidden rounded-sm border"
                 open
               >
                 <summary
-                  class="font-mono tabular-nums cursor-pointer select-none border-b border-line bg-panel/70 p-4 text-xs font-bold uppercase tracking-widest text-signal transition-colors hover:bg-panel"
+                  class="border-line bg-panel/70 text-signal hover:bg-panel cursor-pointer border-b p-4 font-mono text-xs font-bold tracking-widest uppercase tabular-nums transition-colors select-none"
                 >
                   Reservation ticket ID: {ticket.ticket_id}
                 </summary>
-                <div class="p-4 space-y-2">
+                <div class="space-y-2 p-4">
                   {#each ticket.ledger as row}
                     <div
-                      class="grid items-center gap-2 rounded-sm border border-line bg-panel/50 p-3 text-xs transition-colors hover:bg-panel md:grid-cols-[180px_1fr_120px]"
+                      class="border-line bg-panel/50 hover:bg-panel grid items-center gap-2 rounded-sm border p-3 text-xs transition-colors md:grid-cols-[180px_1fr_120px]"
                     >
-                      <span class="font-mono tabular-nums text-ink/40"
+                      <span class="text-ink/40 font-mono tabular-nums"
                         >{row.timestamp}</span
                       >
-                      <span class="font-medium text-ink"
-                        ><span class="font-bold text-ink"
+                      <span class="text-ink font-medium"
+                        ><span class="text-ink font-bold"
                           >{ledgerEventLabel(row.event_type)}</span
                         >
                         <span class="text-ink/40 mx-1">·</span>
                         {row.actor}</span
                       >
                       <span
-                        class="font-mono tabular-nums truncate text-right text-ink/30"
+                        class="text-ink/30 truncate text-right font-mono tabular-nums"
                         title={row.correlation_id}
                         >{row.correlation_id.split('-')[0]}...</span
                       >

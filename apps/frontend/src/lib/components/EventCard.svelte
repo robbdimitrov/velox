@@ -21,28 +21,28 @@
 </script>
 
 <a
-  class="group relative grid gap-3 rounded-sm border border-line bg-panelSoft p-4 transition-all duration-300 hover:-translate-y-1 hover:border-signal sm:grid-cols-[1fr_auto] sm:gap-4"
+  class="group border-line bg-panelSoft hover:border-signal relative grid gap-3 rounded-sm border p-4 transition-all duration-300 hover:-translate-y-1 sm:grid-cols-[1fr_auto] sm:gap-4"
   href={`/events/${event.id}`}
 >
-  <div class="flex flex-col justify-center min-w-0">
+  <div class="flex min-w-0 flex-col justify-center">
     <p
-      class="truncate text-lg font-black uppercase tracking-tight text-ink transition-colors group-hover:text-signal sm:text-xl"
+      class="text-ink group-hover:text-signal truncate text-lg font-black tracking-tight uppercase transition-colors sm:text-xl"
     >
       {event.title}
     </p>
-    <p class="mt-1 flex items-center gap-1.5 text-sm text-inkMuted font-medium">
+    <p class="text-inkMuted mt-1 flex items-center gap-1.5 text-sm font-medium">
       <MapPin size={14} class="text-signal/80" />
       {event.venue}, <span class="text-ink/60">{event.city}</span>
     </p>
     <div
-      class="mt-3 flex flex-wrap items-center gap-4 text-xs font-semibold uppercase text-inkMuted"
+      class="text-inkMuted mt-3 flex flex-wrap items-center gap-4 text-xs font-semibold uppercase"
     >
       <span
-        class="flex items-center gap-1.5 rounded-sm border border-line bg-panel/70 px-2 py-1 text-inkMuted"
+        class="border-line bg-panel/70 text-inkMuted flex items-center gap-1.5 rounded-sm border px-2 py-1"
         ><CalendarDays size={13} class="text-signal" /> {eventTime}</span
       >
       <span
-        class="rounded-sm border border-line bg-panel/70 px-2 py-1 font-mono tabular-nums"
+        class="border-line bg-panel/70 rounded-sm border px-2 py-1 font-mono tabular-nums"
         class:text-urgency={event.remaining_bucket === 'FULL' ||
           event.remaining_bucket === 'LOW'}
         class:text-warn={event.remaining_bucket === 'MEDIUM'}
@@ -53,16 +53,16 @@
     </div>
   </div>
   <div
-    class="font-mono tabular-nums flex items-center justify-between border-t border-line pt-3 sm:flex-col sm:items-end sm:border-t-0 sm:pb-1 sm:pt-1"
+    class="border-line flex items-center justify-between border-t pt-3 font-mono tabular-nums sm:flex-col sm:items-end sm:border-t-0 sm:pt-1 sm:pb-1"
   >
     <div
-      class="flex flex-col items-center gap-1 rounded-sm border border-line bg-panel p-2 transition-colors group-hover:border-signal"
+      class="border-line bg-panel group-hover:border-signal flex flex-col items-center gap-1 rounded-sm border p-2 transition-colors"
     >
       <Gauge class="text-signal" size={20} />
-      <span class="text-2xl font-black text-ink">{event.demand_score}</span>
+      <span class="text-ink text-2xl font-black">{event.demand_score}</span>
     </div>
     <span
-      class="text-[10px] font-medium uppercase tracking-widest text-inkMuted"
+      class="text-inkMuted text-[10px] font-medium tracking-widest uppercase"
       >{event.projection_lag_ms}ms</span
     >
   </div>

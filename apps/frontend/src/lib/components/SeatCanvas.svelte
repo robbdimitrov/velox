@@ -283,7 +283,7 @@
 
 <div
   bind:this={container}
-  class="relative h-full min-h-[440px] overflow-hidden rounded-sm border border-line bg-panel shadow-lg"
+  class="border-line bg-panel relative h-full min-h-[440px] overflow-hidden rounded-sm border shadow-lg"
 >
   {#if useCanvas}
     <canvas
@@ -346,19 +346,19 @@
     class="pointer-events-none absolute inset-0 z-0 flex flex-col items-center justify-between py-6"
   >
     <div class="flex flex-col items-center opacity-60">
-      <div class="mb-2 h-1 w-32 rounded-full bg-ink/20"></div>
-      <span class="text-xs font-black uppercase tracking-[0.3em] text-inkMuted"
+      <div class="bg-ink/20 mb-2 h-1 w-32 rounded-full"></div>
+      <span class="text-inkMuted text-xs font-black tracking-[0.3em] uppercase"
         >Section {sectionID}</span
       >
     </div>
 
     <div class="relative bottom-[-20px] flex flex-col items-center">
       <span
-        class="mb-2 text-xs font-black uppercase tracking-[0.6em] text-signal"
+        class="text-signal mb-2 text-xs font-black tracking-[0.6em] uppercase"
         >Stage</span
       >
       <div
-        class="h-16 w-80 rounded-t-[100%] border-t-[3px] border-signal/50 bg-[linear-gradient(0deg,rgba(242,184,75,0.18),transparent)]"
+        class="border-signal/50 h-16 w-80 rounded-t-[100%] border-t-[3px] bg-[linear-gradient(0deg,rgba(242,184,75,0.18),transparent)]"
       ></div>
     </div>
   </div>

@@ -120,18 +120,18 @@
 </script>
 
 <div class="space-y-8">
-  <div class="mb-8 flex justify-between items-end">
+  <div class="mb-8 flex items-end justify-between">
     <div>
-      <h1 class="text-3xl font-black uppercase tracking-tight text-ink">
+      <h1 class="text-ink text-3xl font-black tracking-tight uppercase">
         Live Analytics
       </h1>
-      <p class="text-signal uppercase tracking-widest text-sm mt-1">
+      <p class="text-signal mt-1 text-sm tracking-widest uppercase">
         Event: {eventId}
       </p>
     </div>
   </div>
 
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+  <div class="grid grid-cols-1 gap-8 lg:grid-cols-2">
     <SystemHealthPanel
       cpu={metrics.cpu}
       memory={metrics.memory}
@@ -140,9 +140,9 @@
     />
 
     <Panel padding="lg">
-      <div class="mb-6 flex items-center gap-2 border-b border-line pb-4">
+      <div class="border-line mb-6 flex items-center gap-2 border-b pb-4">
         <Megaphone class="text-signal" size={20} />
-        <h3 class="text-sm font-black uppercase tracking-wider text-ink">
+        <h3 class="text-ink text-sm font-black tracking-wider uppercase">
           Post Update
         </h3>
       </div>
@@ -168,7 +168,7 @@
         />
         <select
           bind:value={announcementSeverity}
-          class="select select-sm w-full rounded-sm border-line bg-carbon/60 text-ink focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal/50"
+          class="select select-sm border-line bg-carbon/60 text-ink focus:border-signal focus:ring-signal/50 w-full rounded-sm focus:ring-1 focus:outline-none"
         >
           <option value="INFO">Info</option>
           <option value="SCHEDULE_CHANGE">Schedule Change</option>
@@ -176,7 +176,7 @@
         </select>
 
         {#if announcementError}
-          <p class="text-xs font-medium text-urgency">{announcementError}</p>
+          <p class="text-urgency text-xs font-medium">{announcementError}</p>
         {/if}
 
         <ActionButton
@@ -192,12 +192,12 @@
       </form>
 
       {#if announcements.length}
-        <div class="mt-6 space-y-2 border-t border-line pt-4">
+        <div class="border-line mt-6 space-y-2 border-t pt-4">
           {#each announcements as announcement (announcement.id)}
             <div
-              class="rounded-sm border border-line bg-panelSoft/70 p-3 text-xs"
+              class="border-line bg-panelSoft/70 rounded-sm border p-3 text-xs"
             >
-              <p class="font-bold text-ink">{announcement.title}</p>
+              <p class="text-ink font-bold">{announcement.title}</p>
               <p class="text-inkMuted mt-1">{announcement.body}</p>
             </div>
           {/each}
@@ -208,24 +208,24 @@
     <div class="lg:col-span-2">
       <Panel padding="lg" accent="urgency">
         <div
-          class="flex items-center gap-2 mb-6 border-b border-urgency/20 pb-4"
+          class="border-urgency/20 mb-6 flex items-center gap-2 border-b pb-4"
         >
           <OctagonAlert class="text-urgency" size={20} />
-          <h3 class="text-sm font-black uppercase tracking-wider text-urgency">
+          <h3 class="text-urgency text-sm font-black tracking-wider uppercase">
             Danger Zone
           </h3>
         </div>
 
         <div
-          class="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+          class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"
         >
-          <p class="text-sm text-inkMuted max-w-lg">
+          <p class="text-inkMuted max-w-lg text-sm">
             Cancelling this event notifies reservation holders, cancels
             outstanding reservations, and marks the event as unavailable for new
             reservations. This action cannot be undone.
           </p>
           <button
-            class="btn btn-sm border-0 bg-urgency hover:bg-urgency/80 text-white font-bold rounded shrink-0 disabled:opacity-40"
+            class="btn btn-sm bg-urgency hover:bg-urgency/80 shrink-0 rounded border-0 font-bold text-white disabled:opacity-40"
             onclick={cancelEvent}
             disabled={cancelling || cancelResult?.status === 'CANCELLED'}
           >
@@ -234,12 +234,12 @@
         </div>
 
         {#if cancelError}
-          <p class="mt-4 text-xs font-medium text-urgency">{cancelError}</p>
+          <p class="text-urgency mt-4 text-xs font-medium">{cancelError}</p>
         {/if}
 
         {#if cancelResult}
           <p
-            class="mt-4 rounded border border-urgency/40 bg-urgency/10 p-3 text-xs font-medium text-urgency"
+            class="border-urgency/40 bg-urgency/10 text-urgency mt-4 rounded border p-3 text-xs font-medium"
           >
             Event marked {cancelResult.status}. {cancelResult.cancelled_orders} reservation{cancelResult.cancelled_orders ===
             1

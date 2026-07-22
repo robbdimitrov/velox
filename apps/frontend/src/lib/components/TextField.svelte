@@ -23,12 +23,12 @@
 </script>
 
 <label class="form-control space-y-2">
-  <span class="text-xs font-semibold uppercase tracking-wider text-inkMuted">
+  <span class="text-inkMuted text-xs font-semibold tracking-wider uppercase">
     {label}
   </span>
   <div class="relative flex items-center">
     {#if Icon}
-      <Icon size={18} class="absolute left-3 text-inkMuted" />
+      <Icon size={18} class="text-inkMuted absolute left-3" />
     {/if}
     <input
       {id}
@@ -36,7 +36,7 @@
       {min}
       bind:value
       {required}
-      class="w-full rounded-sm border border-line bg-carbon/60 py-3 pr-4 text-ink shadow-inner outline-none transition-colors placeholder:text-inkMuted/50 focus:border-signal focus:ring-1 focus:ring-signal/50"
+      class="border-line bg-carbon/60 text-ink placeholder:text-inkMuted/50 focus:border-signal focus:ring-signal/50 w-full rounded-sm border py-3 pr-4 shadow-inner transition-colors outline-none focus:ring-1"
       class:pl-10={Icon}
       class:pl-4={!Icon}
       {placeholder}

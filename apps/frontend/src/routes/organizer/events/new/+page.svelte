@@ -68,20 +68,20 @@
 
 <div class="mx-auto w-full max-w-3xl">
   <div class="mb-8">
-    <h1 class="text-3xl font-black uppercase tracking-tight">Create Event</h1>
-    <p class="text-inkMuted text-sm mt-1">
+    <h1 class="text-3xl font-black tracking-tight uppercase">Create Event</h1>
+    <p class="text-inkMuted mt-1 text-sm">
       Publish a new event for reservations.
     </p>
   </div>
 
-  <ul class="steps steps-horizontal w-full mb-12 font-semibold">
+  <ul class="steps steps-horizontal mb-12 w-full font-semibold">
     {#each steps as step}
       <li
         class="step {currentStep >= step.id
           ? 'step-primary text-signal'
           : 'text-inkMuted'}"
       >
-        <div class="flex items-center gap-2 mt-2">
+        <div class="mt-2 flex items-center gap-2">
           <step.icon size={16} />
           {step.title}
         </div>
@@ -92,7 +92,7 @@
   <Panel padding="xl" overflowHidden flexColumn>
     {#if error}
       <div
-        class="bg-urgency/20 border border-urgency/50 text-urgency p-3 rounded mb-6 text-sm backdrop-blur-sm animate-pulse"
+        class="bg-urgency/20 border-urgency/50 text-urgency mb-6 animate-pulse rounded border p-3 text-sm backdrop-blur-sm"
       >
         {error}
       </div>
@@ -100,24 +100,24 @@
 
     {#if data.loadError}
       <div
-        class="mb-6 rounded-sm border border-urgency/50 bg-urgency/10 p-3 text-sm font-semibold text-urgency"
+        class="border-urgency/50 bg-urgency/10 text-urgency mb-6 rounded-sm border p-3 text-sm font-semibold"
       >
         {data.loadError}
       </div>
     {/if}
 
     {#if currentStep === 1}
-      <div class="flex-1 animate-in slide-in-from-right fade-in duration-300">
-        <h2 class="text-xl font-bold mb-6">Select a Venue</h2>
+      <div class="animate-in slide-in-from-right fade-in flex-1 duration-300">
+        <h2 class="mb-6 text-xl font-bold">Select a Venue</h2>
         {#if data.loadError}
           <div
-            class="rounded-sm border border-urgency/30 bg-urgency/10 p-6 text-center text-urgency"
+            class="border-urgency/30 bg-urgency/10 text-urgency rounded-sm border p-6 text-center"
           >
             <p>Venue data could not be loaded.</p>
           </div>
         {:else if data.venues.length === 0}
           <div
-            class="p-6 border border-warning/30 bg-warning/10 rounded text-center text-warning"
+            class="border-warning/30 bg-warning/10 text-warning rounded border p-6 text-center"
           >
             <p>You need to create a venue first.</p>
             <a href="/organizer/venues" class="btn btn-sm btn-warning mt-4"
@@ -125,18 +125,18 @@
             >
           </div>
         {:else}
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             {#each data.venues as venue}
               <button
                 type="button"
                 onclick={() => (selectedVenue = venue.id)}
-                class="text-left p-4 rounded-sm border transition-all duration-300 {selectedVenue ===
+                class="rounded-sm border p-4 text-left transition-all duration-300 {selectedVenue ===
                 venue.id
-                  ? 'bg-signal/20 border-signal shadow-inner shadow-signal/20'
+                  ? 'bg-signal/20 border-signal shadow-signal/20 shadow-inner'
                   : 'bg-panelSoft/70 border-line hover:border-signal/50'}"
               >
                 <div class="font-bold">{venue.name}</div>
-                <div class="text-xs text-inkMuted mt-1">
+                <div class="text-inkMuted mt-1 text-xs">
                   {venue.city} &bull; {venue.capacity} capacity
                 </div>
               </button>
@@ -148,9 +148,9 @@
 
     {#if currentStep === 2}
       <div
-        class="flex-1 space-y-5 animate-in slide-in-from-right fade-in duration-300"
+        class="animate-in slide-in-from-right fade-in flex-1 space-y-5 duration-300"
       >
-        <h2 class="text-xl font-bold mb-6">Event Details</h2>
+        <h2 class="mb-6 text-xl font-bold">Event Details</h2>
 
         <TextField
           id="name"
@@ -166,13 +166,13 @@
         />
         <label class="form-control space-y-2">
           <span
-            class="text-xs font-semibold uppercase tracking-wider text-inkMuted"
+            class="text-inkMuted text-xs font-semibold tracking-wider uppercase"
           >
             Category
           </span>
           <select
             bind:value={eventCategory}
-            class="select select-bordered w-full rounded-sm border-line bg-carbon/60 text-ink focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal/50"
+            class="select select-bordered border-line bg-carbon/60 text-ink focus:border-signal focus:ring-signal/50 w-full rounded-sm focus:ring-1 focus:outline-none"
           >
             {#each categoryOptions as category}
               <option>{category}</option>
@@ -189,20 +189,20 @@
     {/if}
 
     {#if currentStep === 3}
-      <div class="flex-1 animate-in slide-in-from-right fade-in duration-300">
-        <h2 class="text-xl font-bold mb-6">Review & Publish</h2>
+      <div class="animate-in slide-in-from-right fade-in flex-1 duration-300">
+        <h2 class="mb-6 text-xl font-bold">Review & Publish</h2>
 
         <div
-          class="space-y-4 rounded-sm border border-line bg-panelSoft/70 p-6"
+          class="border-line bg-panelSoft/70 space-y-4 rounded-sm border p-6"
         >
           <div>
-            <div class="text-xs text-inkMuted uppercase font-semibold">
+            <div class="text-inkMuted text-xs font-semibold uppercase">
               Event Name
             </div>
-            <div class="font-bold text-lg">{eventName || 'Untitled Event'}</div>
+            <div class="text-lg font-bold">{eventName || 'Untitled Event'}</div>
           </div>
           <div class="space-y-2">
-            <div class="text-xs text-inkMuted uppercase font-semibold">
+            <div class="text-inkMuted text-xs font-semibold uppercase">
               Date & Time
             </div>
             <div>
@@ -210,19 +210,19 @@
             </div>
           </div>
           <div>
-            <div class="text-xs text-inkMuted uppercase font-semibold">
+            <div class="text-inkMuted text-xs font-semibold uppercase">
               Category
             </div>
             <div>{eventCategory}</div>
           </div>
           <div>
-            <div class="text-xs text-inkMuted uppercase font-semibold">
+            <div class="text-inkMuted text-xs font-semibold uppercase">
               Description
             </div>
             <div>{eventDescription || 'No description provided'}</div>
           </div>
           <div>
-            <div class="text-xs text-inkMuted uppercase font-semibold">
+            <div class="text-inkMuted text-xs font-semibold uppercase">
               Venue ID
             </div>
             <div class="text-sm break-all">{selectedVenue}</div>
@@ -231,7 +231,7 @@
       </div>
     {/if}
 
-    <div class="mt-8 flex justify-between border-t border-line pt-6">
+    <div class="border-line mt-8 flex justify-between border-t pt-6">
       <button
         type="button"
         class="btn btn-sm btn-ghost text-ink {currentStep === 1

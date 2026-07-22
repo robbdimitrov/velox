@@ -24,7 +24,7 @@
 </script>
 
 <div
-  class="group relative rounded-sm border border-line bg-panel/90 shadow-xl backdrop-blur-xl transition-colors hover:border-signal/40"
+  class="group border-line bg-panel/90 hover:border-signal/40 relative rounded-sm border shadow-xl backdrop-blur-xl transition-colors"
   class:p-4={padding === 'sm'}
   class:p-5={padding === 'md'}
   class:p-6={padding === 'lg'}

@@ -10,7 +10,7 @@
 
 <a
   {href}
-  class="btn btn-primary rounded-sm text-primary-content shadow-[0_12px_30px_rgba(242,184,75,0.22)]"
+  class="btn btn-primary text-primary-content rounded-sm shadow-[0_12px_30px_rgba(242,184,75,0.22)]"
   class:btn-sm={size === 'sm'}
   class:btn-lg={size === 'lg'}
 >

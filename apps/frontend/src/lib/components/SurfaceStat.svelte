@@ -22,31 +22,31 @@
 <Panel padding="lg" accent={tone === 'warn' ? 'signal' : tone}>
   <div class="flex items-start justify-between">
     <div>
-      <p class="mb-1 text-xs font-bold uppercase tracking-widest text-inkMuted">
+      <p class="text-inkMuted mb-1 text-xs font-bold tracking-widest uppercase">
         {label}
       </p>
-      <p class="font-mono text-3xl font-black tabular-nums text-ink">
+      <p class="text-ink font-mono text-3xl font-black tabular-nums">
         {value}
       </p>
       {#if detail}
-        <p class="mt-2 text-xs text-ink/40">{detail}</p>
+        <p class="text-ink/40 mt-2 text-xs">{detail}</p>
       {/if}
     </div>
     {#if Icon}
       {#if tone === 'ok'}
-        <div class="rounded-sm bg-ok/20 p-3 text-ok shadow-inner">
+        <div class="bg-ok/20 text-ok rounded-sm p-3 shadow-inner">
           <Icon size={28} />
         </div>
       {:else if tone === 'urgency'}
-        <div class="rounded-sm bg-urgency/20 p-3 text-urgency shadow-inner">
+        <div class="bg-urgency/20 text-urgency rounded-sm p-3 shadow-inner">
           <Icon size={28} />
         </div>
       {:else if tone === 'warn'}
-        <div class="rounded-sm bg-signal/20 p-3 text-warn shadow-inner">
+        <div class="bg-signal/20 text-warn rounded-sm p-3 shadow-inner">
           <Icon size={28} />
         </div>
       {:else}
-        <div class="rounded-sm bg-signal/20 p-3 text-signal shadow-inner">
+        <div class="bg-signal/20 text-signal rounded-sm p-3 shadow-inner">
           <Icon size={28} />
         </div>
       {/if}

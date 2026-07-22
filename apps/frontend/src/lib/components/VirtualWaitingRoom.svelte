@@ -17,19 +17,19 @@
 </script>
 
 <div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+  class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
 >
   <AuthCard
     title="You are in line"
     description="Due to high demand, you have been placed in a virtual waiting room. Please do not refresh this page."
   >
     <div
-      class="mb-6 flex h-16 w-16 items-center justify-center rounded bg-signal/20 text-signal"
+      class="bg-signal/20 text-signal mb-6 flex h-16 w-16 items-center justify-center rounded"
     >
       <Users size={32} />
     </div>
 
-    <div class="flex items-center gap-2 text-sm text-signal font-mono">
+    <div class="text-signal flex items-center gap-2 font-mono text-sm">
       <Loader size={16} class="animate-spin" />
       {polling ? 'Checking your spot...' : 'Waiting...'}
     </div>

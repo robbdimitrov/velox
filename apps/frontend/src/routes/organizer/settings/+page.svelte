@@ -39,19 +39,19 @@
 
 <div class="mb-8 flex items-end justify-between">
   <div>
-    <h1 class="text-3xl font-black uppercase tracking-tight">Settings</h1>
-    <p class="text-inkMuted text-sm mt-1">
+    <h1 class="text-3xl font-black tracking-tight uppercase">Settings</h1>
+    <p class="text-inkMuted mt-1 text-sm">
       Manage your organizer account and preferences.
     </p>
   </div>
 </div>
 
 <Panel padding="lg">
-  <div class="mb-6 border-b border-line pb-4">
-    <h2 class="text-sm font-black uppercase tracking-wider text-ink">
+  <div class="border-line mb-6 border-b pb-4">
+    <h2 class="text-ink text-sm font-black tracking-wider uppercase">
       Theme Preference
     </h2>
-    <p class="mt-1 text-sm text-inkMuted">
+    <p class="text-inkMuted mt-1 text-sm">
       Choose how Velox should render on this device.
     </p>
   </div>

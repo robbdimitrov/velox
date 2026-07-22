@@ -149,10 +149,10 @@
   <main class="grid w-full gap-6 lg:grid-cols-[260px_1fr_320px]">
     {#if isCancelled}
       <div
-        class="lg:col-span-3 flex items-center gap-3 rounded border border-urgency/50 bg-urgency/10 p-4 text-urgency"
+        class="border-urgency/50 bg-urgency/10 text-urgency flex items-center gap-3 rounded border p-4 lg:col-span-3"
       >
         <OctagonAlert size={20} />
-        <p class="text-sm font-bold uppercase tracking-wide">
+        <p class="text-sm font-bold tracking-wide uppercase">
           This event has been cancelled by the organizer. Seat reservation is
           disabled.
         </p>
@@ -161,7 +161,7 @@
 
     {#if data.loadErrors?.length}
       <div
-        class="lg:col-span-3 rounded-sm border border-urgency/50 bg-urgency/10 p-4 text-sm font-semibold text-urgency"
+        class="border-urgency/50 bg-urgency/10 text-urgency rounded-sm border p-4 text-sm font-semibold lg:col-span-3"
       >
         {#each data.loadErrors as loadError}
           <p>{loadError}</p>
@@ -170,21 +170,21 @@
     {/if}
 
     <Panel padding="lg" sticky hMax>
-      <div class="mb-6 flex items-center gap-3 border-b border-line pb-4">
-        <div class="rounded bg-signal p-2 shadow-md shadow-signal/20">
+      <div class="border-line mb-6 flex items-center gap-3 border-b pb-4">
+        <div class="bg-signal shadow-signal/20 rounded p-2 shadow-md">
           <Layers class="text-primary-content" size={18} />
         </div>
-        <h2 class="text-sm font-black uppercase tracking-wider text-ink">
+        <h2 class="text-ink text-sm font-black tracking-wider uppercase">
           Section Tools
         </h2>
       </div>
 
       <label class="form-control mb-6">
-        <span class="label-text text-inkMuted font-medium mb-1.5">Section</span>
+        <span class="label-text text-inkMuted mb-1.5 font-medium">Section</span>
         <select
           bind:value={sectionID}
           onchange={() => goto(`?section_id=${sectionID}`)}
-          class="select select-bordered select-sm w-full rounded-sm border-line bg-carbon/60 text-ink focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal/50"
+          class="select select-bordered select-sm border-line bg-carbon/60 text-ink focus:border-signal focus:ring-signal/50 w-full rounded-sm focus:ring-1 focus:outline-none"
         >
           {#each sectionOptions as section}
             <option value={section.id}>{section.name}</option>
@@ -194,19 +194,19 @@
 
       <div class="mb-6 grid grid-cols-2 gap-3">
         <button
-          class="btn btn-sm rounded-sm border-line bg-panelSoft text-ink shadow-inner hover:bg-panel"
+          class="btn btn-sm border-line bg-panelSoft text-ink hover:bg-panel rounded-sm shadow-inner"
           onclick={() => (zoomLevel = Math.min(3, zoomLevel * 1.2))}
           ><Plus size={16} /> Zoom</button
         >
         <button
-          class="btn btn-sm rounded-sm border-line bg-panelSoft text-ink shadow-inner hover:bg-panel"
+          class="btn btn-sm border-line bg-panelSoft text-ink hover:bg-panel rounded-sm shadow-inner"
           onclick={() => (zoomLevel = Math.max(0.5, zoomLevel / 1.2))}
           ><Minus size={16} /> Zoom</button
         >
       </div>
 
       <label
-        class="group mb-6 flex cursor-pointer items-center gap-3 rounded-sm border border-line bg-panelSoft/60 p-3 text-sm transition-colors hover:text-ink"
+        class="group border-line bg-panelSoft/60 hover:text-ink mb-6 flex cursor-pointer items-center gap-3 rounded-sm border p-3 text-sm transition-colors"
       >
         <input
           bind:checked={accessibleOnly}
@@ -214,84 +214,84 @@
           type="checkbox"
         />
         <span
-          class="flex items-center gap-2 group-hover:text-signal transition-colors"
+          class="group-hover:text-signal flex items-center gap-2 transition-colors"
           ><Accessibility size={16} /> Accessible</span
         >
       </label>
 
       <div
-        class="space-y-3 border-t border-line pt-6 text-xs font-bold uppercase tracking-wider text-inkMuted"
+        class="border-line text-inkMuted space-y-3 border-t pt-6 text-xs font-bold tracking-wider uppercase"
       >
         <p class="flex items-center gap-3">
-          <span class="inline-block h-3 w-3 rounded-full bg-inkMuted"></span> Available
+          <span class="bg-inkMuted inline-block h-3 w-3 rounded-full"></span> Available
         </p>
         <p class="flex items-center gap-3">
           <span
-            class="inline-block h-3 w-3 rounded-full bg-signal shadow-[0_0_8px_rgba(159,29,47,0.8)]"
+            class="bg-signal inline-block h-3 w-3 rounded-full shadow-[0_0_8px_rgba(159,29,47,0.8)]"
           ></span> Selected
         </p>
         <p class="flex items-center gap-3">
           <span
-            class="inline-block h-3 w-3 rounded-full bg-urgency shadow-[0_0_8px_rgba(239,68,68,0.8)]"
+            class="bg-urgency inline-block h-3 w-3 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.8)]"
           ></span> Held
         </p>
         <p class="flex items-center gap-3">
           <span
-            class="inline-block h-3 w-3 rounded-full border border-white/20 bg-panel"
+            class="bg-panel inline-block h-3 w-3 rounded-full border border-white/20"
           ></span> Reserved
         </p>
       </div>
     </Panel>
 
-    <section class="min-w-0 flex flex-col gap-4">
+    <section class="flex min-w-0 flex-col gap-4">
       <Panel padding="lg">
         <div class="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
           <div class="min-w-0">
             <div class="mb-2 flex flex-wrap items-center gap-2">
               <span
-                class="rounded-sm border border-line bg-panelSoft px-2 py-1 text-xs font-black uppercase text-signal"
+                class="border-line bg-panelSoft text-signal rounded-sm border px-2 py-1 text-xs font-black uppercase"
               >
                 {data.event.category}
               </span>
               <span
-                class="flex items-center gap-1 rounded-sm border border-line bg-panelSoft px-2 py-1 text-xs font-semibold uppercase text-inkMuted"
+                class="border-line bg-panelSoft text-inkMuted flex items-center gap-1 rounded-sm border px-2 py-1 text-xs font-semibold uppercase"
               >
                 <CalendarDays size={13} />
                 Starts {formatEventTime(data.event.starts_at)}
               </span>
             </div>
             <h1
-              class="text-3xl font-black uppercase tracking-tight text-ink drop-shadow-md"
+              class="text-ink text-3xl font-black tracking-tight uppercase drop-shadow-md"
             >
               {data.event.title}
             </h1>
             <p
-              class="mt-1 text-sm font-medium uppercase tracking-wide text-signal"
+              class="text-signal mt-1 text-sm font-medium tracking-wide uppercase"
             >
               {data.event.venue}
               {#if data.event.city}
-                <span class="mx-2 text-inkMuted">|</span>{data.event.city}
+                <span class="text-inkMuted mx-2">|</span>{data.event.city}
               {/if}
-              <span class="mx-2 text-inkMuted">|</span>Section {sectionID}
+              <span class="text-inkMuted mx-2">|</span>Section {sectionID}
             </p>
             {#if data.event.description}
-              <p class="mt-3 max-w-2xl text-sm leading-6 text-inkMuted">
+              <p class="text-inkMuted mt-3 max-w-2xl text-sm leading-6">
                 {data.event.description}
               </p>
             {/if}
           </div>
           <div
-            class="flex flex-col items-end rounded-sm border border-line bg-panelSoft/70 px-3 py-1.5"
+            class="border-line bg-panelSoft/70 flex flex-col items-end rounded-sm border px-3 py-1.5"
           >
             <p
-              class="font-mono tabular-nums text-xs uppercase tracking-widest text-ink/60"
+              class="text-ink/60 font-mono text-xs tracking-widest uppercase tabular-nums"
             >
               Snapshot <span class="text-ink"
                 >{data.snapshot.snapshot_age_ms}ms</span
               >
             </p>
             <p
-              class="font-mono tabular-nums mt-0.5 text-xs uppercase tracking-widest text-ink/60"
+              class="text-ink/60 mt-0.5 font-mono text-xs tracking-widest uppercase tabular-nums"
             >
               Lag <span class="text-ok"
                 >{data.snapshot.projection_lag_ms}ms</span
@@ -313,14 +313,14 @@
       <Panel padding="sm" overflowHidden>
         <div class="h-24">
           <p
-            class="mb-3 border-b border-line pb-2 text-xs font-black uppercase tracking-widest text-inkMuted"
+            class="border-line text-inkMuted mb-3 border-b pb-2 text-xs font-black tracking-widest uppercase"
           >
             Live inventory log
           </p>
           <div class="space-y-1.5">
             {#each eventLog as item, index (item)}
               <p
-                class="font-mono tabular-nums truncate text-xs text-ink/80 transition-colors hover:text-ink"
+                class="text-ink/80 hover:text-ink truncate font-mono text-xs tabular-nums transition-colors"
                 in:slide={{ duration: 200 }}
               >
                 <span class="text-signal mr-2">›</span>{item}
@@ -332,7 +332,7 @@
 
       <Panel padding="sm">
         <p
-          class="mb-3 flex items-center gap-2 border-b border-line pb-2 text-xs font-black uppercase tracking-widest text-inkMuted"
+          class="border-line text-inkMuted mb-3 flex items-center gap-2 border-b pb-2 text-xs font-black tracking-widest uppercase"
         >
           <Megaphone size={14} /> Event Updates
         </p>
@@ -344,7 +344,7 @@
           </div>
           {#if !showAllAnnouncements && hiddenAnnouncementCount > 0}
             <button
-              class="btn btn-sm btn-block mt-3 rounded-sm border-line bg-panelSoft text-ink shadow-inner hover:bg-panel"
+              class="btn btn-sm btn-block border-line bg-panelSoft text-ink hover:bg-panel mt-3 rounded-sm shadow-inner"
               onclick={() => (showAllAnnouncements = true)}
             >
               Show {hiddenAnnouncementCount} more update{hiddenAnnouncementCount ===
@@ -354,7 +354,7 @@
             </button>
           {/if}
         {:else}
-          <p class="text-xs text-inkMuted p-2">No updates yet.</p>
+          <p class="text-inkMuted p-2 text-xs">No updates yet.</p>
         {/if}
       </Panel>
     </section>
@@ -362,13 +362,13 @@
     <Panel padding="lg" sticky hMax flexColumn>
       <div>
         <div
-          class="mb-6 flex items-center justify-between border-b border-line pb-4"
+          class="border-line mb-6 flex items-center justify-between border-b pb-4"
         >
-          <h2 class="text-sm font-black uppercase tracking-wider text-ink">
+          <h2 class="text-ink text-sm font-black tracking-wider uppercase">
             Selected Seats
           </h2>
           <button
-            class="btn btn-ghost btn-xs flex h-8 w-8 items-center justify-center rounded-sm bg-panelSoft p-0 transition-all hover:bg-signal hover:text-primary-content"
+            class="btn btn-ghost btn-xs bg-panelSoft hover:bg-signal hover:text-primary-content flex h-8 w-8 items-center justify-center rounded-sm p-0 transition-all"
             onclick={() =>
               seatState.load(data.snapshot.seats, data.snapshot.server_time_ms)}
           >
@@ -381,18 +381,18 @@
             <div class="grid grid-cols-2 gap-3">
               {#each seatState.selectedSeats as seat}
                 <div
-                  class="flex items-center justify-center rounded-sm border border-line bg-panelSoft/70 p-3 font-mono text-sm tabular-nums shadow-sm"
+                  class="border-line bg-panelSoft/70 flex items-center justify-center rounded-sm border p-3 font-mono text-sm tabular-nums shadow-sm"
                   in:slide
                 >
-                  <span class="font-bold text-ink">{seat.seat_id}</span>
+                  <span class="text-ink font-bold">{seat.seat_id}</span>
                 </div>
               {/each}
             </div>
           {:else}
             <div
-              class="flex h-full items-center justify-center rounded-sm border-2 border-dashed border-line p-4"
+              class="border-line flex h-full items-center justify-center rounded-sm border-2 border-dashed p-4"
             >
-              <p class="text-sm text-inkMuted text-center">
+              <p class="text-inkMuted text-center text-sm">
                 Choose available seats<br />from the map.
               </p>
             </div>
@@ -400,20 +400,20 @@
         </div>
       </div>
 
-      <div class="mt-6 border-t border-line pt-6">
-        <div class="font-mono tabular-nums flex items-center justify-between">
-          <span class="text-inkMuted uppercase tracking-widest text-xs"
+      <div class="border-line mt-6 border-t pt-6">
+        <div class="flex items-center justify-between font-mono tabular-nums">
+          <span class="text-inkMuted text-xs tracking-widest uppercase"
             >Reservation tickets</span
           >
           <strong
-            class="text-2xl text-ok drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+            class="text-ok text-2xl drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]"
             >{seatState.selectedSeats.length}</strong
           >
         </div>
 
         {#if error}
           <p
-            class="mt-4 rounded border border-urgency/50 bg-urgency/10 p-3 text-xs font-medium text-urgency leading-tight"
+            class="border-urgency/50 bg-urgency/10 text-urgency mt-4 rounded border p-3 text-xs leading-tight font-medium"
           >
             {error}
           </p>

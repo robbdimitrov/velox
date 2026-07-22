@@ -11,12 +11,12 @@
 </svelte:head>
 
 <div class="space-y-8">
-  <div class="mb-8 flex justify-between items-end">
+  <div class="mb-8 flex items-end justify-between">
     <div>
-      <h1 class="text-3xl font-black uppercase tracking-tight text-ink">
+      <h1 class="text-ink text-3xl font-black tracking-tight uppercase">
         Venue Access
       </h1>
-      <p class="text-signal uppercase tracking-widest text-sm mt-1">
+      <p class="text-signal mt-1 text-sm tracking-widest uppercase">
         Venue: {data.venueId}
       </p>
     </div>
@@ -24,7 +24,7 @@
 
   {#if data.loadError}
     <Panel padding="lg">
-      <div class="text-sm font-bold uppercase tracking-widest text-urgency">
+      <div class="text-urgency text-sm font-bold tracking-widest uppercase">
         {data.loadError}
       </div>
     </Panel>
@@ -36,9 +36,9 @@
     />
   {:else}
     <Panel padding="none" overflowHidden>
-      <div class="flex items-center gap-3 border-b border-line p-6">
+      <div class="border-line flex items-center gap-3 border-b p-6">
         <Users class="text-signal" size={20} />
-        <h3 class="text-sm font-black uppercase tracking-wider text-ink">
+        <h3 class="text-ink text-sm font-black tracking-wider uppercase">
           Assigned Access
         </h3>
       </div>
@@ -47,25 +47,25 @@
         <table class="table w-full">
           <thead>
             <tr
-              class="border-line bg-panelSoft/70 text-xs uppercase tracking-widest text-inkMuted"
+              class="border-line bg-panelSoft/70 text-inkMuted text-xs tracking-widest uppercase"
             >
               <th class="px-6 py-4 font-bold">Member</th>
               <th class="px-6 py-4 font-bold">Role</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-line">
+          <tbody class="divide-line divide-y">
             {#each data.staff as member}
-              <tr class="transition-colors hover:bg-panelSoft/60">
+              <tr class="hover:bg-panelSoft/60 transition-colors">
                 <td class="px-6 py-4">
                   <div class="flex items-center gap-3">
                     <div
-                      class="flex h-8 w-8 items-center justify-center rounded bg-signal/20 text-xs font-bold text-signal"
+                      class="bg-signal/20 text-signal flex h-8 w-8 items-center justify-center rounded text-xs font-bold"
                     >
                       {member.email.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <div class="font-medium text-ink">{member.email}</div>
-                      <div class="font-mono text-xs text-inkMuted">
+                      <div class="text-ink font-medium">{member.email}</div>
+                      <div class="text-inkMuted font-mono text-xs">
                         {member.id}
                       </div>
                     </div>
@@ -73,7 +73,7 @@
                 </td>
                 <td class="px-6 py-4">
                   <div
-                    class="flex items-center gap-1.5 font-mono text-xs font-bold uppercase tracking-wider text-inkMuted"
+                    class="text-inkMuted flex items-center gap-1.5 font-mono text-xs font-bold tracking-wider uppercase"
                   >
                     {#if member.role === 'organizer'}
                       <Shield size={14} class="text-signal" />

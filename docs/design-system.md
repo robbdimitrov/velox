@@ -110,8 +110,8 @@ Degraded states:
 
 - Event discovery and detail screens are image-less. Use typography, geometry,
   color, motion restraint, and live state instead of event artwork.
-- README screenshots must come from the actual local app after the route and
-  data contracts support the showcased flows.
+- Screenshots in durable docs must come from the actual local app after the
+  route and data contracts support the showcased flows.
 
 ## Future Controls
 

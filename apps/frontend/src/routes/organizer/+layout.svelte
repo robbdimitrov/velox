@@ -24,10 +24,10 @@
   <aside class="w-full flex-shrink-0 lg:w-64">
     <Panel padding="sm" flexColumn>
       <div class="mb-8 px-2">
-        <h2 class="text-xl font-black uppercase tracking-tight text-signal">
+        <h2 class="text-signal text-xl font-black tracking-tight uppercase">
           Organizer Portal
         </h2>
-        <p class="text-xs text-inkMuted mt-1">Manage your events and venues</p>
+        <p class="text-inkMuted mt-1 text-xs">Manage your events and venues</p>
       </div>
 
       <nav class="flex-1 space-y-2">
@@ -38,8 +38,8 @@
               page.url.pathname.startsWith(link.href))}
           <a
             href={link.href}
-            class="flex items-center gap-3 px-4 py-3 rounded transition-all duration-300 {isActive
-              ? 'bg-signal/20 text-signal font-semibold shadow-inner shadow-signal/20'
+            class="flex items-center gap-3 rounded px-4 py-3 transition-all duration-300 {isActive
+              ? 'bg-signal/20 text-signal shadow-signal/20 font-semibold shadow-inner'
               : 'text-inkMuted hover:bg-panelSoft hover:text-ink'}"
           >
             <link.icon size={20} />
@@ -48,11 +48,11 @@
         {/each}
       </nav>
 
-      <div class="mt-auto border-t border-line pt-4">
+      <div class="border-line mt-auto border-t pt-4">
         <a
           href="/api/auth/logout"
           onclick={() => themeState.clearOverride()}
-          class="flex items-center gap-3 px-4 py-3 rounded text-urgency/80 hover:bg-urgency/10 hover:text-urgency transition-all duration-300"
+          class="text-urgency/80 hover:bg-urgency/10 hover:text-urgency flex items-center gap-3 rounded px-4 py-3 transition-all duration-300"
         >
           <LogOut size={20} />
           Logout
@@ -61,7 +61,7 @@
     </Panel>
   </aside>
 
-  <main class="flex-1 min-w-0 pb-10">
+  <main class="min-w-0 flex-1 pb-10">
     {@render children()}
   </main>
 </div>

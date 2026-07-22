@@ -13,8 +13,8 @@
 
 <div class="mb-8 flex items-end justify-between">
   <div>
-    <h1 class="text-3xl font-black uppercase tracking-tight">Your Venues</h1>
-    <p class="text-inkMuted text-sm mt-1">
+    <h1 class="text-3xl font-black tracking-tight uppercase">Your Venues</h1>
+    <p class="text-inkMuted mt-1 text-sm">
       Manage physical locations for your events.
     </p>
   </div>
@@ -34,16 +34,16 @@
     </ActionLink>
   </EmptyState>
 {:else}
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+  <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
     {#each data.venues as venue}
       <Panel padding="lg" overflowHidden>
         <div
-          class="absolute inset-0 bg-gradient-to-br from-signal/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"
+          class="from-signal/5 absolute inset-0 bg-gradient-to-br to-transparent opacity-0 transition-opacity group-hover:opacity-100"
         ></div>
         <div class="relative z-10">
-          <div class="flex justify-between items-start mb-4">
+          <div class="mb-4 flex items-start justify-between">
             <div
-              class="flex h-10 w-10 items-center justify-center rounded bg-signal/20 text-signal shadow-inner"
+              class="bg-signal/20 text-signal flex h-10 w-10 items-center justify-center rounded shadow-inner"
             >
               <MapPin size={20} />
             </div>
@@ -51,13 +51,13 @@
               >{venue.capacity} capacity</span
             >
           </div>
-          <h3 class="font-bold text-lg leading-tight mb-1">{venue.name}</h3>
-          <p class="text-inkMuted text-sm flex items-center gap-1 mb-4">
+          <h3 class="mb-1 text-lg leading-tight font-bold">{venue.name}</h3>
+          <p class="text-inkMuted mb-4 flex items-center gap-1 text-sm">
             {venue.city}
           </p>
-          <div class="flex justify-end border-t border-line pt-4">
+          <div class="border-line flex justify-end border-t pt-4">
             <button
-              class="btn btn-xs btn-ghost rounded text-signal hover:bg-signal/10"
+              class="btn btn-xs btn-ghost text-signal hover:bg-signal/10 rounded"
             >
               Edit <ExternalLink size={14} />
             </button>

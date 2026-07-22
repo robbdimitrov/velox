@@ -116,10 +116,10 @@
         <ArrowLeft size={16} />
       </a>
       <div>
-        <h1 class="text-3xl font-black uppercase tracking-tight">
+        <h1 class="text-3xl font-black tracking-tight uppercase">
           Create Venue
         </h1>
-        <p class="text-inkMuted text-sm mt-1">
+        <p class="text-inkMuted mt-1 text-sm">
           Add a new physical location for your events.
         </p>
       </div>
@@ -129,16 +129,16 @@
   <Panel padding="xl" overflowHidden flexColumn>
     {#if error}
       <div
-        class="bg-urgency/20 border border-urgency/50 text-urgency p-3 rounded mb-6 text-sm backdrop-blur-sm animate-pulse"
+        class="bg-urgency/20 border-urgency/50 text-urgency mb-6 animate-pulse rounded border p-3 text-sm backdrop-blur-sm"
       >
         {error}
       </div>
     {/if}
 
     <div
-      class="flex-1 space-y-5 animate-in slide-in-from-right fade-in duration-300"
+      class="animate-in slide-in-from-right fade-in flex-1 space-y-5 duration-300"
     >
-      <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
+      <h2 class="mb-6 flex items-center gap-2 text-xl font-bold">
         <MapPin size={20} class="text-signal" />
         Venue Details
       </h2>
@@ -170,23 +170,23 @@
         placeholder={`${generatedCapacity} generated seats`}
       />
 
-      <div class="rounded-sm border border-line bg-panelSoft/70 p-4">
+      <div class="border-line bg-panelSoft/70 rounded-sm border p-4">
         <div class="mb-4 flex items-center justify-between gap-4">
           <div>
             <h3
-              class="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-ink"
+              class="text-ink flex items-center gap-2 text-sm font-black tracking-widest uppercase"
             >
               <Grid3X3 size={18} class="text-signal" />
               Seat Template
             </h3>
             <p
-              class="mt-1 text-xs font-bold uppercase tracking-widest text-inkMuted"
+              class="text-inkMuted mt-1 text-xs font-bold tracking-widest uppercase"
             >
               {generatedCapacity} generated seats
             </p>
           </div>
           <button
-            class="btn btn-sm rounded-sm border border-line bg-panel text-ink hover:bg-signal hover:text-primary-content"
+            class="btn btn-sm border-line bg-panel text-ink hover:bg-signal hover:text-primary-content rounded-sm border"
             type="button"
             onclick={addSection}
             disabled={sections.length >= 8}
@@ -198,33 +198,33 @@
         <div class="grid gap-3">
           {#each sections as section, index}
             <div
-              class="grid gap-3 rounded-sm border border-line bg-panel/70 p-3 md:grid-cols-[80px_1fr_90px_110px_auto]"
+              class="border-line bg-panel/70 grid gap-3 rounded-sm border p-3 md:grid-cols-[80px_1fr_90px_110px_auto]"
             >
               <label
-                class="grid gap-1 text-xs font-bold uppercase tracking-widest text-inkMuted"
+                class="text-inkMuted grid gap-1 text-xs font-bold tracking-widest uppercase"
               >
                 ID
                 <input
-                  class="input input-sm rounded-sm border-line bg-panelSoft font-mono text-ink"
+                  class="input input-sm border-line bg-panelSoft text-ink rounded-sm font-mono"
                   bind:value={section.section_id}
                   maxlength="12"
                 />
               </label>
               <label
-                class="grid gap-1 text-xs font-bold uppercase tracking-widest text-inkMuted"
+                class="text-inkMuted grid gap-1 text-xs font-bold tracking-widest uppercase"
               >
                 Name
                 <input
-                  class="input input-sm rounded-sm border-line bg-panelSoft text-ink"
+                  class="input input-sm border-line bg-panelSoft text-ink rounded-sm"
                   bind:value={section.name}
                 />
               </label>
               <label
-                class="grid gap-1 text-xs font-bold uppercase tracking-widest text-inkMuted"
+                class="text-inkMuted grid gap-1 text-xs font-bold tracking-widest uppercase"
               >
                 Rows
                 <input
-                  class="input input-sm rounded-sm border-line bg-panelSoft font-mono text-ink"
+                  class="input input-sm border-line bg-panelSoft text-ink rounded-sm font-mono"
                   type="number"
                   min="1"
                   max="26"
@@ -232,11 +232,11 @@
                 />
               </label>
               <label
-                class="grid gap-1 text-xs font-bold uppercase tracking-widest text-inkMuted"
+                class="text-inkMuted grid gap-1 text-xs font-bold tracking-widest uppercase"
               >
                 Seats/Row
                 <input
-                  class="input input-sm rounded-sm border-line bg-panelSoft font-mono text-ink"
+                  class="input input-sm border-line bg-panelSoft text-ink rounded-sm font-mono"
                   type="number"
                   min="1"
                   max="50"
@@ -245,7 +245,7 @@
               </label>
               <div class="flex items-end gap-2">
                 <label
-                  class="flex h-8 items-center gap-2 text-xs font-bold uppercase tracking-widest text-inkMuted"
+                  class="text-inkMuted flex h-8 items-center gap-2 text-xs font-bold tracking-widest uppercase"
                 >
                   <input
                     class="checkbox checkbox-primary checkbox-sm rounded"
@@ -255,7 +255,7 @@
                   Edge
                 </label>
                 <button
-                  class="btn btn-square btn-sm rounded-sm border border-line bg-panel text-inkMuted hover:border-urgency/40 hover:text-urgency"
+                  class="btn btn-square btn-sm border-line bg-panel text-inkMuted hover:border-urgency/40 hover:text-urgency rounded-sm border"
                   type="button"
                   onclick={() => removeSection(index)}
                   disabled={sections.length <= 1}
@@ -270,7 +270,7 @@
       </div>
     </div>
 
-    <div class="mt-8 flex justify-end border-t border-line pt-6">
+    <div class="border-line mt-8 flex justify-end border-t pt-6">
       <ActionButton
         onclick={submitVenue}
         disabled={loading ||

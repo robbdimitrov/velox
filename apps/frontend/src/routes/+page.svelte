@@ -250,28 +250,28 @@
 <main class="w-full space-y-6">
   {#if data.loadError}
     <div
-      class="rounded-sm border border-urgency/50 bg-urgency/10 p-4 text-sm font-semibold text-urgency"
+      class="border-urgency/50 bg-urgency/10 text-urgency rounded-sm border p-4 text-sm font-semibold"
     >
       {data.loadError}
     </div>
   {/if}
 
   <section
-    class="overflow-hidden rounded-sm border border-line bg-panel/90 shadow-xl"
+    class="border-line bg-panel/90 overflow-hidden rounded-sm border shadow-xl"
   >
     <div class="grid gap-0 lg:grid-cols-[1.08fr_0.92fr]">
       <div class="p-5 sm:p-7 lg:p-8">
         <p
-          class="flex items-center gap-2 text-[0.72rem] font-extrabold uppercase tracking-[0.14em] text-signal"
+          class="text-signal flex items-center gap-2 text-[0.72rem] font-extrabold tracking-[0.14em] uppercase"
         >
           <Sparkles size={15} /> Reservation discovery
         </p>
         <h1
-          class="mt-3 max-w-3xl text-4xl font-black uppercase leading-none text-ink sm:text-6xl"
+          class="text-ink mt-3 max-w-3xl text-4xl leading-none font-black uppercase sm:text-6xl"
         >
           Reserve seats before the room moves.
         </h1>
-        <p class="mt-5 max-w-2xl text-base font-medium text-inkMuted">
+        <p class="text-inkMuted mt-5 max-w-2xl text-base font-medium">
           Track reservation availability, event timing, and venue pressure from
           one live read model.
         </p>
@@ -279,7 +279,7 @@
         <div class="mt-6 flex flex-wrap gap-2">
           {#each categoryOptions as category}
             <button
-              class="btn btn-xs rounded-sm border px-3 uppercase hover:border-signal hover:text-ink"
+              class="btn btn-xs hover:border-signal hover:text-ink rounded-sm border px-3 uppercase"
               class:btn-primary={filterState.eventType === category}
               class:text-primary-content={filterState.eventType === category}
               class:border-line={filterState.eventType !== category}
@@ -294,22 +294,22 @@
         </div>
 
         <div class="mt-7 grid grid-cols-3 gap-3">
-          <div class="rounded-sm border border-line bg-panelSoft/70 p-4">
-            <p class="text-[10px] font-bold uppercase text-inkMuted">Events</p>
-            <p class="font-mono tabular-nums mt-2 text-3xl font-black text-ink">
+          <div class="border-line bg-panelSoft/70 rounded-sm border p-4">
+            <p class="text-inkMuted text-[10px] font-bold uppercase">Events</p>
+            <p class="text-ink mt-2 font-mono text-3xl font-black tabular-nums">
               {data.discovery.events.length}
             </p>
           </div>
-          <div class="rounded-sm border border-line bg-panelSoft/70 p-4">
-            <p class="text-[10px] font-bold uppercase text-inkMuted">Venues</p>
-            <p class="font-mono tabular-nums mt-2 text-3xl font-black text-ink">
+          <div class="border-line bg-panelSoft/70 rounded-sm border p-4">
+            <p class="text-inkMuted text-[10px] font-bold uppercase">Venues</p>
+            <p class="text-ink mt-2 font-mono text-3xl font-black tabular-nums">
               {venueCount}
             </p>
           </div>
-          <div class="rounded-sm border border-line bg-panelSoft/70 p-4">
-            <p class="text-[10px] font-bold uppercase text-inkMuted">Demand</p>
+          <div class="border-line bg-panelSoft/70 rounded-sm border p-4">
+            <p class="text-inkMuted text-[10px] font-bold uppercase">Demand</p>
             <p
-              class="font-mono tabular-nums mt-2 text-3xl font-black text-signal"
+              class="text-signal mt-2 font-mono text-3xl font-black tabular-nums"
             >
               {highestDemandScore}
             </p>
@@ -320,57 +320,57 @@
       {#if popularEvents[0]}
         {@const leadEvent = popularEvents[0]}
         <a
-          class="group flex min-h-[28rem] flex-col justify-between border-t border-line bg-panelSoft p-6 transition-colors hover:bg-panel lg:border-l lg:border-t-0"
+          class="group border-line bg-panelSoft hover:bg-panel flex min-h-[28rem] flex-col justify-between border-t p-6 transition-colors lg:border-t-0 lg:border-l"
           href={`/events/${leadEvent.id}`}
         >
           <div class="flex items-center justify-between gap-3">
             <span
-              class="rounded-sm border border-line bg-panel px-3 py-1 text-xs font-black uppercase text-signal"
+              class="border-line bg-panel text-signal rounded-sm border px-3 py-1 text-xs font-black uppercase"
             >
               Featured reservation
             </span>
             <ChevronRight
               size={20}
-              class="text-inkMuted transition-colors group-hover:text-signal"
+              class="text-inkMuted group-hover:text-signal transition-colors"
             />
           </div>
           <div>
             <div class="mb-5 flex flex-wrap gap-3">
               <span
-                class="font-mono tabular-nums rounded-sm bg-signal px-3 py-1 text-xs font-black uppercase text-primary-content"
+                class="bg-signal text-primary-content rounded-sm px-3 py-1 font-mono text-xs font-black uppercase tabular-nums"
               >
                 Demand {leadEvent.demand_score}
               </span>
               <span
-                class="font-mono tabular-nums rounded-sm border border-line bg-panel px-3 py-1 text-xs uppercase text-ink"
+                class="border-line bg-panel text-ink rounded-sm border px-3 py-1 font-mono text-xs uppercase tabular-nums"
               >
                 {formatEventTime(leadEvent.starts_at)}
               </span>
             </div>
-            <p class="text-4xl font-black uppercase leading-none text-ink">
+            <p class="text-ink text-4xl leading-none font-black uppercase">
               {leadEvent.title}
             </p>
             <p
-              class="mt-4 flex items-center gap-2 text-sm font-semibold text-inkMuted"
+              class="text-inkMuted mt-4 flex items-center gap-2 text-sm font-semibold"
             >
               <MapPin size={15} class="text-signal" />
               {leadEvent.venue}, {leadEvent.city}
             </p>
           </div>
           <div class="grid grid-cols-2 gap-3">
-            <div class="rounded-sm border border-line bg-panel p-4">
-              <p class="text-[10px] font-bold uppercase text-inkMuted">
+            <div class="border-line bg-panel rounded-sm border p-4">
+              <p class="text-inkMuted text-[10px] font-bold uppercase">
                 Availability
               </p>
-              <p class="mt-2 font-mono text-xl font-black text-ok">
+              <p class="text-ok mt-2 font-mono text-xl font-black">
                 {leadEvent.remaining_bucket.replace('_', ' ')}
               </p>
             </div>
-            <div class="rounded-sm border border-line bg-panel p-4">
-              <p class="text-[10px] font-bold uppercase text-inkMuted">
+            <div class="border-line bg-panel rounded-sm border p-4">
+              <p class="text-inkMuted text-[10px] font-bold uppercase">
                 Category
               </p>
-              <p class="mt-2 truncate text-sm font-black uppercase text-ink">
+              <p class="text-ink mt-2 truncate text-sm font-black uppercase">
                 {leadEvent.category}
               </p>
             </div>
@@ -383,29 +383,29 @@
 
   <div class="grid gap-6 xl:grid-cols-[280px_1fr_340px]">
     <aside
-      class="h-max rounded-sm border border-line bg-panel/90 p-5 shadow-xl xl:sticky xl:top-28"
+      class="border-line bg-panel/90 h-max rounded-sm border p-5 shadow-xl xl:sticky xl:top-28"
     >
       <div
-        class="mb-5 flex items-center justify-between border-b border-line pb-4"
+        class="border-line mb-5 flex items-center justify-between border-b pb-4"
       >
         <h2
-          class="flex items-center gap-2 text-sm font-black uppercase text-ink"
+          class="text-ink flex items-center gap-2 text-sm font-black uppercase"
         >
           <SlidersHorizontal size={17} class="text-signal" /> Filters
         </h2>
-        <span class="font-mono tabular-nums text-xs text-inkMuted">
+        <span class="text-inkMuted font-mono text-xs tabular-nums">
           {filteredEvents.length} hits
         </span>
       </div>
 
       <div class="space-y-5">
         <label class="form-control">
-          <span class="label-text mb-1 font-medium text-inkMuted"
+          <span class="label-text text-inkMuted mb-1 font-medium"
             >Event type</span
           >
           <select
             bind:value={filterState.eventType}
-            class="select select-bordered select-sm w-full rounded-sm border-line bg-carbon/60 text-ink focus:border-signal focus:outline-none"
+            class="select select-bordered select-sm border-line bg-carbon/60 text-ink focus:border-signal w-full rounded-sm focus:outline-none"
           >
             {#each categoryOptions as category}
               <option>{category}</option>
@@ -414,12 +414,12 @@
         </label>
 
         <label class="form-control">
-          <span class="label-text mb-1 font-medium text-inkMuted"
+          <span class="label-text text-inkMuted mb-1 font-medium"
             >Date window</span
           >
           <select
             bind:value={filterState.dateWindow}
-            class="select select-bordered select-sm w-full rounded-sm border-line bg-carbon/60 text-ink focus:border-signal focus:outline-none"
+            class="select select-bordered select-sm border-line bg-carbon/60 text-ink focus:border-signal w-full rounded-sm focus:outline-none"
           >
             {#each dateWindows as dateWindow}
               <option>{dateWindow}</option>
@@ -428,9 +428,9 @@
         </label>
 
         <label class="form-control">
-          <span class="label-text mb-1 font-medium text-inkMuted">City</span>
+          <span class="label-text text-inkMuted mb-1 font-medium">City</span>
           <div
-            class="flex w-full items-center gap-2 rounded-sm border border-line bg-carbon/60 px-3 py-1.5 outline-none transition-colors focus-within:border-signal focus-within:ring-1 focus-within:ring-signal/50"
+            class="border-line bg-carbon/60 focus-within:border-signal focus-within:ring-signal/50 flex w-full items-center gap-2 rounded-sm border px-3 py-1.5 transition-colors outline-none focus-within:ring-1"
           >
             <MapPin size={15} class="text-signal" />
             <select
@@ -445,7 +445,7 @@
         </label>
 
         <label
-          class="flex cursor-pointer items-center gap-3 text-sm text-inkMuted transition-colors hover:text-ink"
+          class="text-inkMuted hover:text-ink flex cursor-pointer items-center gap-3 text-sm transition-colors"
         >
           <input
             bind:checked={filterState.availableOnly}
@@ -456,18 +456,18 @@
         </label>
       </div>
 
-      <div class="mt-6 grid grid-cols-2 gap-3 border-t border-line pt-5">
-        <div class="rounded-sm border border-line bg-panelSoft/70 p-3">
-          <p class="text-[10px] font-semibold uppercase text-inkMuted">
+      <div class="border-line mt-6 grid grid-cols-2 gap-3 border-t pt-5">
+        <div class="border-line bg-panelSoft/70 rounded-sm border p-3">
+          <p class="text-inkMuted text-[10px] font-semibold uppercase">
             Read lag
           </p>
-          <p class="font-mono tabular-nums mt-1 text-lg font-black text-ok">
+          <p class="text-ok mt-1 font-mono text-lg font-black tabular-nums">
             {data.discovery.meta.projection_lag_ms}ms
           </p>
         </div>
-        <div class="rounded-sm border border-line bg-panelSoft/70 p-3">
-          <p class="text-[10px] font-semibold uppercase text-inkMuted">Cache</p>
-          <p class="mt-1 truncate text-xs font-black uppercase text-signal">
+        <div class="border-line bg-panelSoft/70 rounded-sm border p-3">
+          <p class="text-inkMuted text-[10px] font-semibold uppercase">Cache</p>
+          <p class="text-signal mt-1 truncate text-xs font-black uppercase">
             {data.discovery.meta.cache_status}
           </p>
         </div>
@@ -475,24 +475,24 @@
     </aside>
 
     <section class="flex min-w-0 flex-col gap-6">
-      <section class="rounded-sm border border-line bg-panel/90 p-5 shadow-xl">
+      <section class="border-line bg-panel/90 rounded-sm border p-5 shadow-xl">
         <div
-          class="mb-5 flex items-end justify-between gap-3 border-b border-line pb-4"
+          class="border-line mb-5 flex items-end justify-between gap-3 border-b pb-4"
         >
           <div>
             <p
-              class="flex items-center gap-2 text-[0.72rem] font-extrabold uppercase tracking-[0.14em] text-signal"
+              class="text-signal flex items-center gap-2 text-[0.72rem] font-extrabold tracking-[0.14em] uppercase"
             >
               <TrendingUp size={16} /> Trending
             </p>
             <h2
-              class="mt-2 text-xl font-extrabold leading-tight text-ink sm:text-2xl"
+              class="text-ink mt-2 text-xl leading-tight font-extrabold sm:text-2xl"
             >
               High-demand reservations
             </h2>
           </div>
           <span
-            class="font-mono tabular-nums rounded-sm border border-line bg-panelSoft/70 px-3 py-1 text-xs text-ok"
+            class="border-line bg-panelSoft/70 text-ok rounded-sm border px-3 py-1 font-mono text-xs tabular-nums"
           >
             {totalAvailableEvents} available
           </span>
@@ -501,62 +501,62 @@
         <div class="grid gap-4 md:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
           {#each popularEvents as event}
             <a
-              class="group flex min-h-48 flex-col justify-between rounded-sm border border-line bg-panelSoft p-4 transition-all duration-300 hover:-translate-y-1 hover:border-signal"
+              class="group border-line bg-panelSoft hover:border-signal flex min-h-48 flex-col justify-between rounded-sm border p-4 transition-all duration-300 hover:-translate-y-1"
               href={`/events/${event.id}`}
             >
               <div>
                 <span
-                  class="font-mono tabular-nums inline-flex rounded-sm bg-signal px-2 py-1 text-xs font-black text-primary-content"
+                  class="bg-signal text-primary-content inline-flex rounded-sm px-2 py-1 font-mono text-xs font-black tabular-nums"
                 >
                   Demand {event.demand_score}
                 </span>
                 <p
-                  class="mt-4 line-clamp-2 text-lg font-black uppercase text-ink group-hover:text-signal"
+                  class="text-ink group-hover:text-signal mt-4 line-clamp-2 text-lg font-black uppercase"
                 >
                   {event.title}
                 </p>
-                <p class="mt-1 flex items-center gap-1 text-sm text-inkMuted">
+                <p class="text-inkMuted mt-1 flex items-center gap-1 text-sm">
                   <MapPin size={13} class="text-signal" />
                   {event.venue}
                 </p>
               </div>
               <div
-                class="mt-4 flex items-center justify-between gap-3 text-xs uppercase text-inkMuted"
+                class="text-inkMuted mt-4 flex items-center justify-between gap-3 text-xs uppercase"
               >
                 <span>{formatEventTime(event.starts_at)}</span>
                 <div
-                  class="rounded-sm border border-line bg-panel px-2 py-1 font-mono"
+                  class="border-line bg-panel rounded-sm border px-2 py-1 font-mono"
                 >
                   {event.remaining_bucket.replace('_', ' ')}
                 </div>
               </div>
             </a>
           {:else}
-            <p class="col-span-full py-8 text-center text-inkMuted">
+            <p class="text-inkMuted col-span-full py-8 text-center">
               No popular events match the active filters.
             </p>
           {/each}
         </div>
       </section>
 
-      <section class="rounded-sm border border-line bg-panel/90 p-5 shadow-xl">
+      <section class="border-line bg-panel/90 rounded-sm border p-5 shadow-xl">
         <div
-          class="mb-5 flex items-end justify-between gap-3 border-b border-line pb-4"
+          class="border-line mb-5 flex items-end justify-between gap-3 border-b pb-4"
         >
           <div>
             <p
-              class="flex items-center gap-2 text-[0.72rem] font-extrabold uppercase tracking-[0.14em] text-signal"
+              class="text-signal flex items-center gap-2 text-[0.72rem] font-extrabold tracking-[0.14em] uppercase"
             >
               <Ticket size={16} /> Inventory
             </p>
             <h2
-              class="mt-2 text-xl font-extrabold leading-tight text-ink sm:text-2xl"
+              class="text-ink mt-2 text-xl leading-tight font-extrabold sm:text-2xl"
             >
               All matching events
             </h2>
           </div>
           <span
-            class="font-mono tabular-nums rounded-sm border border-line bg-panelSoft/70 px-3 py-1 text-xs text-inkMuted"
+            class="border-line bg-panelSoft/70 text-inkMuted rounded-sm border px-3 py-1 font-mono text-xs tabular-nums"
           >
             {filteredEvents.length} results
           </span>
@@ -566,7 +566,7 @@
           {#each filteredEvents as event}
             <EventCard {event} />
           {:else}
-            <div class="py-10 text-center text-inkMuted">
+            <div class="text-inkMuted py-10 text-center">
               <p>No events found matching your criteria.</p>
             </div>
           {/each}
@@ -575,21 +575,21 @@
     </section>
 
     <aside class="flex h-max flex-col gap-6 xl:sticky xl:top-28">
-      <section class="rounded-sm border border-line bg-panel/90 p-5 shadow-xl">
-        <div class="mb-5 flex items-center gap-3 border-b border-line pb-4">
+      <section class="border-line bg-panel/90 rounded-sm border p-5 shadow-xl">
+        <div class="border-line mb-5 flex items-center gap-3 border-b pb-4">
           <div
-            class="grid h-9 w-9 place-items-center rounded-sm bg-signal text-primary-content"
+            class="bg-signal text-primary-content grid h-9 w-9 place-items-center rounded-sm"
           >
             <Building2 size={18} />
           </div>
-          <h2 class="text-sm font-black uppercase text-ink">Top venues</h2>
+          <h2 class="text-ink text-sm font-black uppercase">Top venues</h2>
         </div>
 
         <div class="grid gap-4">
           {#each venueSummaries as venue}
             <button
               type="button"
-              class="group rounded-sm border border-line bg-panelSoft text-left transition-colors hover:border-signal"
+              class="group border-line bg-panelSoft hover:border-signal rounded-sm border text-left transition-colors"
               onclick={() => (filterState.query = venue.name)}
             >
               <div class="p-3">
@@ -597,31 +597,31 @@
                   <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0">
                       <p
-                        class="truncate font-black uppercase text-ink group-hover:text-signal"
+                        class="text-ink group-hover:text-signal truncate font-black uppercase"
                       >
                         {venue.name}
                       </p>
                       <p
-                        class="mt-1 flex items-center gap-1 text-xs text-inkMuted"
+                        class="text-inkMuted mt-1 flex items-center gap-1 text-xs"
                       >
                         <MapPin size={12} />
                         {venue.city}
                       </p>
                     </div>
                     <span
-                      class="font-mono tabular-nums text-lg font-black text-signal"
+                      class="text-signal font-mono text-lg font-black tabular-nums"
                     >
                       {venue.topDemandScore}
                     </span>
                   </div>
-                  <div class="mt-3 text-[11px] uppercase text-inkMuted">
+                  <div class="text-inkMuted mt-3 text-[11px] uppercase">
                     <span
-                      class="rounded-sm border border-line bg-panel/70 px-2 py-1 text-inkMuted"
+                      class="border-line bg-panel/70 text-inkMuted rounded-sm border px-2 py-1"
                     >
                       {venue.eventCount} events
                     </span>
                     <span
-                      class="ml-2 rounded-sm border border-line bg-panel/70 px-2 py-1 text-inkMuted"
+                      class="border-line bg-panel/70 text-inkMuted ml-2 rounded-sm border px-2 py-1"
                     >
                       {venue.availableEventCount} reservable
                     </span>
@@ -630,21 +630,21 @@
               </div>
             </button>
           {:else}
-            <p class="py-8 text-center text-sm text-inkMuted">
+            <p class="text-inkMuted py-8 text-center text-sm">
               No venues match the active filters.
             </p>
           {/each}
         </div>
       </section>
 
-      <section class="rounded-sm border border-line bg-panel/90 p-5 shadow-xl">
-        <div class="mb-5 flex items-center gap-3 border-b border-line pb-4">
+      <section class="border-line bg-panel/90 rounded-sm border p-5 shadow-xl">
+        <div class="border-line mb-5 flex items-center gap-3 border-b pb-4">
           <div
-            class="inline-grid h-9 w-9 place-items-center rounded-sm border border-line bg-panelSoft/70 text-signal"
+            class="border-line bg-panelSoft/70 text-signal inline-grid h-9 w-9 place-items-center rounded-sm border"
           >
             <CalendarDays size={18} />
           </div>
-          <h2 class="text-sm font-black uppercase text-ink">
+          <h2 class="text-ink text-sm font-black uppercase">
             Featured reservations
           </h2>
         </div>
@@ -652,29 +652,29 @@
         <div class="grid gap-4">
           {#each data.discovery.featured.slice(0, 3) as event}
             <a
-              class="group block rounded-sm border border-line bg-panelSoft p-3 transition-all hover:border-signal"
+              class="group border-line bg-panelSoft hover:border-signal block rounded-sm border p-3 transition-all"
               href={`/events/${event.id}`}
             >
               <div class="flex items-center gap-3">
                 <div
-                  class="grid h-12 w-12 shrink-0 place-items-center rounded-sm border border-line bg-panel text-signal"
+                  class="border-line bg-panel text-signal grid h-12 w-12 shrink-0 place-items-center rounded-sm border"
                 >
                   <Ticket size={18} />
                 </div>
                 <div class="min-w-0 flex-1">
                   <p
-                    class="truncate font-black uppercase text-ink group-hover:text-signal"
+                    class="text-ink group-hover:text-signal truncate font-black uppercase"
                   >
                     {event.title}
                   </p>
-                  <p class="mt-1 flex items-center gap-1 text-xs text-inkMuted">
+                  <p class="text-inkMuted mt-1 flex items-center gap-1 text-xs">
                     <CalendarDays size={12} />
                     {formatEventTime(event.starts_at)}
                   </p>
                 </div>
                 <ChevronRight
                   size={17}
-                  class="shrink-0 text-inkMuted group-hover:text-signal"
+                  class="text-inkMuted group-hover:text-signal shrink-0"
                 />
               </div>
             </a>
@@ -682,14 +682,14 @@
         </div>
       </section>
 
-      <section class="rounded-sm border border-line bg-panel/90 p-5 shadow-xl">
-        <div class="mb-5 flex items-center gap-3 border-b border-line pb-4">
+      <section class="border-line bg-panel/90 rounded-sm border p-5 shadow-xl">
+        <div class="border-line mb-5 flex items-center gap-3 border-b pb-4">
           <div
-            class="inline-grid h-9 w-9 place-items-center rounded-sm border border-line bg-panelSoft/70 text-signal"
+            class="border-line bg-panelSoft/70 text-signal inline-grid h-9 w-9 place-items-center rounded-sm border"
           >
             <Gauge size={18} />
           </div>
-          <h2 class="text-sm font-black uppercase text-ink">Demand board</h2>
+          <h2 class="text-ink text-sm font-black uppercase">Demand board</h2>
         </div>
 
         <div class="space-y-3">
@@ -697,17 +697,17 @@
             .sort((a, b) => b.demand_score - a.demand_score)
             .slice(0, 5) as event, index}
             <a
-              class="grid grid-cols-[28px_1fr_auto] items-center gap-3 rounded-sm border border-line bg-panelSoft px-3 py-2 transition-colors hover:border-signal"
+              class="border-line bg-panelSoft hover:border-signal grid grid-cols-[28px_1fr_auto] items-center gap-3 rounded-sm border px-3 py-2 transition-colors"
               href={`/events/${event.id}`}
             >
-              <span class="font-mono tabular-nums text-xs text-inkMuted">
+              <span class="text-inkMuted font-mono text-xs tabular-nums">
                 {index + 1}
               </span>
-              <span class="min-w-0 truncate text-sm font-bold text-ink">
+              <span class="text-ink min-w-0 truncate text-sm font-bold">
                 {event.title}
               </span>
               <span
-                class="font-mono tabular-nums text-sm font-black text-signal"
+                class="text-signal font-mono text-sm font-black tabular-nums"
               >
                 {event.demand_score}
               </span>

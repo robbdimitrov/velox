@@ -12,13 +12,13 @@
 <div class="mx-auto w-[min(calc(100%_-_2rem),28rem)]">
   <Panel padding="xl" overflowHidden>
     <div
-      class="pointer-events-none absolute inset-0 bg-gradient-to-br from-signal/10 to-transparent"
+      class="from-signal/10 pointer-events-none absolute inset-0 bg-gradient-to-br to-transparent"
     ></div>
     <div class="relative z-10">
-      <h1 class="mb-2 text-3xl font-black uppercase tracking-tight">
+      <h1 class="mb-2 text-3xl font-black tracking-tight uppercase">
         {title}
       </h1>
-      <p class="mb-8 text-sm text-inkMuted">
+      <p class="text-inkMuted mb-8 text-sm">
         {description}
       </p>
 

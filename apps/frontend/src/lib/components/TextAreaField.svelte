@@ -17,7 +17,7 @@
 </script>
 
 <label class="form-control space-y-2">
-  <span class="text-xs font-semibold uppercase tracking-wider text-inkMuted">
+  <span class="text-inkMuted text-xs font-semibold tracking-wider uppercase">
     {label}
   </span>
   <textarea
@@ -25,6 +25,6 @@
     bind:value
     {rows}
     {required}
-    class="w-full resize-none rounded-sm border border-line bg-carbon/60 px-4 py-3 text-ink shadow-inner outline-none transition-colors placeholder:text-inkMuted/50 focus:border-signal focus:ring-1 focus:ring-signal/50"
+    class="border-line bg-carbon/60 text-ink placeholder:text-inkMuted/50 focus:border-signal focus:ring-signal/50 w-full resize-none rounded-sm border px-4 py-3 shadow-inner transition-colors outline-none focus:ring-1"
     {placeholder}></textarea>
 </label>

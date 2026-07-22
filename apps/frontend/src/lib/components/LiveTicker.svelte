@@ -27,25 +27,25 @@
 </script>
 
 <div
-  class="grid h-28 grid-cols-[56px_1fr] overflow-hidden border-t border-line bg-panel"
+  class="border-line bg-panel grid h-28 grid-cols-[56px_1fr] overflow-hidden border-t"
 >
   <div
-    class="flex flex-col items-center justify-center border-r border-line bg-panelSoft text-accent"
+    class="border-line bg-panelSoft text-accent flex flex-col items-center justify-center border-r"
   >
     <div class="relative">
       <div
-        class="absolute inset-0 animate-ping rounded-full bg-accent/30 blur-sm"
+        class="bg-accent/30 absolute inset-0 animate-ping rounded-full blur-sm"
       ></div>
       <Activity size={24} class="relative" />
     </div>
   </div>
-  <div class="flex flex-col divide-y divide-line overflow-hidden py-1">
+  <div class="divide-line flex flex-col divide-y overflow-hidden py-1">
     {#each messages as message, index (message)}
       <div class="flex h-6 items-center px-4" in:slide={{ duration: 300 }}>
-        <span class="mr-3 inline-block h-1.5 w-1.5 rounded-full bg-accent"
+        <span class="bg-accent mr-3 inline-block h-1.5 w-1.5 rounded-full"
         ></span>
         <p
-          class="truncate font-mono text-xs uppercase text-inkMuted transition-colors hover:text-ink"
+          class="text-inkMuted hover:text-ink truncate font-mono text-xs uppercase transition-colors"
         >
           {message}
         </p>
