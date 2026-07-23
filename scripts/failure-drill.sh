@@ -26,5 +26,6 @@ check_deployment apigateway
 check_deployment orderservice
 check_deployment seatservice
 check_deployment viewservice
+check_deployment frontend
 
 echo "dependency restart drill completed for namespace $namespace"

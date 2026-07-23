@@ -219,8 +219,15 @@ the existing `velox_*` names plus canonical `app_pipeline_*` aliases with labels
 
 Run `scripts/failure-drill.sh` after changing dependency clients, probes, or
 consumer loops. The script restarts PostgreSQL, cache, and broker workloads,
-then waits for the application deployments to remain rolled out. Override the
-namespace and wait budget with `NAMESPACE=...` and `TIMEOUT=...`.
+then waits for `apigateway`, `orderservice`, `seatservice`, `viewservice`, and
+`frontend` to remain rolled out. Override the namespace and wait budget with
+`NAMESPACE=...` and `TIMEOUT=...`.
+
+Each application Deployment has a matching `PodDisruptionBudget`
+(`deploy/pdb.yaml`) with `maxUnavailable: 1`. The checked-in manifests run one
+replica per service (see `docs/deployment.md`), so this only bounds voluntary
+disruption once replicas are scaled up; at one replica it does not block node
+drains.
 
 ## Pod Identity and Hardening
 

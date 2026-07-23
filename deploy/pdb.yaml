@@ -1,0 +1,64 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: apigateway
+  labels:
+    app.kubernetes.io/name: apigateway
+    app.kubernetes.io/part-of: velox
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: apigateway
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: orderservice
+  labels:
+    app.kubernetes.io/name: orderservice
+    app.kubernetes.io/part-of: velox
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: orderservice
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: seatservice
+  labels:
+    app.kubernetes.io/name: seatservice
+    app.kubernetes.io/part-of: velox
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: seatservice
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: viewservice
+  labels:
+    app.kubernetes.io/name: viewservice
+    app.kubernetes.io/part-of: velox
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: viewservice
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: velox
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frontend

@@ -277,6 +277,11 @@ spec:
                 secretKeyRef:
                   name: velox-kafka-signing-secret
                   key: key
+            - name: EVENT_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: velox-event-signing-secret
+                  key: key
           readinessProbe:
             httpGet:
               path: /readyz

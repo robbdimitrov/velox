@@ -41,7 +41,7 @@ Manifests live in `deploy/` and create:
 - Broker StatefulSet and service;
 - Cache Deployment and service;
 - service Deployments for `frontend`, `apigateway`, `orderservice`,
-  `seatservice`, and `viewservice`.
+  `seatservice`, and `viewservice`, each with a matching PodDisruptionBudget.
 
 The checked-in local manifests run one replica of each application deployment
 with no rolling-update surge so the full stack fits a single-node Colima or

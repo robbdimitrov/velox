@@ -270,6 +270,7 @@ ensure_dev_secrets() {
     --from-literal="audience=velox-browser" \
     --from-literal="session-secret=$(random_secret)"
   ensure_secret velox-kafka-signing-secret --from-literal="key=$(random_secret)"
+  ensure_secret velox-event-signing-secret --from-literal="key=$(random_secret)"
 }
 
 apply_manifests() {
@@ -337,12 +338,13 @@ apply_app_manifests() {
   services_manifest="$(render_manifest "$DEPLOY_DIR/services.yaml")"
   trap 'rm -f "$services_manifest"' RETURN
   apply_file "$services_manifest"
+  apply_file "$DEPLOY_DIR/pdb.yaml"
   annotate_configmap_checksums deployment/apigateway velox-service-config
   annotate_secret_checksums deployment/apigateway velox-database-secret velox-auth-secret
   annotate_configmap_checksums deployment/orderservice velox-service-config
   annotate_secret_checksums deployment/orderservice velox-database-secret velox-kafka-signing-secret
   annotate_configmap_checksums deployment/seatservice velox-service-config
-  annotate_secret_checksums deployment/seatservice velox-database-secret velox-kafka-signing-secret
+  annotate_secret_checksums deployment/seatservice velox-database-secret velox-kafka-signing-secret velox-event-signing-secret
   annotate_configmap_checksums deployment/viewservice velox-service-config
   annotate_secret_checksums deployment/viewservice velox-database-secret velox-kafka-signing-secret
   annotate_configmap_checksums deployment/frontend velox-service-config

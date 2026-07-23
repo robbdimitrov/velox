@@ -46,6 +46,7 @@ k8s-check:
 	@$(KUBECTL) apply --dry-run=client -n velox -f deploy/cache.yaml
 	@$(KUBECTL) apply --dry-run=client -n velox -f deploy/topics.yaml
 	@$(KUBECTL) apply --dry-run=client -n velox -f deploy/services.yaml
+	@$(KUBECTL) apply --dry-run=client -n velox -f deploy/pdb.yaml
 
 .PHONY: format
 format:
