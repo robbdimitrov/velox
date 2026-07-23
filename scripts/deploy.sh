@@ -14,7 +14,7 @@ SEATSERVICE_IMAGE_TAG="${SEATSERVICE_IMAGE_TAG:-}"
 VIEWSERVICE_IMAGE_TAG="${VIEWSERVICE_IMAGE_TAG:-}"
 FRONTEND_IMAGE_TAG="${FRONTEND_IMAGE_TAG:-}"
 DATABASE_IMAGE_TAG="${DATABASE_IMAGE_TAG:-}"
-LOCAL_FRONTEND_PORT="${LOCAL_FRONTEND_PORT:-8085}"
+LOCAL_FRONTEND_PORT="${LOCAL_FRONTEND_PORT:-8080}"
 FRONTEND_PORT_FORWARD_LOG="${FRONTEND_PORT_FORWARD_LOG:-/tmp/velox-frontend-port-forward-${LOCAL_FRONTEND_PORT}.log}"
 FRONTEND_PORT_FORWARD_PID_FILE="${FRONTEND_PORT_FORWARD_PID_FILE:-/tmp/velox-frontend-port-forward-${LOCAL_FRONTEND_PORT}.pid}"
 DRY_RUN="${DRY_RUN:-}"
@@ -449,7 +449,7 @@ print_summary() {
 
 ==> Velox local runtime is starting
 
-  Frontend   http://localhost:${LOCAL_FRONTEND_PORT}
+  Frontend   http://velox.localhost:${LOCAL_FRONTEND_PORT}
   Namespace  ${NS}
 
   Frontend port-forward pid: $(cat "$FRONTEND_PORT_FORWARD_PID_FILE" 2>/dev/null || echo unknown)

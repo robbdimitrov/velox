@@ -105,7 +105,7 @@ Deploy Velox to the active Kubernetes context:
 The script builds images, creates or updates generated development secrets,
 applies manifests from `deploy/`, waits for rollouts, and starts a frontend port-forward:
 
-- Frontend: http://localhost:8085 by default, configurable with `LOCAL_FRONTEND_PORT`
+- Frontend: http://velox.localhost:8080 by default, configurable with `LOCAL_FRONTEND_PORT`
 
 Images build and push to `localhost:5000/velox-<service>:<content-checksum>` by
 default. Override the registry or force one shared tag when needed:
