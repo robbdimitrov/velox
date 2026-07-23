@@ -44,8 +44,13 @@ func verifyInventoryEventSignature(key []byte, event Event) bool {
 	if err := json.Unmarshal([]byte(event.SignedPayload), &payload); err != nil {
 		return false
 	}
-	if payload.OrderID != event.CorrelationID ||
-		payload.EventID != event.Seat.EventID ||
+	// SeatReservationCancelled correlates to the catalog event being cancelled,
+	// not the seat's own order, so its payload.OrderID legitimately differs
+	// from event.CorrelationID (see seatservice's cancelled_payload).
+	if event.Type != "SeatReservationCancelled" && payload.OrderID != event.CorrelationID {
+		return false
+	}
+	if payload.EventID != event.Seat.EventID ||
 		payload.SectionID != event.Seat.SectionID ||
 		payload.SeatID != event.Seat.SeatID {
 		return false

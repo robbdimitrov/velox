@@ -137,6 +137,77 @@ func TestApplyEvent_SeatReservationCancelled_NoIssuedTicket_NoError(t *testing.T
 	}
 }
 
+// TestApplyEvent_SeatReservationCancelled_CorrelationIDIsCatalogEventNotOrder
+// covers whole-event cancellation, where seatservice's cancel_stream sets
+// correlation_id to the catalog event_id while the signed payload's order_id
+// is the seat's own owning order (see cancelled_payload in db_client.rs) -
+// these legitimately differ and must not fail signature verification.
+func TestApplyEvent_SeatReservationCancelled_CorrelationIDIsCatalogEventNotOrder(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to open sqlmock db: %v", err)
+	}
+	defer db.Close()
+	s := &DatabaseStore{db: db, signingKey: testSigningKey}
+
+	event := Event{
+		EventID:          "6f6d0b8e-2b3d-4b7e-9b8b-2b1e9b8b2b33",
+		AggregateID:      "seat:evt_neon_riot:A:A-03",
+		AggregateVersion: 2,
+		Type:             "SeatReservationCancelled",
+		CorrelationID:    "evt_neon_riot",
+		Seat:             Seat{EventID: "evt_neon_riot", SectionID: "A", SeatID: "A-03", Status: "CANCELLED"},
+	}
+	payload := map[string]any{
+		"order_id":   "ord-real-owning-order",
+		"event_id":   event.Seat.EventID,
+		"section_id": event.Seat.SectionID,
+		"seat_id":    event.Seat.SeatID,
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	mac := hmac.New(sha256.New, testSigningKey)
+	mac.Write([]byte(event.Type))
+	mac.Write([]byte("|"))
+	mac.Write([]byte(event.AggregateID))
+	mac.Write([]byte("|"))
+	mac.Write([]byte(strconv.FormatInt(event.AggregateVersion, 10)))
+	mac.Write([]byte("|"))
+	mac.Write(payloadBytes)
+	event.SignedPayload = string(payloadBytes)
+	event.Signature = hex.EncodeToString(mac.Sum(nil))
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT EXISTS").
+		WithArgs(event.EventID).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+	mock.ExpectQuery("SELECT COALESCE").
+		WithArgs(event.AggregateID).
+		WillReturnRows(sqlmock.NewRows([]string{"coalesce"}).AddRow(int64(1)))
+	mock.ExpectExec("INSERT INTO projection.processed_events").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO projection.seat_snapshots").
+		WithArgs(event.Seat.EventID, event.Seat.SectionID, event.Seat.SeatID, event.Seat.Status, event.AggregateVersion, nil).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("UPDATE projection.wallet_tickets").
+		WithArgs(event.Seat.EventID, event.Seat.SectionID, event.Seat.SeatID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("seat_updates").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("organizer_updates").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	if err := s.ApplyEvent(context.Background(), event, "inventory.events.v1", 0, 1); err != nil {
+		t.Fatalf("ApplyEvent returned error: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
 func TestIssueOrBufferWalletTicketIssuesWhenOrderProjected(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
