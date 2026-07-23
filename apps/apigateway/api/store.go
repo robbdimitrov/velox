@@ -356,6 +356,15 @@ func loadOrderSeatsTx(ctx context.Context, tx *sql.Tx, orderID string) ([]Seat, 
 	return seats, rows.Err()
 }
 
+// demandScore weighs confirmed reservations above active holds so a fully
+// held-but-unconfirmed event doesn't outrank one with real bookings.
+func demandScore(reserved, held, totalSeats int) int {
+	if totalSeats <= 0 {
+		return 0
+	}
+	return ((reserved * 100) + (held * 50)) / totalSeats
+}
+
 func rollback(tx *sql.Tx) {
 	_ = tx.Rollback()
 }
@@ -450,9 +459,7 @@ func (s *DatabaseStore) GetOrganizerMetrics(ctx context.Context, eventID string)
 		}
 	}
 
-	if totalSeats > 0 {
-		metrics.DemandScore = ((reservedSeats * 100) + (metrics.ActiveHolds * 50)) / totalSeats
-	}
+	metrics.DemandScore = demandScore(reservedSeats, metrics.ActiveHolds, totalSeats)
 	metrics.ProjectionLagMs, err = s.GetProjectionLagMS(ctx, eventID)
 	if err != nil {
 		return metrics, err
@@ -824,6 +831,7 @@ func (s *DatabaseStore) GetEvents(ctx context.Context) ([]Event, error) {
 		}
 		e.SectionIDs = splitCSV(sectionIDs)
 		e.SeatsTotal = e.SeatsOpen + held + reserved
+		e.DemandScore = demandScore(reserved, held, e.SeatsTotal)
 
 		events = append(events, e)
 	}
@@ -868,6 +876,7 @@ func (s *DatabaseStore) GetEvent(ctx context.Context, id string) (Event, error) 
 	}
 	e.SectionIDs = splitCSV(sectionIDs)
 	e.SeatsTotal = e.SeatsOpen + held + reserved
+	e.DemandScore = demandScore(reserved, held, e.SeatsTotal)
 	return e, nil
 }
 

@@ -333,6 +333,77 @@ func TestGetOrganizerMetricsUsesProjectionCountsAndLag(t *testing.T) {
 	}
 }
 
+// TestGetEventsIncludesDemandScoreFromInventory guards against demand_score
+// silently going to zero on the discovery list, as it did when the query's
+// held/reserved counts were scanned but never fed into a score.
+func TestGetEventsIncludesDemandScoreFromInventory(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer db.Close()
+
+	mock.ExpectQuery(`FROM catalog\.events e\s+JOIN catalog\.venues v`).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "venue_id", "name", "description", "category",
+			"starts_at", "timezone", "status", "venue_name", "city",
+			"section_ids", "available", "held", "reserved",
+		}).AddRow(
+			"evt_neon_riot", "ven_velox_arena", "Neon Riot Live", "", "Concerts",
+			time.Now(), "America/Chicago", "PUBLISHED", "Velox Arena", "Chicago",
+			"A,B", 5, 3, 2,
+		))
+
+	store := &DatabaseStore{db: db}
+	events, err := store.GetEvents(context.Background())
+	if err != nil {
+		t.Fatalf("GetEvents: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if events[0].DemandScore != 35 {
+		t.Fatalf("DemandScore = %d, want 35", events[0].DemandScore)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sqlmock expectations: %v", err)
+	}
+}
+
+// TestGetEventIncludesDemandScoreFromInventory is the single-event-read
+// counterpart to TestGetEventsIncludesDemandScoreFromInventory.
+func TestGetEventIncludesDemandScoreFromInventory(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer db.Close()
+
+	mock.ExpectQuery(`FROM catalog\.events e\s+JOIN catalog\.venues v`).
+		WithArgs("evt_neon_riot").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "venue_id", "name", "description", "category",
+			"starts_at", "timezone", "status", "venue_name", "city",
+			"section_ids", "available", "held", "reserved",
+		}).AddRow(
+			"evt_neon_riot", "ven_velox_arena", "Neon Riot Live", "", "Concerts",
+			time.Now(), "America/Chicago", "PUBLISHED", "Velox Arena", "Chicago",
+			"A,B", 5, 3, 2,
+		))
+
+	store := &DatabaseStore{db: db}
+	event, err := store.GetEvent(context.Background(), "evt_neon_riot")
+	if err != nil {
+		t.Fatalf("GetEvent: %v", err)
+	}
+	if event.DemandScore != 35 {
+		t.Fatalf("DemandScore = %d, want 35", event.DemandScore)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sqlmock expectations: %v", err)
+	}
+}
+
 // TestGetEventVenueIDReturnsVenueWithoutInventoryQuery keeps ownership checks
 // from paying for unrelated inventory aggregation.
 func TestGetEventVenueIDReturnsVenueWithoutInventoryQuery(t *testing.T) {
