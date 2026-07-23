@@ -1,6 +1,7 @@
 <script lang="ts">
   import { LockKeyhole, ShieldCheck, Ticket } from '@lucide/svelte';
   import Panel from '$lib/components/Panel.svelte';
+  import { pageTitle } from '$lib/pageTitle';
 
   let { data } = $props();
 
@@ -42,7 +43,7 @@
 </script>
 
 <svelte:head>
-  <title>Wallet — Velox</title>
+  <title>{pageTitle('Wallet')}</title>
 </svelte:head>
 
 <main class="w-full">

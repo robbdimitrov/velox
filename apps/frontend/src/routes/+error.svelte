@@ -2,12 +2,13 @@
   import { page } from '$app/state';
   import AuthCard from '$lib/components/AuthCard.svelte';
   import ActionLink from '$lib/components/ActionLink.svelte';
+  import { pageTitle } from '$lib/pageTitle';
 
   const notFoundMessage = "This page doesn't exist or may have moved.";
 </script>
 
 <svelte:head>
-  <title>{page.status} — Velox</title>
+  <title>{pageTitle(`${page.status}`)}</title>
 </svelte:head>
 
 <div class="flex min-h-[70vh] items-center justify-center">

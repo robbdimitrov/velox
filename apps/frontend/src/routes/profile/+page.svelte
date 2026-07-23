@@ -1,6 +1,7 @@
 <script lang="ts">
   import { BriefcaseBusiness, Mail, Shield, User } from '@lucide/svelte';
   import Panel from '$lib/components/Panel.svelte';
+  import { pageTitle } from '$lib/pageTitle';
   import ThemePreferencePicker from '$lib/components/ThemePreferencePicker.svelte';
 
   let { data } = $props();
@@ -13,7 +14,7 @@
 </script>
 
 <svelte:head>
-  <title>Profile — Velox</title>
+  <title>{pageTitle('Profile')}</title>
 </svelte:head>
 
 <div class="mb-8 flex items-end justify-between">

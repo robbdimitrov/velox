@@ -30,6 +30,11 @@ meet WCAG AA contrast in both light and dark DaisyUI themes.
   public discovery first viewport.
 - Letter spacing remains normal except deliberate uppercase labels.
 
+## Browser Titles
+
+User-facing pages use `Page - Velox` document titles. The public discovery
+home uses the bare `Velox` title.
+
 ## Layout
 
 - Global shell owns page width, viewport inset, and nav-to-content spacing.

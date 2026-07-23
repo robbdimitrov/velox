@@ -16,6 +16,7 @@
   import EventCard from '$lib/components/EventCard.svelte';
   import LiveTicker from '$lib/components/LiveTicker.svelte';
   import { formatDurationMs, lagToneClass } from '$lib/format';
+  import { pageTitle } from '$lib/pageTitle';
   import {
     filterState,
     filterStateToURLParams,
@@ -265,7 +266,7 @@
 </script>
 
 <svelte:head>
-  <title>Velox</title>
+  <title>{pageTitle()}</title>
 </svelte:head>
 
 <main class="w-full space-y-6">

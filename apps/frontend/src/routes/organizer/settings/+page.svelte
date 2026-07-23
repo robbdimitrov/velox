@@ -1,10 +1,11 @@
 <script lang="ts">
   import Panel from '$lib/components/Panel.svelte';
+  import { pageTitle } from '$lib/pageTitle';
   import ThemePreferencePicker from '$lib/components/ThemePreferencePicker.svelte';
 </script>
 
 <svelte:head>
-  <title>Settings — Velox</title>
+  <title>{pageTitle('Settings')}</title>
 </svelte:head>
 
 <div class="mb-8 flex items-end justify-between">

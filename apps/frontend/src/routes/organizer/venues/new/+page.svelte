@@ -8,6 +8,7 @@
     Trash2
   } from '@lucide/svelte';
   import ActionButton from '$lib/components/ActionButton.svelte';
+  import { pageTitle } from '$lib/pageTitle';
   import Panel from '$lib/components/Panel.svelte';
   import TextField from '$lib/components/TextField.svelte';
 
@@ -103,7 +104,7 @@
 </script>
 
 <svelte:head>
-  <title>Create Venue — Velox</title>
+  <title>{pageTitle('Create Venue')}</title>
 </svelte:head>
 
 <div class="mx-auto w-full max-w-3xl">

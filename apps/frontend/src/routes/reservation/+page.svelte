@@ -16,6 +16,7 @@
     XCircle
   } from '@lucide/svelte';
   import ActionLink from '$lib/components/ActionLink.svelte';
+  import { pageTitle } from '$lib/pageTitle';
   import Panel from '$lib/components/Panel.svelte';
   import PrimaryButton from '$lib/components/PrimaryButton.svelte';
 
@@ -141,7 +142,7 @@
 </script>
 
 <svelte:head>
-  <title>Confirm Reservation — Velox</title>
+  <title>{pageTitle('Confirm Reservation')}</title>
 </svelte:head>
 
 <main class="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[1fr_360px]">

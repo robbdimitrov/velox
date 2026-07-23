@@ -7,6 +7,7 @@
     ArrowLeft
   } from '@lucide/svelte';
   import ActionButton from '$lib/components/ActionButton.svelte';
+  import { pageTitle } from '$lib/pageTitle';
   import Panel from '$lib/components/Panel.svelte';
   import TextAreaField from '$lib/components/TextAreaField.svelte';
   import TextField from '$lib/components/TextField.svelte';
@@ -63,7 +64,7 @@
 </script>
 
 <svelte:head>
-  <title>Create Event — Velox</title>
+  <title>{pageTitle('Create Event')}</title>
 </svelte:head>
 
 <div class="mx-auto w-full max-w-3xl">

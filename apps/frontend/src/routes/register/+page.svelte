@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Mail, Lock, User as UserIcon, ArrowRight } from '@lucide/svelte';
   import AuthCard from '$lib/components/AuthCard.svelte';
+  import { pageTitle } from '$lib/pageTitle';
   import PrimaryButton from '$lib/components/PrimaryButton.svelte';
   import TextField from '$lib/components/TextField.svelte';
   let email = $state('');
@@ -36,7 +37,7 @@
 </script>
 
 <svelte:head>
-  <title>Register — Velox</title>
+  <title>{pageTitle('Register')}</title>
 </svelte:head>
 
 <div class="flex min-h-[80vh] items-center justify-center">

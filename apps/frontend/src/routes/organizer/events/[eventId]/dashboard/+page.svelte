@@ -1,6 +1,7 @@
 <script lang="ts">
   import ActionButton from '$lib/components/ActionButton.svelte';
   import Panel from '$lib/components/Panel.svelte';
+  import { pageTitle } from '$lib/pageTitle';
   import SystemHealthPanel from '$lib/components/SystemHealthPanel.svelte';
   import TextAreaField from '$lib/components/TextAreaField.svelte';
   import TextField from '$lib/components/TextField.svelte';
@@ -120,7 +121,7 @@
 </script>
 
 <svelte:head>
-  <title>Live Analytics — Velox</title>
+  <title>{pageTitle('Live Analytics')}</title>
 </svelte:head>
 
 <div class="space-y-8">

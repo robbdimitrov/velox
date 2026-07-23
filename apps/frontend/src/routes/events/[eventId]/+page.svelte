@@ -6,6 +6,7 @@
   import AnnouncementCard from '$lib/components/AnnouncementCard.svelte';
   import SeatCanvas from '$lib/components/SeatCanvas.svelte';
   import VirtualWaitingRoom from '$lib/components/VirtualWaitingRoom.svelte';
+  import { pageTitle } from '$lib/pageTitle';
   import { reservationState } from '$lib/state/reservation-state.svelte';
   import { SeatSelectionState } from '$lib/state/seat-state.svelte';
   import {
@@ -145,7 +146,7 @@
 </script>
 
 <svelte:head>
-  <title>{data.event.title} — Velox</title>
+  <title>{pageTitle(data.event.title)}</title>
 </svelte:head>
 
 {#if data.isRateLimited}

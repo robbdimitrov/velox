@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { Activity, RadioTower, Ticket, Users } from '@lucide/svelte';
   import Panel from '$lib/components/Panel.svelte';
+  import { pageTitle } from '$lib/pageTitle';
   import SurfaceStat from '$lib/components/SurfaceStat.svelte';
 
   let { data } = $props();
@@ -80,7 +81,7 @@
 </script>
 
 <svelte:head>
-  <title>Organizer Analytics — Velox</title>
+  <title>{pageTitle('Organizer Analytics')}</title>
 </svelte:head>
 
 <main>

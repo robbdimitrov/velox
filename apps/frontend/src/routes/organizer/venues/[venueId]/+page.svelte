@@ -1,13 +1,14 @@
 <script lang="ts">
   import { Shield, Users } from '@lucide/svelte';
   import EmptyState from '$lib/components/EmptyState.svelte';
+  import { pageTitle } from '$lib/pageTitle';
   import Panel from '$lib/components/Panel.svelte';
 
   let { data } = $props();
 </script>
 
 <svelte:head>
-  <title>Venue Access — Velox</title>
+  <title>{pageTitle('Venue Access')}</title>
 </svelte:head>
 
 <div class="space-y-8">

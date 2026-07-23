@@ -2,13 +2,14 @@
   import { MapPin, Plus, ExternalLink } from '@lucide/svelte';
   import ActionLink from '$lib/components/ActionLink.svelte';
   import EmptyState from '$lib/components/EmptyState.svelte';
+  import { pageTitle } from '$lib/pageTitle';
   import Panel from '$lib/components/Panel.svelte';
 
   let { data } = $props();
 </script>
 
 <svelte:head>
-  <title>Venues — Velox</title>
+  <title>{pageTitle('Venues')}</title>
 </svelte:head>
 
 <div class="mb-8 flex items-end justify-between">
