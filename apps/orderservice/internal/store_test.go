@@ -197,6 +197,38 @@ func TestCreateOrder_RejectsWhenEventNotPublished(t *testing.T) {
 	}
 }
 
+func TestCreateOrderRejectsDuplicateIdempotencyKeyWithDifferentBody(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to open sqlmock db: %v", err)
+	}
+	defer db.Close()
+	s := &Store{db: db}
+
+	req := OrderRequest{
+		EventID:        "evt-1",
+		SectionID:      "sec-1",
+		SeatIDs:        []string{"A-1"},
+		IdempotencyKey: "idem-1",
+		UserID:         "user-1",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT request_hash, response_ref").
+		WithArgs(req.UserID, req.IdempotencyKey).
+		WillReturnRows(sqlmock.NewRows([]string{"request_hash", "response_ref"}).
+			AddRow([]byte("stored-hash-from-a-different-request-body"), sql.NullString{String: "ord-999", Valid: true}))
+	mock.ExpectRollback()
+
+	_, err = s.CreateOrder(context.Background(), req)
+	if !errors.Is(err, ErrIdempotencyConflict) {
+		t.Fatalf("err = %v, want ErrIdempotencyConflict", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
 func TestConfirmOrder_ConfirmsHeldOrder(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

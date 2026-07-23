@@ -86,7 +86,14 @@ the target, the gap is called out explicitly.
 - Expiry appends `SeatReservationExpired` only if the latest seat event is
   still held and current time is past the persisted deadline.
 - Confirmation after expiry must be rejected or corrected by seatservice if a
-  stale order mirror briefly accepted it.
+  stale order mirror briefly accepted it. Orderservice does not re-check the
+  hold deadline itself before confirming; it only mirrors seatservice's
+  decision.
+- This is correctness-preserving because wallet ticket issuance is gated on
+  seatservice's `SeatReservationConfirmed` event, never on orderservice's
+  `OrderConfirmed`, so a briefly-stale CONFIRMED mirror never over-issues a
+  ticket. The compensating flip back to `EXPIRED` is idempotent and guarded by
+  a `status = 'CONFIRMED'` check, so replayed corrections are no-ops.
 
 ## Reservation Decision
 
