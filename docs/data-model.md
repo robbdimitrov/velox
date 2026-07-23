@@ -112,11 +112,14 @@ Write owner: orderservice. Read owner: gateway order APIs and projections.
 ### `orders.order_seats`
 
 Fields: `order_id references orders.orders(id)`, `event_id`, `section_id`,
-`seat_id`.
+`seat_id`, `price_amount_minor bigint default 0`, `currency char(3) default
+'USD'`.
 
 Primary key: `(order_id, event_id, section_id, seat_id)`.
 
 Write owner: orderservice create order. Lifecycle follows parent order.
+Pricing columns are not yet part of the product contract; checkout is
+reservation-only and every row is written with `price_amount_minor = 0`.
 
 ### `orders.idempotency_keys`
 
@@ -130,13 +133,16 @@ Write owner: orderservice. Current TTL is 24 hours.
 ### `orders.outbox_events`
 
 Fields: `id uuid primary key`, `aggregate_type`, `aggregate_id`,
-`event_type`, `payload jsonb`, `headers jsonb`, `created_at`, `published_at`,
+`event_type`, `payload text`, `headers jsonb`, `created_at`, `published_at`,
 `publish_attempts`, `last_error`, `last_attempt_at`.
 
 Index: unpublished rows by `(created_at, id)` where `published_at is null`.
 
 Write owner: orderservice in the same transaction as order state changes.
 Relay publishes only after commit and marks `published_at` after broker ack.
+`payload` is `text`, not `jsonb`: the stored bytes are exactly what gets
+published to `order.events.v1` and what `signOrderEvent` hashed, and `jsonb`
+reorders object keys on storage, which would break that signature.
 
 ## Inventory Schema
 
@@ -202,12 +208,14 @@ inventory reads.
 ### `projection.order_summaries`
 
 Fields: `order_id uuid primary key`, `user_id`, `status`, `updated_at`,
-`event_id`.
+`event_id`, `total_amount_minor bigint default 0`, `currency char(3) default
+'USD'`.
 
 Indexes: `(user_id, updated_at desc)`, `event_id`.
 
 Write owner: viewservice. Read owner: organizer metrics and future order
-summary APIs.
+summary APIs. Pricing columns mirror `orders.order_seats` and are not yet part
+of the product contract; every row is written with `total_amount_minor = 0`.
 
 ### `projection.wallet_tickets`
 
