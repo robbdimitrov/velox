@@ -19,7 +19,9 @@ export const handle: Handle = async ({ event, resolve }) => {
         }
       });
 
-      event.locals.user = response.ok ? await response.json() : null;
+      event.locals.user = response.ok
+        ? ((await response.json()) as { user: App.Locals['user'] }).user
+        : null;
     } catch {
       event.locals.user = null;
     }
