@@ -3,10 +3,15 @@ import type { PageLoad } from './$types';
 export const load: PageLoad = async ({ fetch }) => {
   try {
     const res = await fetch('/api/organizer/events');
-    if (!res.ok) throw new Error('Failed to load events');
-    const body = await res.json();
-    return { events: body.events || [] };
-  } catch {
-    return { events: [] };
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(body.error ?? body.message ?? 'Failed to load events');
+    }
+    return { events: body.events ?? [], loadError: '' };
+  } catch (err) {
+    return {
+      events: [],
+      loadError: err instanceof Error ? err.message : 'Failed to load events'
+    };
   }
 };

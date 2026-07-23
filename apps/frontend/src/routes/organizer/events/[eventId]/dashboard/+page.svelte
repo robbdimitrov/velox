@@ -8,7 +8,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { createGatewayClient, GatewayError } from '$lib/api/client';
-  import type { EventAnnouncement } from '$lib/api/types';
+  import type { EventAnnouncement, OrganizerMetrics } from '$lib/api/types';
   import { Megaphone, OctagonAlert, Send } from '@lucide/svelte';
 
   let { data } = $props();
@@ -16,12 +16,8 @@
   const client = createGatewayClient(fetch, '/api');
 
   let eventId = $derived($page.params.eventId);
-  let metrics = $state({
-    cpu: 45,
-    memory: 60,
-    activeUsers: 120,
-    requestsPerSecond: 850
-  });
+  let metrics = $state<OrganizerMetrics | null>(null);
+  let metricsUnavailable = $state(false);
   let sseUrl = $derived(`/api/organizer/events/${eventId}/metrics/stream`);
 
   onMount(() => {
@@ -31,21 +27,33 @@
 
     source.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data);
-        if (data.cpu !== undefined) metrics.cpu = data.cpu;
-        if (data.memory !== undefined) metrics.memory = data.memory;
-        if (data.activeUsers !== undefined)
-          metrics.activeUsers = data.activeUsers;
-        if (data.requestsPerSecond !== undefined)
-          metrics.requestsPerSecond = data.requestsPerSecond;
+        const parsed = JSON.parse(event.data);
+        if (!isOrganizerMetrics(parsed)) return;
+        metrics = parsed;
+        metricsUnavailable = false;
       } catch {
         return;
       }
     };
-    source.onerror = () => source.close();
+    source.onerror = () => {
+      metricsUnavailable = true;
+    };
 
     return () => source.close();
   });
+
+  function isOrganizerMetrics(value: unknown): value is OrganizerMetrics {
+    if (!value || typeof value !== 'object') return false;
+    const candidate = value as Partial<OrganizerMetrics>;
+    return (
+      typeof candidate.totalReservations === 'number' &&
+      typeof candidate.activeHolds === 'number' &&
+      typeof candidate.seatsRemaining === 'number' &&
+      typeof candidate.projectionLagMs === 'number' &&
+      typeof candidate.sectionAvailability === 'object' &&
+      candidate.sectionAvailability !== null
+    );
+  }
 
   let announcements = $state<EventAnnouncement[]>([]);
   $effect(() => {
@@ -137,12 +145,7 @@
   </div>
 
   <div class="grid grid-cols-1 gap-8 lg:grid-cols-2">
-    <SystemHealthPanel
-      cpu={metrics.cpu}
-      memory={metrics.memory}
-      activeUsers={metrics.activeUsers}
-      requestsPerSecond={metrics.requestsPerSecond}
-    />
+    <SystemHealthPanel {metrics} unavailable={metricsUnavailable} />
 
     <Panel padding="lg">
       <div class="border-line mb-6 flex items-center gap-2 border-b pb-4">

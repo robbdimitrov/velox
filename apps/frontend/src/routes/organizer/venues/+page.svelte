@@ -24,7 +24,13 @@
   </ActionLink>
 </div>
 
-{#if data.venues.length === 0}
+{#if data.loadError}
+  <Panel padding="lg">
+    <div class="text-urgency text-sm font-bold tracking-widest uppercase">
+      {data.loadError}
+    </div>
+  </Panel>
+{:else if data.venues.length === 0}
   <EmptyState
     icon={MapPin}
     title="No Venues Found"

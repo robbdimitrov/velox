@@ -14,6 +14,15 @@ export type EventSummary = {
   status?: string;
 };
 
+export type OrganizerMetrics = {
+  totalReservations: number;
+  activeHolds: number;
+  seatsRemaining: number;
+  demandScore: number;
+  projectionLagMs: number;
+  sectionAvailability: Record<string, number>;
+};
+
 export type EventSection = {
   id: string;
   name: string;

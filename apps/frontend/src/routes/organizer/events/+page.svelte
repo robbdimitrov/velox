@@ -24,7 +24,13 @@
   </ActionLink>
 </div>
 
-{#if data.events.length === 0}
+{#if data.loadError}
+  <Panel padding="lg">
+    <div class="text-urgency text-sm font-bold tracking-widest uppercase">
+      {data.loadError}
+    </div>
+  </Panel>
+{:else if data.events.length === 0}
   <EmptyState
     icon={Calendar}
     title="No Events Found"
@@ -49,7 +55,7 @@
               <Calendar size={20} />
             </div>
             <span class="badge badge-sm badge-outline border-line">
-              {new Date(event.startDate).toLocaleDateString()}
+              {new Date(event.starts_at).toLocaleDateString()}
             </span>
           </div>
           <h3 class="mb-1 text-lg leading-tight font-bold">{event.name}</h3>
@@ -59,9 +65,17 @@
           <div
             class="border-line mt-auto flex items-center justify-between border-t pt-4"
           >
-            <div class="text-inkMuted text-sm">
-              {event.status === 'published' ? 'Published' : 'Draft'}
-            </div>
+            <span
+              class="border-line bg-panel/70 rounded-sm border px-2 py-1 text-xs font-bold tracking-widest uppercase"
+              class:text-urgency={event.status === 'CANCELLED'}
+              class:text-inkMuted={event.status !== 'CANCELLED'}
+            >
+              {event.status === 'CANCELLED'
+                ? 'Cancelled'
+                : event.status === 'PUBLISHED'
+                  ? 'Published'
+                  : 'Draft'}
+            </span>
             <a
               href={`/organizer/events/${event.id}/dashboard`}
               class="btn btn-xs btn-ghost text-signal hover:bg-signal/10 rounded"
