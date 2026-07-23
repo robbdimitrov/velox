@@ -711,9 +711,9 @@ func (s *DatabaseStore) CreateEvent(ctx context.Context, event Event) error {
 
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO catalog.events (
-			id, venue_id, name, description, category, starts_at, timezone, status
+			id, venue_id, name, description, category, starts_at, sale_starts_at, timezone, status
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		VALUES ($1, $2, $3, $4, $5, $6, now(), $7, $8)
 	`, event.ID, event.VenueID, event.Name, event.Description, event.Category, event.StartsAt, event.Timezone, event.Status)
 	if err != nil {
 		return err

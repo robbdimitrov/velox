@@ -134,8 +134,8 @@ func (s *Store) CreateOrder(ctx context.Context, req OrderRequest) (string, erro
 
 	for _, seat := range seats {
 		_, err = tx.ExecContext(ctx, `
-			INSERT INTO orders.order_seats (order_id, event_id, section_id, seat_id)
-			VALUES ($1, $2, $3, $4)
+			INSERT INTO orders.order_seats (order_id, event_id, section_id, seat_id, price_amount_minor, currency)
+			VALUES ($1, $2, $3, $4, 0, 'USD')
 		`, orderID, req.EventID, req.SectionID, seat.SeatID)
 		if err != nil {
 			return "", err

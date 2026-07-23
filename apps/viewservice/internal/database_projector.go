@@ -174,8 +174,8 @@ func (s *DatabaseStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 	case "OrderCreated", "OrderConfirmed", "OrderCancelled", "OrderExpired":
 		// Project order state.
 		_, err = tx.ExecContext(ctx, `
-			INSERT INTO projection.order_summaries (order_id, user_id, status, event_id)
-			VALUES ($1, $2, $3, $4)
+			INSERT INTO projection.order_summaries (order_id, user_id, status, event_id, total_amount_minor, currency)
+			VALUES ($1, $2, $3, $4, 0, 'USD')
 			ON CONFLICT (order_id) DO UPDATE SET
 				status = EXCLUDED.status,
 				event_id = EXCLUDED.event_id,
