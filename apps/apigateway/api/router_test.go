@@ -1,6 +1,8 @@
 package api
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -41,6 +43,27 @@ func TestSecurityHeadersDoNotOverrideHandlerContentType(t *testing.T) {
 
 	if got := rr.Header().Get("Content-Type"); got != "application/json" {
 		t.Fatalf("Content-Type = %q, want application/json", got)
+	}
+}
+
+func TestOversizedRequestBodyRejected(t *testing.T) {
+	server := NewServerWithStore("test", nil, nil)
+
+	oversized := bytes.Repeat([]byte("a"), (1<<20)+1)
+	body, _ := json.Marshal(map[string]string{"email": string(oversized)})
+	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+	server.Routes().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d body=%s", rr.Code, http.StatusBadRequest, rr.Body.String())
+	}
+	var out apiError
+	if err := json.Unmarshal(rr.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if out.Error != "invalid_json" {
+		t.Fatalf("error = %q, want invalid_json", out.Error)
 	}
 }
 

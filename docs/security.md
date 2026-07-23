@@ -7,6 +7,11 @@ cookie. Cookies are `HttpOnly`, `SameSite=Lax`, path `/`, and expire after 12
 hours. Token verification checks signature, expiry, issuer, audience, and
 subject before loading the user from the store.
 
+The cookie does not set `Secure`, for the same reason headers omit HSTS: the
+documented runtime is plain HTTP over `kubectl port-forward` with no TLS
+termination anywhere in the deployment. Enabling TLS termination must add
+`Secure` to `setSessionCookie`/`clearSessionCookie` at the same time.
+
 Registration requires passwords from 8 to 128 bytes. Store-backed registration
 hashes passwords with Argon2id. Demo in-memory mode still accepts seeded
 plaintext passwords and is not a production security boundary.

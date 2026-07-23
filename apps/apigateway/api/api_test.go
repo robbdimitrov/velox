@@ -119,6 +119,34 @@ func TestConfirmReservationRejectsNonOwner(t *testing.T) {
 	}
 }
 
+func TestGetOrderRejectsNonOwner(t *testing.T) {
+	mockOrderSvc := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"order_id": "mock-order-get",
+			"status":   OrderPending,
+		})
+	}))
+	defer mockOrderSvc.Close()
+
+	server := NewServerWithStore("test", nil, nil)
+	server.SetOrderServiceURL(mockOrderSvc.URL)
+	server.SetHTTPClient(mockOrderSvc.Client())
+
+	client := newTestClient(server)
+	reserverCookie := client.login(t, "reserver@velox.local", "reserver")
+	order := client.reserve(t, reserverCookie, "idem-get-owner-1", []string{"A-08"}, http.StatusOK)
+
+	organizerCookie := client.login(t, "organizer@velox.local", "organizer")
+	req := httptest.NewRequest(http.MethodGet, "/orders/"+order.ID, nil)
+	req.AddCookie(organizerCookie)
+	rr := httptest.NewRecorder()
+	server.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("get order status = %d, want %d (non-owner) body=%s", rr.Code, http.StatusNotFound, rr.Body.String())
+	}
+}
+
 func TestReservationCreateReturnsSignedToken(t *testing.T) {
 	mockOrderSvc := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

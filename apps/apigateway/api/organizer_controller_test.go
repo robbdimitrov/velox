@@ -396,6 +396,38 @@ func TestCancelEventRequiresOwnership(t *testing.T) {
 	}
 }
 
+// TestCancelEventRejectsNonOwningOrganizer covers a real event owned by one
+// organizer being rejected when a different organizer attempts cancellation,
+// not just a nonexistent event ID.
+func TestCancelEventRejectsNonOwningOrganizer(t *testing.T) {
+	server := NewServerWithStore("test", nil, nil)
+	client := newTestClient(server)
+
+	reqBody := `{"email":"other_organizer@velox.local","password":"passphrase","role":"organizer"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader([]byte(reqBody)))
+	rr := httptest.NewRecorder()
+	server.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("register failed: %s", rr.Body.String())
+	}
+	otherCookie := client.login(t, "other_organizer@velox.local", "passphrase")
+
+	req = httptest.NewRequest(http.MethodPost, "/organizer/events/evt_neon_riot/cancel", nil)
+	req.AddCookie(otherCookie)
+	rr = httptest.NewRecorder()
+	server.Routes().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d body=%s", rr.Code, http.StatusNotFound, rr.Body.String())
+	}
+
+	server.mu.Lock()
+	defer server.mu.Unlock()
+	if server.events["evt_neon_riot"].Status == "CANCELLED" {
+		t.Fatal("non-owning organizer must not be able to cancel another organizer's event")
+	}
+}
+
 func TestCancelEventIsIdempotentOnRetry(t *testing.T) {
 	var calls int
 	mockOrderSvc := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -73,6 +73,9 @@ func (s *Server) handleOrganizerOrders(w http.ResponseWriter, r *http.Request, u
 	for _, order := range s.orders {
 		if order.EventID == r.PathValue("eventId") {
 			orders = append(orders, *order)
+			if len(orders) >= listResultLimit {
+				break
+			}
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"orders": orders})

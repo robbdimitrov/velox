@@ -39,7 +39,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	email := strings.ToLower(req.Email)
+	email := normalizeEmail(req.Email)
 	role, ok := normalizedRegistrationRole(req.Role)
 	if !ok {
 		writeError(w, http.StatusBadRequest, "invalid_role")
@@ -97,7 +97,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	email := strings.ToLower(req.Email)
+	email := normalizeEmail(req.Email)
 	attemptKey := email + "|" + clientIP(r)
 
 	s.mu.Lock()
@@ -205,6 +205,10 @@ func (s *Server) requireRole(role string, next func(http.ResponseWriter, *http.R
 		}
 		next(w, r, user)
 	})
+}
+
+func normalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
 }
 
 func normalizedRegistrationRole(role string) (string, bool) {

@@ -16,6 +16,10 @@ var (
 	ErrStoreNotFound = errors.New("store not found")
 )
 
+// listResultLimit bounds unpaginated list reads until real pagination ships;
+// see docs/api.md's collection pagination note.
+const listResultLimit = 100
+
 type DatabaseStore struct {
 	db *sql.DB
 }
@@ -51,7 +55,8 @@ func (s *DatabaseStore) ListOrders(ctx context.Context, user User) ([]Order, err
 		FROM orders.orders
 		WHERE user_id = $1
 		ORDER BY created_at DESC
-	`, user.ID)
+		LIMIT $2
+	`, user.ID, listResultLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +189,8 @@ func (s *DatabaseStore) GetWalletTickets(ctx context.Context, userID string) ([]
 		JOIN catalog.venues v ON v.id = e.venue_id
 		WHERE wt.user_id = $1
 		ORDER BY wt.updated_at DESC
-	`, userID)
+		LIMIT $2
+	`, userID, listResultLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -815,7 +821,9 @@ func (s *DatabaseStore) GetEvents(ctx context.Context) ([]Event, error) {
 			FROM projection.seat_snapshots
 			GROUP BY event_id
 		) inv ON inv.event_id = e.id
-	`)
+		ORDER BY e.starts_at ASC
+		LIMIT $1
+	`, listResultLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -934,8 +942,8 @@ func (s *DatabaseStore) GetEventAnnouncements(ctx context.Context, eventID strin
 		FROM catalog.event_announcements
 		WHERE event_id = $1
 		ORDER BY created_at DESC
-		LIMIT 100
-	`, eventID)
+		LIMIT $2
+	`, eventID, listResultLimit)
 	if err != nil {
 		return nil, err
 	}

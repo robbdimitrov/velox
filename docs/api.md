@@ -50,7 +50,8 @@ Checks required gateway dependencies. Store-backed mode pings PostgreSQL with a
 
 ### `GET /events`
 
-Public discovery read. Query parameters:
+Public discovery read, capped at 100 rows (oldest `starts_at` first) in
+store-backed mode. Query parameters:
 
 | Name | Rule |
 | --- | --- |
@@ -266,7 +267,8 @@ Same token, ownership, and idempotency requirements as confirm. Response:
 
 ### `GET /orders`
 
-Requires auth. Returns only the caller's orders:
+Requires auth. Returns only the caller's orders, newest first, capped at 100
+rows in store-backed mode:
 
 ```json
 {"orders":[{"id":"...","status":"HELD"}]}
@@ -278,9 +280,9 @@ Requires auth and ownership. Returns `{"order":...}` or `404`.
 
 ### `GET /wallet/tickets`
 
-Requires auth. Store-backed mode reads projection tickets and mints short-lived
-QR tokens. QR token claims include ticket ID, user ID, event ID, purpose
-`qr_ticket`, and expiry.
+Requires auth. Store-backed mode reads projection tickets, capped at 100 rows,
+and mints short-lived QR tokens. QR token claims include ticket ID, user ID,
+event ID, purpose `qr_ticket`, and expiry.
 
 ```json
 {"verification_state":"VERIFIED","tickets":[{"ticket_id":"...","status":"ISSUED","qr_token":"..."}]}
@@ -334,7 +336,7 @@ SvelteKit proxy forwards to canonical gateway `POST /organizer/events`.
 ### `GET /organizer/events/{eventId}/orders`
 
 Requires event ownership. Returns `{"orders":[]}` from current in-memory order
-state.
+state, capped at 100 rows.
 
 ### `GET /organizer/events/{eventId}/inventory`
 

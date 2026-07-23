@@ -10,7 +10,7 @@ import (
 )
 
 // TestGetEventAnnouncementsCapsResultSet keeps the public announcements read
-// bounded; LIMIT 100 must remain after ORDER BY.
+// bounded; the LIMIT must remain after ORDER BY.
 func TestGetEventAnnouncementsCapsResultSet(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -18,8 +18,8 @@ func TestGetEventAnnouncementsCapsResultSet(t *testing.T) {
 	}
 	defer db.Close()
 
-	mock.ExpectQuery(`SELECT id, event_id, title, body, severity, created_at\s+FROM catalog\.event_announcements\s+WHERE event_id = \$1\s+ORDER BY created_at DESC\s+LIMIT 100`).
-		WithArgs("evt_neon_riot").
+	mock.ExpectQuery(`SELECT id, event_id, title, body, severity, created_at\s+FROM catalog\.event_announcements\s+WHERE event_id = \$1\s+ORDER BY created_at DESC\s+LIMIT \$2`).
+		WithArgs("evt_neon_riot", listResultLimit).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "event_id", "title", "body", "severity", "created_at"}).
 			AddRow("ann_1", "evt_neon_riot", "Delay", "Doors pushed back.", "INFO", time.Now()))
 
@@ -33,7 +33,7 @@ func TestGetEventAnnouncementsCapsResultSet(t *testing.T) {
 	}
 
 	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Fatalf("unmet sqlmock expectations (query likely missing LIMIT 100): %v", err)
+		t.Fatalf("unmet sqlmock expectations (query likely missing LIMIT): %v", err)
 	}
 }
 
@@ -267,7 +267,7 @@ func TestGetWalletTicketsLocksCancelledTransferState(t *testing.T) {
 	defer db.Close()
 
 	mock.ExpectQuery(`(?s)SELECT wt\.ticket_id, wt\.order_id::text, wt\.event_id, wt\.section_id, wt\.seat_id, wt\.status,.*FROM projection\.wallet_tickets wt`).
-		WithArgs("usr_1").
+		WithArgs("usr_1", listResultLimit).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"ticket_id", "order_id", "event_id", "section_id", "seat_id", "status", "event", "venue",
 		}).AddRow("tkt_1", "ord_1", "evt_1", "A", "A-01", "CANCELLED", "Event", "Venue"))
