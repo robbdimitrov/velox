@@ -1,5 +1,7 @@
 # Velox
 
+![Velox event discovery page](docs/images/discovery.png)
+
 **Velox** is a Kubernetes-first event reservation platform built for high
 contention: many reservers competing for the same seats while organizers watch
 live inventory and reservation state. It combines a SvelteKit SSR frontend with
@@ -125,8 +127,16 @@ Buyer flow:
   map at `/events/{eventId}`.
 - Select up to 8 seats and reserve them; the 10-minute hold countdown carries
   into `/reservation`.
-- Confirm the reservation before the hold expires, then check the issued
-  ticket and its provenance ledger at `/wallet`.
+
+  ![Event detail page with an interactive seat map](docs/images/event-detail-seatmap.png)
+
+- Confirm the reservation before the hold expires.
+
+  ![Checkout page with a live hold countdown](docs/images/checkout.png)
+
+- Check the issued ticket and its provenance ledger at `/wallet`.
+
+  ![Reservation wallet with issued tickets and a provenance ledger](docs/images/wallet.png)
 
 Organizer flow:
 
@@ -135,9 +145,14 @@ Organizer flow:
   through the wizard at `/organizer/events/new`.
 - Open `/organizer/events/{eventId}/dashboard` for live inventory, metrics,
   and announcement posting.
+
+  ![Organizer dashboard with live analytics](docs/images/organizer-dashboard.png)
+
 - Cancel the event from the same dashboard to see outstanding orders
   bulk-cancel and any issued wallet tickets for that event flip to
   `CANCELLED`.
+
+  ![Organizer event list showing a cancelled event](docs/images/event-cancellation.png)
 
 ## Local-Runtime Boundaries
 
