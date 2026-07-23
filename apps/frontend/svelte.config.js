@@ -15,7 +15,9 @@ const config = {
         // Seat maps and health gauges compute live inline style attributes;
         // keep the exception scoped to attributes, not scripts or stylesheets.
         'style-src-attr': ['unsafe-inline'],
-        'img-src': ['self'],
+        // DaisyUI renders its noise texture and loading-spinner as inline
+        // data-URI SVGs; data: images can't execute script or exfiltrate data.
+        'img-src': ['self', 'data:'],
         'connect-src': ['self'],
         'font-src': ['self'],
         'object-src': ['none'],

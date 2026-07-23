@@ -61,7 +61,7 @@ over `kubectl port-forward`.
 
 ```text
 default-src 'self'; script-src 'self' <per-request nonce>; style-src 'self';
-style-src-attr 'unsafe-inline'; img-src 'self'; connect-src 'self'; font-src 'self';
+style-src-attr 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self';
 object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; frame-src 'none'
 ```
 
@@ -70,8 +70,10 @@ Directive rationale:
 - Remote fonts are disallowed. The frontend uses system fonts only.
 - `style-src-attr 'unsafe-inline'` is limited to inline style attributes used
   for live seat-map sizing, cursor state, and health-panel gauges.
-- `img-src 'self'` remains available for framework assets, but event screens are
-  image-less.
+- `img-src 'self' data:` covers framework assets and DaisyUI's inline data-URI
+  spinners and panel textures; event screens are otherwise image-less. Data
+  URIs cannot execute script or make network requests, so this does not weaken
+  the policy the way an external host allowance would.
 - `connect-src 'self'` is enough because browser gateway traffic uses the
   same-origin `/api` proxy; the proxy calls `GATEWAY_URL` server-side.
 - Framing is denied because reservation actions are clickjacking-sensitive and
