@@ -78,9 +78,7 @@
 
     {#if sectionAvailability.length}
       <div class="border-line mt-6 space-y-2 border-t pt-4">
-        <span
-          class="text-inkMuted text-xs font-bold tracking-widest uppercase"
-        >
+        <span class="text-inkMuted text-xs font-bold tracking-widest uppercase">
           Section Availability
         </span>
         {#each sectionAvailability as [section, pct]}
@@ -90,9 +88,7 @@
             >
               {section}
             </span>
-            <div
-              class="bg-carbon/70 h-1.5 w-full overflow-hidden rounded-full"
-            >
+            <div class="bg-carbon/70 h-1.5 w-full overflow-hidden rounded-full">
               <div
                 class="bg-signal h-full rounded-full"
                 style="width: {pct}%"

@@ -33,9 +33,7 @@ describe('organizer layout server load', () => {
   });
 });
 
-function loadEvent(
-  user: App.Locals['user']
-): Parameters<typeof load>[0] {
+function loadEvent(user: App.Locals['user']): Parameters<typeof load>[0] {
   return { parent: async () => ({ user }) } as unknown as Parameters<
     typeof load
   >[0];
