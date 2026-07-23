@@ -2,27 +2,55 @@
   import { Activity } from '@lucide/svelte';
   import { slide } from 'svelte/transition';
 
+  const reconnectDelayMs = 3000;
+
   let { url }: { url: string } = $props();
-  let messages = $state<string[]>([
-    'System connected. Waiting for live updates...'
+  let nextMessageId = 0;
+  let messages = $state<{ id: number; text: string }[]>([
+    { id: nextMessageId++, text: 'Connecting to live updates...' }
   ]);
+
+  function pushMessage(text: string) {
+    messages = [{ id: nextMessageId++, text }, ...messages].slice(0, 4);
+  }
 
   $effect(() => {
     if (!url || typeof EventSource === 'undefined') return;
 
-    const source = new EventSource(url);
-    source.addEventListener('update', (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        const msg = `${data.event_id} ${data.section_id} ${data.seat_id} is now ${data.status}`;
-        messages = [msg, ...messages].slice(0, 4);
-      } catch {
-        messages = [event.data, ...messages].slice(0, 4);
-      }
-    });
-    source.onerror = () => source.close();
+    let source: EventSource;
+    let reconnectTimer: ReturnType<typeof setTimeout>;
+    let stopped = false;
 
-    return () => source.close();
+    function connect() {
+      source = new EventSource(url);
+      source.addEventListener('open', () =>
+        pushMessage('Live updates connected.')
+      );
+      source.addEventListener('update', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          pushMessage(
+            `${data.event_id} ${data.section_id} ${data.seat_id} is now ${data.status}`
+          );
+        } catch {
+          pushMessage(event.data);
+        }
+      });
+      source.onerror = () => {
+        source.close();
+        if (stopped) return;
+        pushMessage('Live updates disconnected. Reconnecting...');
+        reconnectTimer = setTimeout(connect, reconnectDelayMs);
+      };
+    }
+
+    connect();
+
+    return () => {
+      stopped = true;
+      clearTimeout(reconnectTimer);
+      source.close();
+    };
   });
 </script>
 
@@ -40,14 +68,14 @@
     </div>
   </div>
   <div class="divide-line flex flex-col divide-y overflow-hidden py-1">
-    {#each messages as message, index (message)}
+    {#each messages as message (message.id)}
       <div class="flex h-6 items-center px-4" in:slide={{ duration: 300 }}>
         <span class="bg-accent mr-3 inline-block h-1.5 w-1.5 rounded-full"
         ></span>
         <p
           class="text-inkMuted hover:text-ink truncate font-mono text-xs uppercase transition-colors"
         >
-          {message}
+          {message.text}
         </p>
       </div>
     {/each}

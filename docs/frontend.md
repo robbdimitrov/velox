@@ -97,7 +97,8 @@ Implementation rules:
 - Event cards are image-less and derive scarcity badges from streamed read data using
   Svelte 5 Runes.
 - `LiveTicker.svelte` consumes SSE and appends bounded messages into an
-  in-memory ring buffer.
+  in-memory ring buffer. On stream error it closes the connection, surfaces a
+  disconnected message, and reconnects after a fixed backoff.
 
 ## Real-Time Stadium Seat Selector
 
