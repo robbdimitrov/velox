@@ -846,6 +846,53 @@ func (s *DatabaseStore) GetEvents(ctx context.Context) ([]Event, error) {
 	return events, rows.Err()
 }
 
+func (s *DatabaseStore) GetOrganizerEvents(ctx context.Context, userID string) ([]Event, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT e.id, e.venue_id, e.name, e.description, e.category,
+		       e.starts_at, e.timezone, e.status, v.name, v.city,
+		       COALESCE(sec.section_ids, ''),
+		       COALESCE(inv.available, 0), COALESCE(inv.held, 0), COALESCE(inv.reserved, 0)
+		FROM catalog.events e
+		JOIN catalog.venues v ON v.id = e.venue_id
+		JOIN catalog.user_venues uv ON uv.venue_id = e.venue_id AND uv.user_id = $1
+		LEFT JOIN (
+			SELECT event_id, string_agg(section_id, ',' ORDER BY display_order, section_id) AS section_ids
+			FROM catalog.event_sections
+			GROUP BY event_id
+		) sec ON sec.event_id = e.id
+		LEFT JOIN (
+			SELECT event_id,
+			       COUNT(*) FILTER (WHERE status = 'AVAILABLE') AS available,
+			       COUNT(*) FILTER (WHERE status = 'HELD') AS held,
+			       COUNT(*) FILTER (WHERE status = 'RESERVED') AS reserved
+			FROM projection.seat_snapshots
+			GROUP BY event_id
+		) inv ON inv.event_id = e.id
+		ORDER BY e.starts_at ASC
+		LIMIT $2
+	`, userID, listResultLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var events []Event
+	for rows.Next() {
+		var e Event
+		var sectionIDs string
+		var held, reserved int
+		if err := rows.Scan(&e.ID, &e.VenueID, &e.Name, &e.Description, &e.Category, &e.StartsAt, &e.Timezone, &e.Status, &e.Venue, &e.City, &sectionIDs, &e.SeatsOpen, &held, &reserved); err != nil {
+			return nil, err
+		}
+		e.SectionIDs = splitCSV(sectionIDs)
+		e.SeatsTotal = e.SeatsOpen + held + reserved
+		e.DemandScore = demandScore(reserved, held, e.SeatsTotal)
+
+		events = append(events, e)
+	}
+	return events, rows.Err()
+}
+
 // Keep GetEvent's event filter in sync with GetEventVenueID so public reads
 // and ownership checks do not silently diverge.
 func (s *DatabaseStore) GetEvent(ctx context.Context, id string) (Event, error) {

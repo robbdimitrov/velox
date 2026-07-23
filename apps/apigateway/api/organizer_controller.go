@@ -50,6 +50,16 @@ type createVenueRequest struct {
 }
 
 func (s *Server) handleOrganizerEvents(w http.ResponseWriter, r *http.Request, user User) {
+	if s.store != nil {
+		events, err := s.store.GetOrganizerEvents(r.Context(), user.ID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"events": events})
+		return
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var events []Event

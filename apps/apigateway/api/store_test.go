@@ -500,3 +500,37 @@ func TestGetEventStatusReturnsNotFoundForMissingEvent(t *testing.T) {
 		t.Fatalf("err = %v, want ErrStoreNotFound", err)
 	}
 }
+
+// TestGetOrganizerEventsFiltersByVenueOwnership guards against regressing to
+// an unscoped event list, which would leak other organizers' events.
+func TestGetOrganizerEventsFiltersByVenueOwnership(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer db.Close()
+
+	mock.ExpectQuery(`FROM catalog\.events e\s+JOIN catalog\.venues v.*JOIN catalog\.user_venues uv`).
+		WithArgs("user_organizer_1", listResultLimit).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "venue_id", "name", "description", "category",
+			"starts_at", "timezone", "status", "venue_name", "city",
+			"section_ids", "available", "held", "reserved",
+		}).AddRow(
+			"evt_owned", "ven_owned", "Owned Event", "", "Concerts",
+			time.Now(), "America/Chicago", "PUBLISHED", "Owned Venue", "Chicago",
+			"A", 8, 0, 0,
+		))
+
+	store := &DatabaseStore{db: db}
+	events, err := store.GetOrganizerEvents(context.Background(), "user_organizer_1")
+	if err != nil {
+		t.Fatalf("GetOrganizerEvents: %v", err)
+	}
+	if len(events) != 1 || events[0].ID != "evt_owned" {
+		t.Fatalf("events = %+v, want single evt_owned", events)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sqlmock expectations: %v", err)
+	}
+}
