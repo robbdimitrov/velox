@@ -64,11 +64,11 @@ graph TD
 | [orderservice](apps/orderservice) | Go         | Order state, idempotency, reservation confirmation, and transactional outbox behavior.                       |
 | [seatservice](apps/seatservice)   | Rust       | Seat stream concurrency rules, version checks, hold expiry, and ticket issuing rules.                        |
 | [viewservice](apps/viewservice)   | Go         | Idempotent projection helpers for read models and organizer-facing state.                                    |
-| [database](apps/database)         | PostgreSQL | Versioned schema migrations and demo seed data for service-owned schemas.                                    |
+| [database](apps/database)         | PostgreSQL | Versioned schema migrations and local seed data for service-owned schemas.                                   |
 
 ## Infrastructure
 
-Four in-cluster stateful dependencies support the MVP:
+Four in-cluster stateful dependencies support the local runtime:
 
 - **PostgreSQL** — One local instance with isolated logical schemas for orders,
   inventory, and projections.
@@ -114,6 +114,48 @@ default. Override the registry or force one shared tag when needed:
 IMAGE_PREFIX=localhost:5001/velox GIT_SHA=dev ./scripts/deploy.sh
 ```
 
+## Try It
+
+Once the frontend port-forward is up, exercise both roles from the browser.
+
+Buyer flow:
+
+- Register or log in as a `reserver` at `/register` or `/login`.
+- Browse and filter events at `/events`, then open one to view its live seat
+  map at `/events/{eventId}`.
+- Select up to 8 seats and reserve them; the 10-minute hold countdown carries
+  into `/reservation`.
+- Confirm the reservation before the hold expires, then check the issued
+  ticket and its provenance ledger at `/wallet`.
+
+Organizer flow:
+
+- Register or log in as an `organizer`.
+- Create a venue at `/organizer/venues/new`, then create an event for it
+  through the wizard at `/organizer/events/new`.
+- Open `/organizer/events/{eventId}/dashboard` for live inventory, metrics,
+  and announcement posting.
+- Cancel the event from the same dashboard to see outstanding orders
+  bulk-cancel and any issued wallet tickets for that event flip to
+  `CANCELLED`.
+
+## Local-Runtime Boundaries
+
+This deployment targets a single local Kubernetes context, not production:
+
+- **No TLS**: frontend and gateway both serve plain HTTP and omit
+  `Strict-Transport-Security`/`upgrade-insecure-requests`, since the
+  documented local runtime is reached over `kubectl port-forward`.
+- **Reservation-only checkout**: confirming a hold issues a reservation
+  ticket directly; there is no payment processor, processor form, or
+  transaction copy in the product.
+- **Locally generated secrets**: `scripts/deploy.sh` creates or updates
+  development secrets for local use; production-like clusters must supply
+  managed secrets with the same names instead.
+
+See [security.md](docs/security.md) and [deployment.md](docs/deployment.md)
+for the full detail behind these constraints.
+
 ## Cleanup
 
 Remove deployed resources and the namespace:
@@ -133,6 +175,9 @@ make test
 make build
 make smoke
 ```
+
+After deploying, `scripts/failure-drill.sh` restarts the PostgreSQL, cache,
+and broker workloads and confirms the application deployments recover.
 
 PostgreSQL integration tests are opt-in:
 
