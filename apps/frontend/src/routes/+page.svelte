@@ -15,6 +15,7 @@
   import type { EventSummary } from '$lib/api/types';
   import EventCard from '$lib/components/EventCard.svelte';
   import LiveTicker from '$lib/components/LiveTicker.svelte';
+  import { formatDurationMs, lagToneClass } from '$lib/format';
   import {
     filterState,
     filterStateToURLParams,
@@ -22,6 +23,22 @@
   } from '$lib/state/filter-state.svelte';
 
   let { data } = $props();
+
+  const cacheStatusTone: Record<string, string> = {
+    healthy: 'text-ok',
+    // Degraded means the cache is unreachable and reads fall through to the
+    // database, not that requests are failing, so warn rather than urgency.
+    degraded: 'text-warn',
+    disabled: 'text-inkMuted',
+    unavailable: 'text-inkMuted'
+  };
+  const cacheStatusClass = $derived(
+    cacheStatusTone[data.discovery.meta.cache_status] ?? 'text-warn'
+  );
+
+  const lagStatusClass = $derived(
+    lagToneClass(data.discovery.meta.projection_lag_ms)
+  );
 
   type VenueSummary = {
     name: string;
@@ -247,6 +264,10 @@
   }
 </script>
 
+<svelte:head>
+  <title>Velox</title>
+</svelte:head>
+
 <main class="w-full space-y-6">
   {#if data.loadError}
     <div
@@ -461,13 +482,17 @@
           <p class="text-inkMuted text-[10px] font-semibold uppercase">
             Read lag
           </p>
-          <p class="text-ok mt-1 font-mono text-lg font-black tabular-nums">
-            {data.discovery.meta.projection_lag_ms}ms
+          <p
+            class="{lagStatusClass} mt-1 font-mono text-lg font-black tabular-nums"
+          >
+            {formatDurationMs(data.discovery.meta.projection_lag_ms)}
           </p>
         </div>
         <div class="border-line bg-panelSoft/70 rounded-sm border p-3">
           <p class="text-inkMuted text-[10px] font-semibold uppercase">Cache</p>
-          <p class="text-signal mt-1 truncate text-xs font-black uppercase">
+          <p
+            class="{cacheStatusClass} mt-1 truncate text-xs font-black uppercase"
+          >
             {data.discovery.meta.cache_status}
           </p>
         </div>

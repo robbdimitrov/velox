@@ -1,6 +1,7 @@
 <script lang="ts">
   import { CalendarDays, Gauge, MapPin } from '@lucide/svelte';
   import type { EventSummary } from '$lib/api/types';
+  import { formatDurationMs } from '$lib/format';
 
   let { event }: { event: EventSummary } = $props();
 
@@ -63,7 +64,7 @@
     </div>
     <span
       class="text-inkMuted text-[10px] font-medium tracking-widest uppercase"
-      >{event.projection_lag_ms}ms</span
+      >{formatDurationMs(event.projection_lag_ms)}</span
     >
   </div>
 </a>

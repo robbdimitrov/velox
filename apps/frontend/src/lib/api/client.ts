@@ -62,9 +62,11 @@ export function createGatewayClient(
       // Caching is set on the response by apigateway (discoveryCacheControl),
       // not the request — Cache-Control on an outbound fetch request has no
       // effect on CDN/browser caching of the response.
-      return request<{ events: GatewayEvent[]; projection_lag_ms?: number }>(
-        `/events?${params.toString()}`
-      ).then(mapDiscovery);
+      return request<{
+        events: GatewayEvent[];
+        projection_lag_ms?: number;
+        cache_status?: string;
+      }>(`/events?${params.toString()}`).then(mapDiscovery);
     },
     getEvent(eventID: string) {
       return request<{ event: GatewayEvent; projection_lag_ms?: number }>(
@@ -237,6 +239,7 @@ type GatewayReservationConfirmationResponse = {
 function mapDiscovery(body: {
   events: GatewayEvent[];
   projection_lag_ms?: number;
+  cache_status?: string;
 }): DiscoveryResponse {
   const projectionLag = body.projection_lag_ms ?? 0;
   const events = body.events.map((event) =>
@@ -247,7 +250,7 @@ function mapDiscovery(body: {
     featured: events,
     meta: {
       projection_lag_ms: body.projection_lag_ms ?? 0,
-      cache_status: 'gateway'
+      cache_status: body.cache_status ?? 'unavailable'
     }
   };
 }

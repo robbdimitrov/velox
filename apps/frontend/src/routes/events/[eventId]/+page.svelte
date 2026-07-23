@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { createIdempotencyKey, createGatewayClient } from '$lib/api/client';
   import type { SeatDelta } from '$lib/api/types';
+  import { formatDurationMs, lagToneClass } from '$lib/format';
   import AnnouncementCard from '$lib/components/AnnouncementCard.svelte';
   import SeatCanvas from '$lib/components/SeatCanvas.svelte';
   import VirtualWaitingRoom from '$lib/components/VirtualWaitingRoom.svelte';
@@ -142,6 +143,10 @@
     );
   }
 </script>
+
+<svelte:head>
+  <title>{data.event.title} — Velox</title>
+</svelte:head>
 
 {#if data.isRateLimited}
   <VirtualWaitingRoom />
@@ -287,14 +292,14 @@
               class="text-ink/60 font-mono text-xs tracking-widest uppercase tabular-nums"
             >
               Snapshot <span class="text-ink"
-                >{data.snapshot.snapshot_age_ms}ms</span
+                >{formatDurationMs(data.snapshot.snapshot_age_ms)}</span
               >
             </p>
             <p
               class="text-ink/60 mt-0.5 font-mono text-xs tracking-widest uppercase tabular-nums"
             >
-              Lag <span class="text-ok"
-                >{data.snapshot.projection_lag_ms}ms</span
+              Lag <span class={lagToneClass(data.snapshot.projection_lag_ms)}
+                >{formatDurationMs(data.snapshot.projection_lag_ms)}</span
               >
             </p>
           </div>
