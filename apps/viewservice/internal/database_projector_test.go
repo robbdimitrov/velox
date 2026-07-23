@@ -385,7 +385,7 @@ func TestApplyEvent_OrderEventsSkipInventorySignatureCheck(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{
 			"ticket_id", "event_id", "section_id", "seat_id", "aggregate_version", "user_id", "status",
 		}))
-	mock.ExpectExec("vendor_updates").
+	mock.ExpectExec("organizer_updates").
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
 
