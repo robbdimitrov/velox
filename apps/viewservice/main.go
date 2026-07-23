@@ -150,7 +150,15 @@ type EventStore interface {
 	ApplyEvent(ctx context.Context, event internal.Event, sourceTopic string, sourcePartition int32, sourceOffset int64) error
 }
 
-func consumeEvents(ctx context.Context, cl *kgo.Client, store EventStore, health *consumerHealth, wg *sync.WaitGroup) {
+// kafkaClient is the subset of *kgo.Client used by the consumer loop, narrowed
+// so tests can substitute a fake instead of a live broker.
+type kafkaClient interface {
+	PollFetches(ctx context.Context) kgo.Fetches
+	CommitRecords(ctx context.Context, rs ...*kgo.Record) error
+	ProduceSync(ctx context.Context, rs ...*kgo.Record) kgo.ProduceResults
+}
+
+func consumeEvents(ctx context.Context, cl kafkaClient, store EventStore, health *consumerHealth, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for {
 		fetches := cl.PollFetches(ctx)
@@ -207,7 +215,7 @@ func consumeEvents(ctx context.Context, cl *kgo.Client, store EventStore, health
 
 // sendToDLQ records unrecoverable payloads before the source offset is
 // committed, preserving poison-pill visibility.
-func sendToDLQ(ctx context.Context, cl *kgo.Client, record *kgo.Record, requestID, errorClass, errorMessage string) {
+func sendToDLQ(ctx context.Context, cl kafkaClient, record *kgo.Record, requestID, errorClass, errorMessage string) {
 	hash := sha256.Sum256(record.Value)
 	now := time.Now().UTC()
 	dlqRecord := map[string]any{

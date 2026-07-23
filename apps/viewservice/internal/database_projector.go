@@ -166,7 +166,7 @@ func (s *DatabaseStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 			"event_id": event.Seat.EventID,
 		})
 		if err == nil {
-			if _, err := tx.ExecContext(ctx, "SELECT pg_notify('vendor_updates', $1)", string(organizerNotificationPayload)); err != nil {
+			if _, err := tx.ExecContext(ctx, "SELECT pg_notify('organizer_updates', $1)", string(organizerNotificationPayload)); err != nil {
 				return err
 			}
 		}
@@ -193,7 +193,7 @@ func (s *DatabaseStore) ApplyEvent(ctx context.Context, event Event, sourceTopic
 				"event_id": event.Order.EventID,
 			})
 			if err == nil {
-				if _, err := tx.ExecContext(ctx, "SELECT pg_notify('vendor_updates', $1)", string(organizerNotificationPayload)); err != nil {
+				if _, err := tx.ExecContext(ctx, "SELECT pg_notify('organizer_updates', $1)", string(organizerNotificationPayload)); err != nil {
 					return err
 				}
 			}

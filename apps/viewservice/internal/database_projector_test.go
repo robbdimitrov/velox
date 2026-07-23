@@ -40,7 +40,7 @@ func TestApplyEvent_SeatReservationCancelled_CancelsIssuedTicket(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec("seat_updates").
 		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("vendor_updates").
+	mock.ExpectExec("organizer_updates").
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
 
@@ -89,7 +89,7 @@ func TestApplyEvent_SeatReservationCancelled_NoIssuedTicket_NoError(t *testing.T
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec("seat_updates").
 		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("vendor_updates").
+	mock.ExpectExec("organizer_updates").
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
 
