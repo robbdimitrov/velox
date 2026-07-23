@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"sort"
@@ -12,8 +13,27 @@ import (
 // and per-user endpoints must not share this CDN policy.
 const discoveryCacheControl = "public, max-age=1, stale-while-revalidate=5"
 
+// cacheHealthCheckTimeout bounds the Redis ping so a hung cache never stalls
+// the discovery endpoint.
+const cacheHealthCheckTimeout = 300 * time.Millisecond
+
+// cacheStatus reports the real health of the soft-dependency cache backend,
+// mirroring the readyz store check, instead of a hardcoded placeholder.
+func (s *Server) cacheStatus(ctx context.Context) string {
+	if s.cacheClient == nil {
+		return "disabled"
+	}
+	pingCtx, cancel := context.WithTimeout(ctx, cacheHealthCheckTimeout)
+	defer cancel()
+	if err := s.cacheClient.Ping(pingCtx).Err(); err != nil {
+		return "degraded"
+	}
+	return "healthy"
+}
+
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", discoveryCacheControl)
+	cacheStatus := s.cacheStatus(r.Context())
 	if s.store != nil {
 		events, err := s.store.GetEvents(r.Context())
 		if err == nil {
@@ -22,7 +42,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 				lagMS = 0
 			}
 			events = filterDiscoveryEvents(events, r)
-			writeJSON(w, http.StatusOK, map[string]any{"events": events, "projection_lag_ms": lagMS})
+			writeJSON(w, http.StatusOK, map[string]any{"events": events, "projection_lag_ms": lagMS, "cache_status": cacheStatus})
 			return
 		}
 	}
@@ -35,7 +55,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	events = filterDiscoveryEvents(events, r)
 	sort.Slice(events, func(i, j int) bool { return events[i].StartsAt.Before(events[j].StartsAt) })
-	writeJSON(w, http.StatusOK, map[string]any{"events": events, "projection_lag_ms": 0})
+	writeJSON(w, http.StatusOK, map[string]any{"events": events, "projection_lag_ms": 0, "cache_status": cacheStatus})
 }
 
 func filterDiscoveryEvents(events []Event, r *http.Request) []Event {

@@ -81,12 +81,16 @@ Response:
       "demand_score": 94
     }
   ],
-  "projection_lag_ms": 12
+  "projection_lag_ms": 12,
+  "cache_status": "healthy"
 }
 ```
 
 The gateway owns event metadata. Published events are immediately reservable,
-and the frontend derives remaining buckets from `seats_open`.
+and the frontend derives remaining buckets from `seats_open`. `cache_status` is
+`healthy`, `degraded` (cache backend unreachable), or `disabled` (no cache
+backend configured); it reflects a live Redis ping, not the presence of
+cached data for this specific request.
 
 ### `GET /events/{eventId}`
 
