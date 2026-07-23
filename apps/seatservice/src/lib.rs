@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 pub mod db_client;
 pub mod domain;
 pub mod dtos;

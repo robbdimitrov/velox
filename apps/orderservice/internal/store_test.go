@@ -49,7 +49,7 @@ func (r resPrefixed) Match(v driver.Value) bool {
 	return s == "res_"+*r.src
 }
 
-func TestCreateOrder_SetsReservationID(t *testing.T) {
+func TestCreateOrder_SetsReservationIDInStorageAndOutbox(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("failed to open sqlmock db: %v", err)
@@ -66,6 +66,7 @@ func TestCreateOrder_SetsReservationID(t *testing.T) {
 	}
 
 	var orderID string
+	var outboxPayload []byte
 
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT request_hash, response_ref").
@@ -82,6 +83,7 @@ func TestCreateOrder_SetsReservationID(t *testing.T) {
 	mock.ExpectExec("INSERT INTO orders.order_seats").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec("INSERT INTO orders.outbox_events").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), capturedBytes{&outboxPayload}, sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec("UPDATE orders.idempotency_keys").
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -93,6 +95,17 @@ func TestCreateOrder_SetsReservationID(t *testing.T) {
 	}
 	if returnedID != orderID {
 		t.Fatalf("returned order id %s does not match inserted id %s", returnedID, orderID)
+	}
+	var envelope struct {
+		Order struct {
+			ReservationID string `json:"reservation_id"`
+		}
+	}
+	if err := json.Unmarshal(outboxPayload, &envelope); err != nil {
+		t.Fatalf("unmarshal outbox payload: %v", err)
+	}
+	if envelope.Order.ReservationID != "res_"+orderID {
+		t.Fatalf("outbox reservation_id = %q, want %q", envelope.Order.ReservationID, "res_"+orderID)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("unfulfilled expectations: %s", err)

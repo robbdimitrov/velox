@@ -152,7 +152,7 @@ func (s *Store) CreateOrder(ctx context.Context, req OrderRequest) (string, erro
 			"event_id":        req.EventID,
 			"section_id":      req.SectionID,
 			"seat_ids":        req.SeatIDs,
-			"reservation_id":  orderID,
+			"reservation_id":  reservationID,
 			"status":          "PENDING",
 			"created_at":      time.Now(),
 		},

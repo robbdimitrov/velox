@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
 use rdkafka::producer::{FutureProducer, Producer};
 use rdkafka::ClientConfig;
