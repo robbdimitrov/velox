@@ -103,7 +103,7 @@
 </script>
 
 <svelte:head>
-  <title>Create Venue - Velox Organizer</title>
+  <title>Create Venue — Velox</title>
 </svelte:head>
 
 <div class="mx-auto w-full max-w-3xl">

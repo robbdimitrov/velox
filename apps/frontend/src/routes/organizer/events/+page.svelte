@@ -8,7 +8,7 @@
 </script>
 
 <svelte:head>
-  <title>Events - Velox Organizer</title>
+  <title>Events — Velox</title>
 </svelte:head>
 
 <div class="mb-8 flex items-end justify-between">

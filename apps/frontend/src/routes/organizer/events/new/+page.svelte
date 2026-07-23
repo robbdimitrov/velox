@@ -63,7 +63,7 @@
 </script>
 
 <svelte:head>
-  <title>Create Event - Velox Organizer</title>
+  <title>Create Event — Velox</title>
 </svelte:head>
 
 <div class="mx-auto w-full max-w-3xl">

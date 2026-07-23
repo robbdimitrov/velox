@@ -41,6 +41,10 @@
   }
 </script>
 
+<svelte:head>
+  <title>Wallet — Velox</title>
+</svelte:head>
+
 <main class="w-full">
   <Panel padding="lg">
     <div

@@ -79,6 +79,10 @@
   });
 </script>
 
+<svelte:head>
+  <title>Organizer Analytics — Velox</title>
+</svelte:head>
+
 <main>
   <Panel padding="lg">
     <div

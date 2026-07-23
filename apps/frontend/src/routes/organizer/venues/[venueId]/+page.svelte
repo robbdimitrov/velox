@@ -7,7 +7,7 @@
 </script>
 
 <svelte:head>
-  <title>Venue Access - Velox Organizer</title>
+  <title>Venue Access — Velox</title>
 </svelte:head>
 
 <div class="space-y-8">

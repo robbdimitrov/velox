@@ -119,6 +119,10 @@
   }
 </script>
 
+<svelte:head>
+  <title>Live Analytics — Velox</title>
+</svelte:head>
+
 <div class="space-y-8">
   <div class="mb-8 flex items-end justify-between">
     <div>

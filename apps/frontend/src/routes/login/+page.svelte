@@ -36,7 +36,7 @@
 </script>
 
 <svelte:head>
-  <title>Login - Velox</title>
+  <title>Log in — Velox</title>
 </svelte:head>
 
 <div class="flex min-h-[80vh] items-center justify-center">

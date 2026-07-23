@@ -36,7 +36,7 @@
 </script>
 
 <svelte:head>
-  <title>Register - Velox</title>
+  <title>Register — Velox</title>
 </svelte:head>
 
 <div class="flex min-h-[80vh] items-center justify-center">

@@ -140,6 +140,10 @@
   }
 </script>
 
+<svelte:head>
+  <title>Confirm Reservation — Velox</title>
+</svelte:head>
+
 <main class="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[1fr_360px]">
   {#if reservationState.reservation}
     <Panel padding="xl" flexColumn>
