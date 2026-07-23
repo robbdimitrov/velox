@@ -143,21 +143,21 @@ func (s *Store) CreateOrder(ctx context.Context, req OrderRequest) (string, erro
 	}
 
 	eventID := uuid.New().String()
-	envelope := map[string]any{
-		"Type": "OrderCreated",
-		"Order": map[string]any{
-			"outbox_event_id": eventID,
-			"order_id":        orderID,
-			"user_id":         req.UserID,
-			"event_id":        req.EventID,
-			"section_id":      req.SectionID,
-			"seat_ids":        req.SeatIDs,
-			"reservation_id":  reservationID,
-			"status":          "PENDING",
-			"created_at":      time.Now(),
-		},
+	orderPayload := map[string]any{
+		"outbox_event_id": eventID,
+		"order_id":        orderID,
+		"user_id":         req.UserID,
+		"event_id":        req.EventID,
+		"section_id":      req.SectionID,
+		"seat_ids":        req.SeatIDs,
+		"reservation_id":  reservationID,
+		"status":          "PENDING",
+		"created_at":      time.Now(),
 	}
-	payloadBytes, _ := json.Marshal(envelope)
+	payloadBytes, err := signedOrderEnvelope("OrderCreated", orderPayload)
+	if err != nil {
+		return "", err
+	}
 
 	headers := map[string]string{}
 	// Propagate request IDs from the gateway context into outbox headers.
@@ -228,16 +228,16 @@ func (s *Store) ConfirmOrder(ctx context.Context, orderID string) (string, error
 	}
 
 	eventID := uuid.New().String()
-	envelope := map[string]any{
-		"Type": "OrderConfirmed",
-		"Order": map[string]any{
-			"outbox_event_id": eventID,
-			"order_id":        orderID,
-			"event_id":        eventIDStr,
-			"status":          "CONFIRMED",
-		},
+	orderPayload := map[string]any{
+		"outbox_event_id": eventID,
+		"order_id":        orderID,
+		"event_id":        eventIDStr,
+		"status":          "CONFIRMED",
 	}
-	payloadBytes, _ := json.Marshal(envelope)
+	payloadBytes, err := signedOrderEnvelope("OrderConfirmed", orderPayload)
+	if err != nil {
+		return "", err
+	}
 
 	headers := map[string]string{}
 	if reqID, ok := ctx.Value("request_id").(string); ok && reqID != "" {
@@ -299,17 +299,14 @@ func (s *Store) CancelOrder(ctx context.Context, orderID string) (string, error)
 // and event-wide cancellation paths; reason is recorded for observability.
 func buildOrderCancelledEnvelope(orderID, eventID string, reason string) (outboxEventID string, payloadBytes []byte, err error) {
 	outboxEventID = uuid.New().String()
-	envelope := map[string]any{
-		"Type": "OrderCancelled",
-		"Order": map[string]any{
-			"outbox_event_id": outboxEventID,
-			"order_id":        orderID,
-			"event_id":        eventID,
-			"status":          "CANCELLED",
-			"reason":          reason,
-		},
+	orderPayload := map[string]any{
+		"outbox_event_id": outboxEventID,
+		"order_id":        orderID,
+		"event_id":        eventID,
+		"status":          "CANCELLED",
+		"reason":          reason,
 	}
-	payloadBytes, err = json.Marshal(envelope)
+	payloadBytes, err = signedOrderEnvelope("OrderCancelled", orderPayload)
 	return outboxEventID, payloadBytes, err
 }
 
@@ -429,16 +426,16 @@ func eventCancelledDedupID(eventID string) string {
 // fresh, but the payload outbox_event_id is stable so retries dedupe.
 func writeEventCancelledOutboxTx(ctx context.Context, tx *sql.Tx, eventID string, headersBytes []byte) error {
 	outboxRowID := uuid.New().String()
-	envelope := map[string]any{
-		"Type": "EventCancelled",
-		"Order": map[string]any{
-			"outbox_event_id": eventCancelledDedupID(eventID),
-			"event_id":        eventID,
-		},
+	orderPayload := map[string]any{
+		"outbox_event_id": eventCancelledDedupID(eventID),
+		"event_id":        eventID,
 	}
-	payloadBytes, _ := json.Marshal(envelope)
+	payloadBytes, err := signedOrderEnvelope("EventCancelled", orderPayload)
+	if err != nil {
+		return err
+	}
 
-	_, err := tx.ExecContext(ctx, `
+	_, err = tx.ExecContext(ctx, `
 		INSERT INTO orders.outbox_events (id, aggregate_type, aggregate_id, event_type, payload, headers)
 		VALUES ($1, 'catalog_event', $2, 'EventCancelled', $3, $4)
 	`, outboxRowID, eventID, payloadBytes, headersBytes)

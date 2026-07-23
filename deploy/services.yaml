@@ -177,6 +177,11 @@ spec:
                 secretKeyRef:
                   name: velox-kafka-signing-secret
                   key: key
+            - name: ORDER_EVENT_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: velox-order-event-signing-secret
+                  key: key
           readinessProbe:
             httpGet:
               path: /readyz
@@ -282,6 +287,11 @@ spec:
                 secretKeyRef:
                   name: velox-event-signing-secret
                   key: key
+            - name: ORDER_EVENT_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: velox-order-event-signing-secret
+                  key: key
           readinessProbe:
             httpGet:
               path: /readyz
@@ -376,6 +386,11 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: velox-kafka-signing-secret
+                  key: key
+            - name: EVENT_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: velox-event-signing-secret
                   key: key
           readinessProbe:
             httpGet:

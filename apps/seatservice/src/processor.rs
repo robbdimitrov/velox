@@ -1,7 +1,9 @@
 use crate::db_client::DbClient;
 use crate::dtos::{EventEnvelope, OrderCreatedPayload};
+use crate::signing;
 use chrono::Utc;
 use rdkafka::producer::{FutureProducer, FutureRecord};
+use serde_json::value::RawValue;
 use sha2::{Digest, Sha256};
 use std::time::Duration;
 use tracing::Instrument;
@@ -50,6 +52,23 @@ async fn send_to_dlq(
     }
 }
 
+/// Rejects an order.events.v1 message whose signature is missing or does not
+/// match ORDER_EVENT_SIGNING_KEY, mirroring orderservice's signOrderEvent.
+fn verify_order_event_signature(
+    key: &[u8],
+    event_type: &str,
+    payload: &RawValue,
+    signature: Option<&str>,
+) -> bool {
+    let Some(signature) = signature else {
+        return false;
+    };
+    let Ok(signature_bytes) = hex::decode(signature) else {
+        return false;
+    };
+    signing::verify_order_event(key, event_type, payload.get().as_bytes(), &signature_bytes)
+}
+
 /// Returns whether the Kafka offset may be committed: true for durable handling
 /// or DLQ, false for transient failures that need redelivery.
 pub async fn process_message(
@@ -57,6 +76,7 @@ pub async fn process_message(
     producer: &FutureProducer,
     payload_bytes: &[u8],
     meta: MessageMeta,
+    order_signing_key: &[u8],
 ) -> bool {
     let request_id = meta.request_id.clone();
     let req_id_str = request_id.clone().unwrap_or_else(|| "unknown".to_string());
@@ -89,7 +109,13 @@ pub async fn process_message(
                 }
             };
 
-            let order: OrderCreatedPayload = match serde_json::from_value(payload_val) {
+            if !verify_order_event_signature(order_signing_key, &envelope.event_type, &payload_val, envelope.signature.as_deref()) {
+                warn!("OrderCreated failed signature verification");
+                send_to_dlq(producer, &meta, payload_bytes, "invalid_signature", "OrderCreated signature verification failed").await;
+                return true;
+            }
+
+            let order: OrderCreatedPayload = match serde_json::from_str(payload_val.get()) {
                 Ok(o) => o,
                 Err(err) => {
                     warn!(error = %err, "Failed to deserialize OrderCreated payload");
@@ -139,8 +165,21 @@ pub async fn process_message(
             true
         } else if envelope.event_type == "OrderCancelled" {
             let Some(payload_val) = envelope.payload else { return true };
-            let order_id = payload_val.get("order_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let outbox_event_id = payload_val.get("outbox_event_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            if !verify_order_event_signature(order_signing_key, &envelope.event_type, &payload_val, envelope.signature.as_deref()) {
+                warn!("OrderCancelled failed signature verification");
+                send_to_dlq(producer, &meta, payload_bytes, "invalid_signature", "OrderCancelled signature verification failed").await;
+                return true;
+            }
+            let payload_json: serde_json::Value = match serde_json::from_str(payload_val.get()) {
+                Ok(v) => v,
+                Err(err) => {
+                    warn!(error = %err, "Failed to deserialize OrderCancelled payload");
+                    send_to_dlq(producer, &meta, payload_bytes, "payload_deserialize_error", &err.to_string()).await;
+                    return true;
+                }
+            };
+            let order_id = payload_json.get("order_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let outbox_event_id = payload_json.get("outbox_event_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
             if order_id.is_empty() || outbox_event_id.is_empty() {
                 warn!("OrderCancelled missing order_id or outbox_event_id");
                 send_to_dlq(producer, &meta, payload_bytes, "missing_required_fields", "OrderCancelled missing required fields").await;
@@ -163,8 +202,21 @@ pub async fn process_message(
             }
         } else if envelope.event_type == "OrderConfirmed" {
             let Some(payload_val) = envelope.payload else { return true };
-            let order_id = payload_val.get("order_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let outbox_event_id = payload_val.get("outbox_event_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            if !verify_order_event_signature(order_signing_key, &envelope.event_type, &payload_val, envelope.signature.as_deref()) {
+                warn!("OrderConfirmed failed signature verification");
+                send_to_dlq(producer, &meta, payload_bytes, "invalid_signature", "OrderConfirmed signature verification failed").await;
+                return true;
+            }
+            let payload_json: serde_json::Value = match serde_json::from_str(payload_val.get()) {
+                Ok(v) => v,
+                Err(err) => {
+                    warn!(error = %err, "Failed to deserialize OrderConfirmed payload");
+                    send_to_dlq(producer, &meta, payload_bytes, "payload_deserialize_error", &err.to_string()).await;
+                    return true;
+                }
+            };
+            let order_id = payload_json.get("order_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let outbox_event_id = payload_json.get("outbox_event_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
             if order_id.is_empty() || outbox_event_id.is_empty() {
                 warn!("OrderConfirmed missing order_id or outbox_event_id");
                 send_to_dlq(producer, &meta, payload_bytes, "missing_required_fields", "OrderConfirmed missing required fields").await;
@@ -187,8 +239,21 @@ pub async fn process_message(
             }
         } else if envelope.event_type == "EventCancelled" {
             let Some(payload_val) = envelope.payload else { return true };
-            let event_id = payload_val.get("event_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let outbox_event_id = payload_val.get("outbox_event_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            if !verify_order_event_signature(order_signing_key, &envelope.event_type, &payload_val, envelope.signature.as_deref()) {
+                warn!("EventCancelled failed signature verification");
+                send_to_dlq(producer, &meta, payload_bytes, "invalid_signature", "EventCancelled signature verification failed").await;
+                return true;
+            }
+            let payload_json: serde_json::Value = match serde_json::from_str(payload_val.get()) {
+                Ok(v) => v,
+                Err(err) => {
+                    warn!(error = %err, "Failed to deserialize EventCancelled payload");
+                    send_to_dlq(producer, &meta, payload_bytes, "payload_deserialize_error", &err.to_string()).await;
+                    return true;
+                }
+            };
+            let event_id = payload_json.get("event_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let outbox_event_id = payload_json.get("outbox_event_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
             if event_id.is_empty() || outbox_event_id.is_empty() {
                 warn!("EventCancelled missing event_id or outbox_event_id");
                 send_to_dlq(producer, &meta, payload_bytes, "missing_required_fields", "EventCancelled missing required fields").await;
@@ -251,4 +316,77 @@ pub(crate) async fn publish<T: serde::Serialize>(
         return false;
     }
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Every mutating branch returns early on a `false` gate result before any
+    // db.process_* call, so proving the gate rejects bad input proves no mutation.
+
+    #[test]
+    fn accepts_valid_order_event_signature() {
+        let key = b"test-order-key".to_vec();
+        let payload: Box<RawValue> =
+            RawValue::from_string(r#"{"order_id":"ord-1"}"#.to_string()).unwrap();
+        let sig = signing::sign_order_event(&key, "OrderCreated", payload.get().as_bytes());
+        let sig_hex = hex::encode(sig);
+
+        assert!(verify_order_event_signature(
+            &key,
+            "OrderCreated",
+            &payload,
+            Some(&sig_hex)
+        ));
+    }
+
+    #[test]
+    fn rejects_missing_signature() {
+        let key = b"test-order-key".to_vec();
+        let payload: Box<RawValue> =
+            RawValue::from_string(r#"{"order_id":"ord-1"}"#.to_string()).unwrap();
+
+        assert!(!verify_order_event_signature(
+            &key,
+            "OrderCreated",
+            &payload,
+            None
+        ));
+    }
+
+    #[test]
+    fn rejects_tampered_payload() {
+        let key = b"test-order-key".to_vec();
+        let signed_payload: Box<RawValue> =
+            RawValue::from_string(r#"{"order_id":"ord-1"}"#.to_string()).unwrap();
+        let sig = signing::sign_order_event(&key, "OrderCreated", signed_payload.get().as_bytes());
+        let sig_hex = hex::encode(sig);
+
+        let tampered: Box<RawValue> =
+            RawValue::from_string(r#"{"order_id":"ord-2"}"#.to_string()).unwrap();
+        assert!(!verify_order_event_signature(
+            &key,
+            "OrderCreated",
+            &tampered,
+            Some(&sig_hex)
+        ));
+    }
+
+    #[test]
+    fn rejects_signature_signed_with_a_different_key() {
+        let signing_key = b"test-order-key".to_vec();
+        let other_key = b"attacker-key".to_vec();
+        let payload: Box<RawValue> =
+            RawValue::from_string(r#"{"order_id":"ord-1"}"#.to_string()).unwrap();
+        let sig = signing::sign_order_event(&other_key, "OrderCreated", payload.get().as_bytes());
+        let sig_hex = hex::encode(sig);
+
+        assert!(!verify_order_event_signature(
+            &signing_key,
+            "OrderCreated",
+            &payload,
+            Some(&sig_hex)
+        ));
+    }
 }

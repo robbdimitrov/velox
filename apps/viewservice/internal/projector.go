@@ -7,6 +7,7 @@ import (
 )
 
 var ErrStaleAggregateVersion = errors.New("stale aggregate version")
+var ErrInvalidSignature = errors.New("invalid event signature")
 
 // Event unifies seatservice's flat event shape with orderservice's nested
 // envelope; Resolved* helpers hide the producer-specific IDs.
@@ -19,6 +20,8 @@ type Event struct {
 	Seat             Seat
 	Order            Order
 	OccurredAt       time.Time `json:"occurred_at"`
+	Signature        string    `json:"signature"`
+	SignedPayload    string    `json:"signed_payload"`
 }
 
 // ResolvedEventID returns seatservice's event_id or orderservice's outbox_event_id.

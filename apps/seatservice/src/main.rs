@@ -5,7 +5,7 @@ use rdkafka::producer::{FutureProducer, Producer};
 use rdkafka::ClientConfig;
 use seatservice::db_client::DbClient;
 use seatservice::processor::MessageMeta;
-use seatservice::{expiry, logging, processor};
+use seatservice::{expiry, logging, processor, signing};
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 use std::sync::{
@@ -31,6 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     let db_client = DbClient::new(pool.clone());
+    let order_signing_key = signing::order_event_signing_key();
 
     let broker_addrs = env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_string());
 
@@ -157,7 +158,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     source_offset: m.offset(),
                                     request_id: req_id,
                                 };
-                                let should_commit = processor::process_message(&db_client, &producer, payload, meta).await;
+                                let should_commit = processor::process_message(&db_client, &producer, payload, meta, &order_signing_key).await;
                                 if should_commit {
                                     note_broker_success(&consumer_broker_errors, &consumer_broker_first_error);
                                     if let Err(e) = consumer.commit_message(&m, CommitMode::Async) {

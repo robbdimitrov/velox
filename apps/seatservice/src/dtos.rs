@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::value::RawValue;
 
 pub const INVENTORY_EVENT_SCHEMA_VERSION: u32 = 1;
 
@@ -12,8 +13,12 @@ pub struct EventEnvelope {
         alias = "type"
     )]
     pub event_type: String,
+    // Boxed RawValue preserves the exact bytes orderservice signed, so
+    // signing::verify_order_event can check them without a lossy re-serialize.
     #[serde(alias = "Payload", alias = "payload", alias = "Order", alias = "order")]
-    pub payload: Option<serde_json::Value>,
+    pub payload: Option<Box<RawValue>>,
+    #[serde(alias = "Signature", alias = "signature")]
+    pub signature: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -53,6 +58,9 @@ pub struct SeatInventoryEvent {
     pub seat: SeatDto,
     pub occurred_at: DateTime<Utc>,
     pub signature: String,
+    // Exact JSON bytes the signature was computed over, so a consumer can
+    // verify without reconstructing (and risking a non-identical) payload.
+    pub signed_payload: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -78,4 +86,5 @@ pub struct SeatReservationFailedEvent {
     pub reason: String,
     pub occurred_at: DateTime<Utc>,
     pub signature: String,
+    pub signed_payload: String,
 }

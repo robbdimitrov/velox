@@ -81,13 +81,15 @@ impl DbClient {
         Ok(result.rows_affected() > 0)
     }
 
+    // Returns (signature, signed_payload); signed_payload is the exact HMAC'd
+    // bytes, carried on the wire so a consumer can verify without reconstructing JSON.
     fn sign(
         &self,
         event_type: &str,
         aggregate_id: &str,
         aggregate_version: u64,
         payload: &serde_json::Value,
-    ) -> String {
+    ) -> (String, String) {
         let payload_bytes = serde_json::to_vec(payload).unwrap_or_default();
         let sig = signing::sign(
             &self.signing_key,
@@ -96,7 +98,10 @@ impl DbClient {
             aggregate_version,
             &payload_bytes,
         );
-        hex::encode(sig)
+        (
+            hex::encode(sig),
+            String::from_utf8(payload_bytes).unwrap_or_default(),
+        )
     }
 
     /// Appends a signed inventory event and bumps stream version in the same
@@ -106,7 +111,7 @@ impl DbClient {
         tx: &mut Transaction<'_, Postgres>,
         append: EventAppend<'_>,
         now: DateTime<Utc>,
-    ) -> Result<(Uuid, String), String> {
+    ) -> Result<(Uuid, String, String), String> {
         let EventAppend {
             stream_key,
             version,
@@ -117,7 +122,8 @@ impl DbClient {
         } = append;
 
         let metadata = json!({ "schema_version": INVENTORY_EVENT_SCHEMA_VERSION });
-        let signature = self.sign(event_type, stream_key, version as u64, payload);
+        let (signature, signed_payload) =
+            self.sign(event_type, stream_key, version as u64, payload);
         let signature_bytes = hex::decode(&signature).unwrap_or_default();
         let event_uuid = Uuid::new_v4();
 
@@ -148,7 +154,7 @@ impl DbClient {
         .await
         .map_err(|e| format!("Failed to update stream: {}", e))?;
 
-        Ok((event_uuid, signature))
+        Ok((event_uuid, signature, signed_payload))
     }
 
     async fn load_stream(
@@ -406,7 +412,7 @@ impl DbClient {
                 "expires_at_ms": expires_at_ms,
             });
 
-            let (event_uuid, signature) = self
+            let (event_uuid, signature, signed_payload) = self
                 .append_event(
                     &mut tx,
                     EventAppend {
@@ -439,6 +445,7 @@ impl DbClient {
                 },
                 occurred_at: now,
                 signature,
+                signed_payload,
             });
         }
 
@@ -477,7 +484,7 @@ impl DbClient {
             "seat_id": held.seat_id,
         });
 
-        let (event_uuid, signature) = self
+        let (event_uuid, signature, signed_payload) = self
             .append_event(
                 tx,
                 EventAppend {
@@ -510,6 +517,7 @@ impl DbClient {
             },
             occurred_at: now,
             signature,
+            signed_payload,
         }))
     }
 
@@ -539,7 +547,7 @@ impl DbClient {
         let version = stream.current_version + 1;
         let payload = Self::cancelled_payload(&order_id, seat);
 
-        let (event_uuid, signature) = self
+        let (event_uuid, signature, signed_payload) = self
             .append_event(
                 tx,
                 EventAppend {
@@ -572,6 +580,7 @@ impl DbClient {
             },
             occurred_at: now,
             signature,
+            signed_payload,
         }))
     }
 
@@ -669,7 +678,7 @@ impl DbClient {
                     "section_id": held.section_id,
                     "seat_id": held.seat_id,
                 });
-                let signature = self.sign(
+                let (signature, signed_payload) = self.sign(
                     "SeatReservationConfirmationFailed",
                     stream_key,
                     stream.current_version as u64,
@@ -693,6 +702,7 @@ impl DbClient {
                     },
                     occurred_at: now,
                     signature,
+                    signed_payload,
                 });
                 continue;
             }
@@ -705,7 +715,7 @@ impl DbClient {
                 "seat_id": held.seat_id,
             });
 
-            let (event_uuid, signature) = self
+            let (event_uuid, signature, signed_payload) = self
                 .append_event(
                     &mut tx,
                     EventAppend {
@@ -738,6 +748,7 @@ impl DbClient {
                 },
                 occurred_at: now,
                 signature,
+                signed_payload,
             });
         }
 
@@ -951,7 +962,8 @@ impl DbClient {
                 let stream_key =
                     format!("seat:{}:{}:{}", order.event_id, order.section_id, seat_id);
                 let payload = json!({ "order_id": order.order_id, "reason": reason });
-                let signature = self.sign("SeatReservationFailed", &stream_key, 0, &payload);
+                let (signature, signed_payload) =
+                    self.sign("SeatReservationFailed", &stream_key, 0, &payload);
                 SeatReservationFailedEvent {
                     event_id: Uuid::new_v4().to_string(),
                     aggregate_id: stream_key,
@@ -963,6 +975,7 @@ impl DbClient {
                     reason: reason.to_string(),
                     occurred_at: now,
                     signature,
+                    signed_payload,
                 }
             })
             .collect()
@@ -1013,4 +1026,60 @@ mod tests {
 
     // Live-DB coverage still needed: virgin/raced/held/confirmed/already-cancelled
     // streams and multi-batch process_event_cancelled pagination.
+
+    fn test_client() -> DbClient {
+        // connect_lazy defers the actual connection, so this needs no live DB.
+        let pool = PgPool::connect_lazy("postgres://localhost/unused").unwrap();
+        DbClient {
+            pool,
+            signing_key: b"test-signing-key".to_vec(),
+        }
+    }
+
+    // signed_payload must be the exact bytes signing::verify checks against.
+    #[tokio::test]
+    async fn sign_produces_a_signed_payload_that_verifies() {
+        let client = test_client();
+        let payload = json!({"order_id": "ord-1", "seat_id": "seat-12"});
+
+        let (signature, signed_payload) =
+            client.sign("SeatReservationHeld", "seat:evt:A:12", 3, &payload);
+
+        let signature_bytes = hex::decode(&signature).unwrap();
+        assert!(signing::verify(
+            &client.signing_key,
+            "SeatReservationHeld",
+            "seat:evt:A:12",
+            3,
+            signed_payload.as_bytes(),
+            &signature_bytes,
+        ));
+    }
+
+    #[tokio::test]
+    async fn sign_is_sensitive_to_aggregate_id_and_version() {
+        let client = test_client();
+        let payload = json!({"order_id": "ord-1"});
+
+        let (signature, signed_payload) =
+            client.sign("SeatReservationHeld", "seat:evt:A:12", 3, &payload);
+        let signature_bytes = hex::decode(&signature).unwrap();
+
+        assert!(!signing::verify(
+            &client.signing_key,
+            "SeatReservationHeld",
+            "seat:evt:A:99",
+            3,
+            signed_payload.as_bytes(),
+            &signature_bytes,
+        ));
+        assert!(!signing::verify(
+            &client.signing_key,
+            "SeatReservationHeld",
+            "seat:evt:A:12",
+            4,
+            signed_payload.as_bytes(),
+            &signature_bytes,
+        ));
+    }
 }

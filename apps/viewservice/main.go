@@ -50,10 +50,17 @@ func main() {
 		}
 	}
 
+	eventSigningKey := os.Getenv("EVENT_SIGNING_KEY")
+	if eventSigningKey == "" {
+		// Matches seatservice's signing::signing_key dev fallback so local
+		// verification works without extra setup.
+		eventSigningKey = "velox-dev-signing-key"
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	store, err := internal.OpenDatabaseStore(ctx, dbURL)
+	store, err := internal.OpenDatabaseStore(ctx, dbURL, []byte(eventSigningKey))
 	if err != nil {
 		slog.Error("failed to connect to db", "error", err)
 		os.Exit(1)

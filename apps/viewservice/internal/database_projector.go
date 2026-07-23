@@ -14,11 +14,16 @@ import (
 
 var ErrStoreNotFound = errors.New("store not found")
 
+// inventoryEventsTopic is the only topic OpenDatabaseStore's caller must sign
+// with EVENT_SIGNING_KEY; order.events.v1 signatures are seatservice's concern.
+const inventoryEventsTopic = "inventory.events.v1"
+
 type DatabaseStore struct {
-	db *sql.DB
+	db         *sql.DB
+	signingKey []byte
 }
 
-func OpenDatabaseStore(ctx context.Context, databaseURL string) (*DatabaseStore, error) {
+func OpenDatabaseStore(ctx context.Context, databaseURL string, signingKey []byte) (*DatabaseStore, error) {
 	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
 		return nil, err
@@ -32,7 +37,7 @@ func OpenDatabaseStore(ctx context.Context, databaseURL string) (*DatabaseStore,
 		_ = db.Close()
 		return nil, err
 	}
-	return &DatabaseStore{db: db}, nil
+	return &DatabaseStore{db: db, signingKey: signingKey}, nil
 }
 
 func (s *DatabaseStore) Close() error {
@@ -56,6 +61,14 @@ func (s *DatabaseStore) GetAggregateVersion(ctx context.Context, aggregateID str
 }
 
 func (s *DatabaseStore) ApplyEvent(ctx context.Context, event Event, sourceTopic string, sourcePartition int32, sourceOffset int64) error {
+	// seatservice signs every inventory.events.v1 record; order.events.v1 is
+	// seatservice's own consumer-side concern, not viewservice's.
+	if sourceTopic == inventoryEventsTopic && !verifyInventoryEventSignature(s.signingKey, event) {
+		slog.Warn("rejecting inventory event with invalid signature",
+			"event_type", event.Type, "aggregate_id", event.AggregateID, "source_topic", sourceTopic, "source_offset", sourceOffset)
+		return ErrInvalidSignature
+	}
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err

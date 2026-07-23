@@ -572,6 +572,7 @@ func TestWriteEventCancelledOutboxTx_DeterministicDedupID(t *testing.T) {
 		}
 		dedupIDs = append(dedupIDs, envelope.Order.OutboxEventID)
 		rowIDs = append(rowIDs, rowID)
+		assertEnvelopeSignatureVerifies(t, payload, "EventCancelled")
 	}
 
 	if dedupIDs[0] != dedupIDs[1] {
@@ -590,6 +591,156 @@ func TestWriteEventCancelledOutboxTx_DeterministicDedupID(t *testing.T) {
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+// TestCreateOrder_SignsOutboxEnvelope proves the envelope carries a signature
+// verifiable by seatservice's signing::verify_order_event with the same key.
+func TestCreateOrder_SignsOutboxEnvelope(t *testing.T) {
+	t.Setenv(orderEventSigningKeyEnv, "test-order-signing-key")
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to open sqlmock db: %v", err)
+	}
+	defer db.Close()
+	s := &Store{db: db}
+
+	req := OrderRequest{
+		EventID:        "evt-1",
+		SectionID:      "sec-1",
+		SeatIDs:        []string{"A-1"},
+		IdempotencyKey: "idem-1",
+		UserID:         "user-1",
+	}
+
+	var outboxPayload []byte
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT request_hash, response_ref").
+		WithArgs(req.UserID, req.IdempotencyKey).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectExec("INSERT INTO orders.idempotency_keys").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("SELECT status FROM catalog.events").
+		WithArgs(req.EventID).
+		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow("PUBLISHED"))
+	mock.ExpectExec("INSERT INTO orders.orders").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO orders.order_seats").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO orders.outbox_events").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), capturedBytes{&outboxPayload}, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("UPDATE orders.idempotency_keys").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	if _, err := s.CreateOrder(context.Background(), req); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertEnvelopeSignatureVerifies(t, outboxPayload, "OrderCreated")
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+// TestConfirmOrder_SignsOutboxEnvelope proves the OrderConfirmed envelope
+// carries a verifiable signature.
+func TestConfirmOrder_SignsOutboxEnvelope(t *testing.T) {
+	t.Setenv(orderEventSigningKeyEnv, "test-order-signing-key")
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to open sqlmock db: %v", err)
+	}
+	defer db.Close()
+	s := &Store{db: db}
+
+	orderID := "ord-123"
+	var outboxPayload []byte
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT status FROM orders.orders WHERE id = \\$1 FOR UPDATE").
+		WithArgs(orderID).
+		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow("HELD"))
+	mock.ExpectQuery("SELECT event_id").
+		WithArgs(orderID).
+		WillReturnRows(sqlmock.NewRows([]string{"event_id"}).AddRow("evt-1"))
+	mock.ExpectExec("UPDATE orders.orders SET status = 'CONFIRMED'").
+		WithArgs(orderID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO orders.outbox_events").
+		WithArgs(sqlmock.AnyArg(), orderID, capturedBytes{&outboxPayload}, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	if _, err := s.ConfirmOrder(context.Background(), orderID); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertEnvelopeSignatureVerifies(t, outboxPayload, "OrderConfirmed")
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+// TestCancelOrder_SignsOutboxEnvelope proves the OrderCancelled envelope
+// carries a verifiable signature.
+func TestCancelOrder_SignsOutboxEnvelope(t *testing.T) {
+	t.Setenv(orderEventSigningKeyEnv, "test-order-signing-key")
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to open sqlmock db: %v", err)
+	}
+	defer db.Close()
+	s := &Store{db: db}
+
+	orderID := "ord-123"
+	var outboxPayload []byte
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT status FROM orders.orders WHERE id = \\$1 FOR UPDATE").
+		WithArgs(orderID).
+		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow("PENDING"))
+	mock.ExpectQuery("SELECT event_id").
+		WithArgs(orderID).
+		WillReturnRows(sqlmock.NewRows([]string{"event_id"}).AddRow("evt-1"))
+	mock.ExpectExec("UPDATE orders.orders SET status = 'CANCELLED'").
+		WithArgs(orderID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO orders.outbox_events").
+		WithArgs(sqlmock.AnyArg(), orderID, capturedBytes{&outboxPayload}, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	if _, err := s.CancelOrder(context.Background(), orderID); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertEnvelopeSignatureVerifies(t, outboxPayload, "OrderCancelled")
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+// assertEnvelopeSignatureVerifies recomputes the signature over the exact
+// "Order" bytes, mirroring how seatservice's verify_order_event validates it.
+func assertEnvelopeSignatureVerifies(t *testing.T, raw []byte, wantType string) {
+	t.Helper()
+	var envelope struct {
+		Type      string          `json:"Type"`
+		Order     json.RawMessage `json:"Order"`
+		Signature string          `json:"Signature"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		t.Fatalf("failed to unmarshal envelope: %v", err)
+	}
+	if envelope.Type != wantType {
+		t.Fatalf("Type = %q, want %q", envelope.Type, wantType)
+	}
+	if envelope.Signature == "" {
+		t.Fatal("Signature must not be empty")
+	}
+	want := signOrderEvent(orderEventSigningKey(), envelope.Type, envelope.Order)
+	if envelope.Signature != want {
+		t.Fatalf("Signature = %q, want %q", envelope.Signature, want)
 	}
 }
 

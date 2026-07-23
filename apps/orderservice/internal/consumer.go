@@ -176,16 +176,17 @@ func handleSeatReservationExpired(ctx context.Context, db *sql.DB, orderID strin
 	}
 
 	eventID := uuid.New().String()
-	envelope := map[string]any{
-		"Type": "OrderExpired",
-		"Order": map[string]any{
-			"outbox_event_id": eventID,
-			"order_id":        orderID,
-			"event_id":        eventIDStr,
-			"status":          "EXPIRED",
-		},
+	orderPayload := map[string]any{
+		"outbox_event_id": eventID,
+		"order_id":        orderID,
+		"event_id":        eventIDStr,
+		"status":          "EXPIRED",
 	}
-	payloadBytes, _ := json.Marshal(envelope)
+	payloadBytes, err := signedOrderEnvelope("OrderExpired", orderPayload)
+	if err != nil {
+		slog.Error("failed to build signed OrderExpired envelope", "error", err)
+		return err
+	}
 
 	headers := map[string]string{}
 	if reqID, ok := ctx.Value("request_id").(string); ok && reqID != "" {
@@ -268,16 +269,17 @@ func handleSeatReservationConfirmationFailed(ctx context.Context, db *sql.DB, or
 	}
 
 	eventID := uuid.New().String()
-	envelope := map[string]any{
-		"Type": "OrderExpired",
-		"Order": map[string]any{
-			"outbox_event_id": eventID,
-			"order_id":        orderID,
-			"event_id":        eventIDStr,
-			"status":          "EXPIRED",
-		},
+	orderPayload := map[string]any{
+		"outbox_event_id": eventID,
+		"order_id":        orderID,
+		"event_id":        eventIDStr,
+		"status":          "EXPIRED",
 	}
-	payloadBytes, _ := json.Marshal(envelope)
+	payloadBytes, err := signedOrderEnvelope("OrderExpired", orderPayload)
+	if err != nil {
+		slog.Error("failed to build signed OrderExpired envelope", "error", err)
+		return err
+	}
 
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO orders.outbox_events (id, aggregate_type, aggregate_id, event_type, payload, headers)

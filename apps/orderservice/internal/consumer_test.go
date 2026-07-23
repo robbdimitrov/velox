@@ -204,6 +204,42 @@ func TestHandleSeatReservationConfirmationFailed_EventCancelled(t *testing.T) {
 	if envelope.Order.Reason != "EVENT_CANCELLED" {
 		t.Fatalf("envelope Order.reason = %q, want EVENT_CANCELLED", envelope.Order.Reason)
 	}
+	assertEnvelopeSignatureVerifies(t, payload, "OrderCancelled")
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+// TestHandleSeatReservationExpired_SignsOutboxEnvelope proves this envelope
+// carries the same verifiable signature as store.go's envelopes.
+func TestHandleSeatReservationExpired_SignsOutboxEnvelope(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to open sqlmock db: %v", err)
+	}
+	defer db.Close()
+
+	orderID := "ord-123"
+	var payload []byte
+
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE orders.orders SET status = 'EXPIRED'").
+		WithArgs(orderID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	rows := sqlmock.NewRows([]string{"event_id"}).AddRow("evt-1")
+	mock.ExpectQuery("SELECT event_id").
+		WithArgs(orderID).
+		WillReturnRows(rows)
+	mock.ExpectExec("INSERT INTO orders.outbox_events").
+		WithArgs(sqlmock.AnyArg(), orderID, capturedBytes{&payload}, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	if err := handleSeatReservationExpired(context.Background(), db, orderID); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertEnvelopeSignatureVerifies(t, payload, "OrderExpired")
 
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("unfulfilled expectations: %s", err)

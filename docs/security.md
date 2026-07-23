@@ -33,9 +33,34 @@ Raw reservation and wallet tokens are not logged.
 QR wallet tokens are short-lived HMAC tokens. Claims include ticket ID, user
 ID, event ID, purpose, and expiry.
 
-Kafka inventory events carry signatures. Consumers must verify signature,
-schema version, producer identity, and aggregate ordering before applying
-business effects.
+## Kafka Event Signing
+
+Two independent HMAC-SHA256 trust boundaries protect Kafka events; compromise
+of one signing key cannot forge events on the other topic.
+
+`inventory.events.v1` (seatservice -> viewservice, `EVENT_SIGNING_KEY`):
+seatservice signs every `SeatInventoryEvent`/`SeatReservationFailedEvent` over
+`event_type|aggregate_id|aggregate_version|payload`, where `payload` is the
+event's domain fields, hex-encoded into `signature`, and also carried verbatim
+as `signed_payload` so a consumer can verify without reconstructing JSON.
+viewservice verifies the signature and cross-checks `signed_payload`'s
+embedded order/seat identity against the event's own `seat`/`correlation_id`
+fields before any projection write; a missing, tampered, or field-mismatched
+signature is logged and the record is dropped without mutating state.
+
+`order.events.v1` (orderservice -> seatservice, `ORDER_EVENT_SIGNING_KEY`):
+orderservice signs every `OrderCreated`/`OrderConfirmed`/`OrderCancelled`/
+`OrderExpired`/`EventCancelled` envelope over `event_type|order_payload`,
+where `order_payload` is the exact bytes embedded verbatim under the
+envelope's `Order` key so the signed and transmitted bytes are identical.
+seatservice verifies the signature against those same raw bytes before any
+inventory mutation; a missing or invalid signature is logged and the record
+is routed to `dlq.order.events.v1` without mutating inventory state.
+
+`EVENT_SIGNING_KEY` and `ORDER_EVENT_SIGNING_KEY` are distinct secrets scoped
+to their own trust boundary: seatservice and viewservice share
+`EVENT_SIGNING_KEY`; orderservice and seatservice share
+`ORDER_EVENT_SIGNING_KEY`. Neither key is reused across the other boundary.
 
 ## Backend Headers
 

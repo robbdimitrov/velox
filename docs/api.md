@@ -439,3 +439,7 @@ Gateway calls these over the cluster network:
 These are not public browser routes. They enforce their own 1 MiB body cap,
 strict JSON for order creation, transactional idempotency for create, and safe
 error mapping.
+
+Orders created here drive signed `order.events.v1` and `inventory.events.v1`
+Kafka traffic between orderservice, seatservice, and viewservice; see
+`docs/security.md` for the signing scheme and failure behavior.
