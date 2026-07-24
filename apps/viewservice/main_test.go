@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -152,5 +153,16 @@ func TestInvalidSignatureRecordPublishedToDLQBeforeCommit(t *testing.T) {
 	}
 	if len(fake.committed) != 1 || fake.committed[0] != unsigned {
 		t.Fatalf("expected the rejected source record to be committed, got %v", fake.committed)
+	}
+}
+
+func TestDLQCountReflectedInMetrics(t *testing.T) {
+	health := &consumerHealth{}
+	health.markDLQ()
+	health.markDLQ()
+
+	body := health.metrics("viewservice")
+	if !strings.Contains(body, `velox_consumer_dlq_events_total{service="viewservice",consumer="events"} 2`) {
+		t.Fatalf("metrics output missing dlq counter: %s", body)
 	}
 }

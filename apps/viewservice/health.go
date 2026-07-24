@@ -23,6 +23,7 @@ type consumerHealth struct {
 	lastError         string
 	consecutiveErrors int
 	errorCount        uint64
+	dlqCount          uint64
 }
 
 type consumerHealthSnapshot struct {
@@ -32,6 +33,7 @@ type consumerHealthSnapshot struct {
 	LastError         string    `json:"last_error,omitempty"`
 	ConsecutiveErrors int       `json:"consecutive_errors"`
 	ErrorCount        uint64    `json:"error_count"`
+	DLQCount          uint64    `json:"dlq_count"`
 }
 
 func (h *consumerHealth) markSuccess() {
@@ -59,6 +61,12 @@ func (h *consumerHealth) markError(err error) {
 	h.errorCount++
 }
 
+func (h *consumerHealth) markDLQ() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.dlqCount++
+}
+
 func (h *consumerHealth) markRecovered() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -77,6 +85,7 @@ func (h *consumerHealth) snapshot() consumerHealthSnapshot {
 		LastError:         h.lastError,
 		ConsecutiveErrors: h.consecutiveErrors,
 		ErrorCount:        h.errorCount,
+		DLQCount:          h.dlqCount,
 	}
 }
 
@@ -100,6 +109,7 @@ func (h *consumerHealth) metrics(service string) string {
 	fmt.Fprintf(&b, "app_pipeline_unhealthy{%s} %d\n", canonicalLabels, boolMetric(consumerStatusDegraded(snapshot, now)))
 	fmt.Fprintf(&b, "app_pipeline_error_streak{%s} %d\n", canonicalLabels, snapshot.ConsecutiveErrors)
 	fmt.Fprintf(&b, "app_pipeline_errors_total{%s} %d\n", canonicalLabels, snapshot.ErrorCount)
+	fmt.Fprintf(&b, "velox_consumer_dlq_events_total{%s} %d\n", labels, snapshot.DLQCount)
 	if !snapshot.LastSuccessAt.IsZero() {
 		fmt.Fprintf(&b, "velox_consumer_last_success_age_seconds{%s} %.0f\n", labels, now.Sub(snapshot.LastSuccessAt).Seconds())
 		fmt.Fprintf(&b, "app_pipeline_last_success_age_seconds{%s} %.0f\n", canonicalLabels, now.Sub(snapshot.LastSuccessAt).Seconds())

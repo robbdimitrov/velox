@@ -193,7 +193,7 @@ func consumeEvents(ctx context.Context, cl kafkaClient, store EventStore, health
 			if err := json.Unmarshal(record.Value, &event); err != nil {
 				health.markError(err)
 				slog.Error("failed to unmarshal event", "error", err, "request_id", reqID)
-				sendToDLQ(ctx, cl, record, reqID, "envelope_deserialize_error", err.Error())
+				sendToDLQ(ctx, cl, health, record, reqID, "envelope_deserialize_error", err.Error())
 				cl.CommitRecords(ctx, record)
 				return
 			}
@@ -214,7 +214,7 @@ func consumeEvents(ctx context.Context, cl kafkaClient, store EventStore, health
 				// A bad signature can never become valid on retry; leaving the
 				// offset uncommitted would poison-pill the partition forever.
 				slog.Error("failed to apply event", "topic", record.Topic, "offset", record.Offset, "error", err, "request_id", reqID)
-				sendToDLQ(ctx, cl, record, reqID, "invalid_signature", err.Error())
+				sendToDLQ(ctx, cl, health, record, reqID, "invalid_signature", err.Error())
 				cl.CommitRecords(ctx, record)
 			default:
 				// Transient/infra failure: leave the offset uncommitted so
@@ -228,7 +228,8 @@ func consumeEvents(ctx context.Context, cl kafkaClient, store EventStore, health
 
 // sendToDLQ records unrecoverable payloads before the source offset is
 // committed, preserving poison-pill visibility.
-func sendToDLQ(ctx context.Context, cl kafkaClient, record *kgo.Record, requestID, errorClass, errorMessage string) {
+func sendToDLQ(ctx context.Context, cl kafkaClient, health *consumerHealth, record *kgo.Record, requestID, errorClass, errorMessage string) {
+	health.markDLQ()
 	hash := sha256.Sum256(record.Value)
 	now := time.Now().UTC()
 	dlqRecord := map[string]any{
