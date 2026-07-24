@@ -767,3 +767,26 @@ func TestCancelOrder_RejectsAlreadyConfirmedOrder(t *testing.T) {
 		t.Errorf("unfulfilled expectations: %s", err)
 	}
 }
+
+func TestCountUnpublishedOutboxEvents(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to open sqlmock db: %v", err)
+	}
+	defer db.Close()
+	s := &Store{db: db}
+
+	mock.ExpectQuery("SELECT count\\(\\*\\) FROM orders.outbox_events WHERE published_at IS NULL").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(3))
+
+	count, err := s.CountUnpublishedOutboxEvents(context.Background())
+	if err != nil {
+		t.Fatalf("CountUnpublishedOutboxEvents: %v", err)
+	}
+	if count != 3 {
+		t.Fatalf("count = %d, want 3", count)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}

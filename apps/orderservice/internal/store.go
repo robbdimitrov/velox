@@ -56,6 +56,12 @@ func (s *Store) Ping(ctx context.Context) error {
 	return s.db.PingContext(ctx)
 }
 
+func (s *Store) CountUnpublishedOutboxEvents(ctx context.Context) (int, error) {
+	var count int
+	err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM orders.outbox_events WHERE published_at IS NULL`).Scan(&count)
+	return count, err
+}
+
 func (s *Store) CreateOrder(ctx context.Context, req OrderRequest) (string, error) {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {

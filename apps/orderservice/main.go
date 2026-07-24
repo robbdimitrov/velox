@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -95,7 +97,14 @@ func main() {
 	})
 	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-		_, _ = w.Write([]byte(pipelineHealth.Metrics("orderservice")))
+		var b strings.Builder
+		b.WriteString(pipelineHealth.Metrics("orderservice"))
+		countCtx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		if count, err := store.CountUnpublishedOutboxEvents(countCtx); err == nil {
+			fmt.Fprintf(&b, "velox_outbox_unpublished_events{service=%q} %d\n", "orderservice", count)
+		}
+		_, _ = w.Write([]byte(b.String()))
 	})
 	mux.HandleFunc("POST /orders", api.HandleCreateOrder)
 	mux.HandleFunc("POST /orders/{id}/confirm", api.HandleConfirmOrder)
