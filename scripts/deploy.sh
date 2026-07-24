@@ -343,7 +343,7 @@ apply_app_manifests() {
   annotate_configmap_checksums deployment/apigateway velox-service-config
   annotate_secret_checksums deployment/apigateway velox-database-secret velox-auth-secret
   annotate_configmap_checksums deployment/orderservice velox-service-config
-  annotate_secret_checksums deployment/orderservice velox-database-secret velox-kafka-signing-secret velox-order-event-signing-secret
+  annotate_secret_checksums deployment/orderservice velox-database-secret velox-kafka-signing-secret velox-order-event-signing-secret velox-event-signing-secret
   annotate_configmap_checksums deployment/seatservice velox-service-config
   annotate_secret_checksums deployment/seatservice velox-database-secret velox-kafka-signing-secret velox-event-signing-secret velox-order-event-signing-secret
   annotate_configmap_checksums deployment/viewservice velox-service-config

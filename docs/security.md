@@ -38,15 +38,20 @@ ID, event ID, purpose, and expiry.
 Two independent HMAC-SHA256 trust boundaries protect Kafka events; compromise
 of one signing key cannot forge events on the other topic.
 
-`inventory.events.v1` (seatservice -> viewservice, `EVENT_SIGNING_KEY`):
-seatservice signs every `SeatInventoryEvent`/`SeatReservationFailedEvent` over
+`inventory.events.v1` (seatservice -> viewservice and orderservice,
+`EVENT_SIGNING_KEY`): seatservice signs every
+`SeatInventoryEvent`/`SeatReservationFailedEvent` over
 `event_type|aggregate_id|aggregate_version|payload`, where `payload` is the
 event's domain fields, hex-encoded into `signature`, and also carried verbatim
-as `signed_payload` so a consumer can verify without reconstructing JSON.
-viewservice verifies the signature and cross-checks `signed_payload`'s
-embedded order/seat identity against the event's own `seat`/`correlation_id`
-fields before any projection write; a missing, tampered, or field-mismatched
-signature is logged and the record is dropped without mutating state.
+as `signed_payload` so a consumer can verify without reconstructing JSON. Both
+viewservice and orderservice verify the signature and cross-check
+`signed_payload`'s embedded order/seat identity against the event's own
+`seat`/`correlation_id` fields before any state change; a missing, tampered,
+or field-mismatched signature is logged and the record is dropped without
+mutating state. `SeatReservationCancelled`'s `correlation_id` is the catalog
+event being cancelled, not the seat's owning order, so consumers skip the
+order-identity check for that event type only; orderservice does not act on
+`SeatReservationCancelled` at all, so it never reaches that check.
 
 `order.events.v1` (orderservice -> seatservice, `ORDER_EVENT_SIGNING_KEY`):
 orderservice signs every `OrderCreated`/`OrderConfirmed`/`OrderCancelled`/
@@ -58,7 +63,7 @@ inventory mutation; a missing or invalid signature is logged and the record
 is routed to `dlq.order.events.v1` without mutating inventory state.
 
 `EVENT_SIGNING_KEY` and `ORDER_EVENT_SIGNING_KEY` are distinct secrets scoped
-to their own trust boundary: seatservice and viewservice share
+to their own trust boundary: seatservice, viewservice, and orderservice share
 `EVENT_SIGNING_KEY`; orderservice and seatservice share
 `ORDER_EVENT_SIGNING_KEY`. Neither key is reused across the other boundary.
 

@@ -1,7 +1,11 @@
 package internal
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"strconv"
 	"testing"
 )
 
@@ -77,6 +81,58 @@ func TestSignedOrderEnvelope_ProducesVerifiableSignature(t *testing.T) {
 
 	if !bytesEqualIgnoringWhitespace(envelope.Order, mustMarshal(t, order)) {
 		t.Fatalf("Order field does not carry the original payload verbatim: got %s", envelope.Order)
+	}
+}
+
+func signTestInventoryPayload(t *testing.T, key []byte, eventType, aggregateID string, aggregateVersion int64, signedPayload string) string {
+	t.Helper()
+	mac := hmac.New(sha256.New, key)
+	mac.Write([]byte(eventType))
+	mac.Write([]byte("|"))
+	mac.Write([]byte(aggregateID))
+	mac.Write([]byte("|"))
+	mac.Write([]byte(strconv.FormatInt(aggregateVersion, 10)))
+	mac.Write([]byte("|"))
+	mac.Write([]byte(signedPayload))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func TestVerifyInventoryEventSignature_AcceptsMatchingSignature(t *testing.T) {
+	key := []byte("test-inventory-key")
+	payload := `{"order_id":"ord-1","event_id":"evt-1","section_id":"A","seat_id":"A-01"}`
+	sig := signTestInventoryPayload(t, key, "SeatReservationHeld", "seat:evt-1:A:A-01", 3, payload)
+
+	if !verifyInventoryEventSignature(key, "SeatReservationHeld", "seat:evt-1:A:A-01", 3, payload, sig, "ord-1") {
+		t.Fatal("expected valid signature to verify")
+	}
+}
+
+func TestVerifyInventoryEventSignature_RejectsMissingSignature(t *testing.T) {
+	key := []byte("test-inventory-key")
+	payload := `{"order_id":"ord-1"}`
+	if verifyInventoryEventSignature(key, "SeatReservationHeld", "seat:evt-1:A:A-01", 3, payload, "", "ord-1") {
+		t.Fatal("expected missing signature to be rejected")
+	}
+}
+
+func TestVerifyInventoryEventSignature_RejectsTamperedPayload(t *testing.T) {
+	key := []byte("test-inventory-key")
+	signed := `{"order_id":"ord-1"}`
+	sig := signTestInventoryPayload(t, key, "SeatReservationHeld", "seat:evt-1:A:A-01", 3, signed)
+
+	tampered := `{"order_id":"ord-2"}`
+	if verifyInventoryEventSignature(key, "SeatReservationHeld", "seat:evt-1:A:A-01", 3, tampered, sig, "ord-2") {
+		t.Fatal("expected tampered payload to be rejected")
+	}
+}
+
+func TestVerifyInventoryEventSignature_RejectsOrderIDSwap(t *testing.T) {
+	key := []byte("test-inventory-key")
+	payload := `{"order_id":"ord-1"}`
+	sig := signTestInventoryPayload(t, key, "SeatReservationHeld", "seat:evt-1:A:A-01", 3, payload)
+
+	if verifyInventoryEventSignature(key, "SeatReservationHeld", "seat:evt-1:A:A-01", 3, payload, sig, "ord-attacker") {
+		t.Fatal("expected order_id mismatch against the signed payload to be rejected")
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"os"
+	"strconv"
 )
 
 const orderEventSigningKeyEnv = "ORDER_EVENT_SIGNING_KEY"
@@ -44,4 +45,45 @@ func signedOrderEnvelope(eventType string, order map[string]any) ([]byte, error)
 		"Signature": signOrderEvent(orderEventSigningKey(), eventType, orderBytes),
 	}
 	return json.Marshal(envelope)
+}
+
+const eventSigningKeyEnv = "EVENT_SIGNING_KEY"
+
+// devEventSigningKey mirrors seatservice's signing::signing_key dev fallback.
+const devEventSigningKey = "velox-dev-signing-key"
+
+func eventSigningKey() []byte {
+	if key := os.Getenv(eventSigningKeyEnv); key != "" {
+		return []byte(key)
+	}
+	return []byte(devEventSigningKey)
+}
+
+// verifyInventoryEventSignature mirrors seatservice's signing::verify.
+func verifyInventoryEventSignature(key []byte, eventType, aggregateID string, aggregateVersion int64, signedPayload, signature, expectedOrderID string) bool {
+	if signature == "" {
+		return false
+	}
+	signatureBytes, err := hex.DecodeString(signature)
+	if err != nil {
+		return false
+	}
+	mac := hmac.New(sha256.New, key)
+	mac.Write([]byte(eventType))
+	mac.Write([]byte("|"))
+	mac.Write([]byte(aggregateID))
+	mac.Write([]byte("|"))
+	mac.Write([]byte(strconv.FormatInt(aggregateVersion, 10)))
+	mac.Write([]byte("|"))
+	mac.Write([]byte(signedPayload))
+	if !hmac.Equal(mac.Sum(nil), signatureBytes) {
+		return false
+	}
+	var payload struct {
+		OrderID string `json:"order_id"`
+	}
+	if err := json.Unmarshal([]byte(signedPayload), &payload); err != nil {
+		return false
+	}
+	return payload.OrderID == expectedOrderID
 }

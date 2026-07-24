@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"strings"
 
@@ -11,7 +12,10 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
+var errInvalidInventorySignature = errors.New("invalid inventory event signature")
+
 func StartConsumer(ctx context.Context, db *sql.DB, cl *kgo.Client, health *PipelineHealth) {
+	signingKey := eventSigningKey()
 	for {
 		if ctx.Err() != nil {
 			return
@@ -85,6 +89,22 @@ func StartConsumer(ctx context.Context, db *sql.DB, cl *kgo.Client, health *Pipe
 			}
 
 			if orderID != "" {
+				switch eventType {
+				case "SeatReservationHeld", "SeatReservationFailed", "SeatReservationExpired", "SeatReservationConfirmationFailed":
+					signature, _ := payload["signature"].(string)
+					signedPayload, _ := payload["signed_payload"].(string)
+					aggregateID, _ := payload["aggregate_id"].(string)
+					var aggregateVersion int64
+					if v, ok := payload["aggregate_version"].(float64); ok {
+						aggregateVersion = int64(v)
+					}
+					if !verifyInventoryEventSignature(signingKey, eventType, aggregateID, aggregateVersion, signedPayload, signature, orderID) {
+						health.MarkError("consumer", errInvalidInventorySignature)
+						slog.Warn("rejecting inventory event with invalid signature", "event_type", eventType, "aggregate_id", aggregateID)
+						return
+					}
+				}
+
 				var err error
 				switch eventType {
 				case "SeatReservationHeld":
