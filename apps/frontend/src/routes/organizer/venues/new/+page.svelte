@@ -11,14 +11,12 @@
   import { pageTitle } from '$lib/pageTitle';
   import Panel from '$lib/components/Panel.svelte';
   import TextField from '$lib/components/TextField.svelte';
-
-  type SectionTemplate = {
-    section_id: string;
-    name: string;
-    row_count: number;
-    seats_per_row: number;
-    accessible_edge_seats: boolean;
-  };
+  import {
+    computeGeneratedCapacity,
+    createSectionTemplate,
+    nextSectionID,
+    type SectionTemplate
+  } from '$lib/state/venue-form';
 
   let loading = $state(false);
   let error = $state('');
@@ -28,43 +26,16 @@
   let venueAddress = $state('');
   let venueCapacity = $state(0);
   let sections = $state<SectionTemplate[]>([
-    {
-      section_id: 'A',
-      name: 'A Section',
-      row_count: 4,
-      seats_per_row: 10,
-      accessible_edge_seats: true
-    },
-    {
-      section_id: 'B',
-      name: 'B Section',
-      row_count: 4,
-      seats_per_row: 10,
-      accessible_edge_seats: true
-    }
+    createSectionTemplate('A'),
+    createSectionTemplate('B')
   ]);
 
-  const generatedCapacity = $derived(
-    sections.reduce(
-      (total, section) =>
-        total +
-        Math.max(0, section.row_count) * Math.max(0, section.seats_per_row),
-      0
-    )
-  );
+  const generatedCapacity = $derived(computeGeneratedCapacity(sections));
 
   function addSection() {
-    const nextIndex = sections.length;
-    const sectionID = String.fromCharCode('A'.charCodeAt(0) + nextIndex);
     sections = [
       ...sections,
-      {
-        section_id: sectionID,
-        name: `${sectionID} Section`,
-        row_count: 4,
-        seats_per_row: 10,
-        accessible_edge_seats: true
-      }
+      createSectionTemplate(nextSectionID(sections.length))
     ];
   }
 

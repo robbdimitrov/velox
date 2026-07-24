@@ -11,6 +11,7 @@
   import Panel from '$lib/components/Panel.svelte';
   import TextAreaField from '$lib/components/TextAreaField.svelte';
   import TextField from '$lib/components/TextField.svelte';
+  import { canAdvanceStep } from '$lib/state/event-wizard';
 
   let { data } = $props();
 
@@ -246,8 +247,12 @@
       {#if currentStep < 3}
         <ActionButton
           onclick={() => currentStep++}
-          disabled={(currentStep === 1 && !selectedVenue) ||
-            (currentStep === 2 && (!eventName || !eventDate || !eventCategory))}
+          disabled={!canAdvanceStep(currentStep, {
+            selectedVenue,
+            eventName,
+            eventDate,
+            eventCategory
+          })}
         >
           Next <ArrowRight size={16} />
         </ActionButton>
