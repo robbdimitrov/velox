@@ -150,6 +150,11 @@ func (s *Server) handleOrganizerMetricsStream(w http.ResponseWriter, r *http.Req
 			writeError(w, http.StatusNotFound, "event_not_found")
 			return
 		}
+	} else if s.store != nil {
+		events, err := s.store.GetOrganizerEvents(r.Context(), user.ID)
+		if err == nil && len(events) > 0 {
+			eventID = events[0].ID
+		}
 	} else {
 		s.mu.Lock()
 		for _, event := range s.events {
