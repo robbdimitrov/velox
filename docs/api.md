@@ -296,7 +296,8 @@ not arrived yet, then drains those rows when order projection catches up.
 
 ### `GET /organizer/events`
 
-Requires organizer role. Returns events owned by the organizer.
+Requires organizer role. Returns events owned by the organizer, capped at 100
+rows in store-backed mode.
 
 ### `POST /organizer/events`
 
