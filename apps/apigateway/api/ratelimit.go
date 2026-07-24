@@ -65,7 +65,8 @@ func (rl *RateLimiter) allow(ctx context.Context, key string) (bool, error) {
 		return true, nil
 	}
 	keys := []string{"tb:tokens:" + key, "tb:ts:" + key}
-	now := time.Now().UnixNano() / 1e9 // seconds
+	// Fractional seconds: whole-second truncation over-credits refill across a second boundary.
+	now := float64(time.Now().UnixNano()) / 1e9
 
 	res, err := tbScript.Run(ctx, rl.client, keys, rl.rate, rl.capacity, now).Result()
 	if err != nil {
