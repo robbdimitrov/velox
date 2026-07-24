@@ -11,6 +11,8 @@ export function canAdvanceStep(
 ): boolean {
   if (step === 1) return fields.selectedVenue !== '';
   if (step === 2)
-    return Boolean(fields.eventName && fields.eventDate && fields.eventCategory);
+    return Boolean(
+      fields.eventName && fields.eventDate && fields.eventCategory
+    );
   return true;
 }

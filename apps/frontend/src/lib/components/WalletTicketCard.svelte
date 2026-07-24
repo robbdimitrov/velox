@@ -30,8 +30,7 @@
         aria-label="Signed ticket token pattern"
       >
         {#each qrCells(ticket.qr_token) as filled}
-          <span
-            class="rounded-[1px] {filled ? 'bg-carbon' : 'bg-transparent'}"
+          <span class="rounded-[1px] {filled ? 'bg-carbon' : 'bg-transparent'}"
           ></span>
         {/each}
       </div>

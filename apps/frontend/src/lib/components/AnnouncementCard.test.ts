@@ -35,10 +35,15 @@ describe('AnnouncementCard', () => {
     ['INFO', 'text-ink'],
     ['SCHEDULE_CHANGE', 'text-warning'],
     ['CANCELLATION', 'text-urgency']
-  ] as const)('applies the %s severity tone class', (severity, expectedClass) => {
-    render(AnnouncementCard, { announcement: makeAnnouncement({ severity }) });
+  ] as const)(
+    'applies the %s severity tone class',
+    (severity, expectedClass) => {
+      render(AnnouncementCard, {
+        announcement: makeAnnouncement({ severity })
+      });
 
-    const heading = screen.getByText('Doors open early');
-    expect(heading.className).toContain(expectedClass);
-  });
+      const heading = screen.getByText('Doors open early');
+      expect(heading.className).toContain(expectedClass);
+    }
+  );
 });

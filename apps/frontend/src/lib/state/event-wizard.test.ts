@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { canAdvanceStep, type EventWizardFields } from './event-wizard';
 
-function makeFields(overrides: Partial<EventWizardFields> = {}): EventWizardFields {
+function makeFields(
+  overrides: Partial<EventWizardFields> = {}
+): EventWizardFields {
   return {
     selectedVenue: 'venue_1',
     eventName: 'Summer Fest',
