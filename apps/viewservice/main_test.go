@@ -11,10 +11,8 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-// fakeKafkaClient replaces a live broker for the consumer loop tests. The
-// first PollFetches call returns the configured batch; later calls block
-// until the context is canceled, mirroring a client with nothing left to
-// deliver before shutdown.
+// fakeKafkaClient replaces a live broker; PollFetches returns its batch once,
+// then blocks until context cancellation like an exhausted client.
 type fakeKafkaClient struct {
 	mu        sync.Mutex
 	fetches   kgo.Fetches
@@ -63,6 +61,12 @@ func (noopEventStore) ApplyEvent(ctx context.Context, event internal.Event, sour
 	return nil
 }
 
+type invalidSignatureEventStore struct{}
+
+func (invalidSignatureEventStore) ApplyEvent(ctx context.Context, event internal.Event, sourceTopic string, sourcePartition int32, sourceOffset int64) error {
+	return internal.ErrInvalidSignature
+}
+
 func TestMalformedRecordPublishedToDLQBeforeCommit(t *testing.T) {
 	malformed := &kgo.Record{
 		Topic:     "inventory.events.v1",
@@ -106,5 +110,47 @@ func TestMalformedRecordPublishedToDLQBeforeCommit(t *testing.T) {
 	}
 	if len(fake.committed) != 1 || fake.committed[0] != malformed {
 		t.Fatalf("expected the malformed source record to be committed, got %v", fake.committed)
+	}
+}
+
+// A bad signature never becomes valid on retry, so it must route to DLQ and
+// commit, not retry forever.
+func TestInvalidSignatureRecordPublishedToDLQBeforeCommit(t *testing.T) {
+	unsigned := &kgo.Record{
+		Topic:     "inventory.events.v1",
+		Partition: 0,
+		Offset:    7,
+		Value:     []byte(`{"Type":"SeatReservationHeld"}`),
+	}
+	fake := &fakeKafkaClient{
+		fetches: kgo.Fetches{{Topics: []kgo.FetchTopic{{Topic: unsigned.Topic, Partitions: []kgo.FetchPartition{{Partition: unsigned.Partition, Records: []*kgo.Record{unsigned}}}}}}},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go consumeEvents(ctx, fake, invalidSignatureEventStore{}, &consumerHealth{}, &wg)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		fake.mu.Lock()
+		done := len(fake.callOrder) >= 2
+		fake.mu.Unlock()
+		if done {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("timed out waiting for DLQ publish and commit")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	cancel()
+	wg.Wait()
+
+	if len(fake.callOrder) < 2 || fake.callOrder[0] != "produce" || fake.callOrder[1] != "commit" {
+		t.Fatalf("expected produce before commit, got order %v", fake.callOrder)
+	}
+	if len(fake.committed) != 1 || fake.committed[0] != unsigned {
+		t.Fatalf("expected the rejected source record to be committed, got %v", fake.committed)
 	}
 }

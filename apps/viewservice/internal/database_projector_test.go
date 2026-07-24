@@ -137,11 +137,8 @@ func TestApplyEvent_SeatReservationCancelled_NoIssuedTicket_NoError(t *testing.T
 	}
 }
 
-// TestApplyEvent_SeatReservationCancelled_CorrelationIDIsCatalogEventNotOrder
-// covers whole-event cancellation, where seatservice's cancel_stream sets
-// correlation_id to the catalog event_id while the signed payload's order_id
-// is the seat's own owning order (see cancelled_payload in db_client.rs) -
-// these legitimately differ and must not fail signature verification.
+// Whole-event cancellation's correlation_id is the catalog event_id, not the
+// seat's order_id (see cancelled_payload); that mismatch must not fail verification.
 func TestApplyEvent_SeatReservationCancelled_CorrelationIDIsCatalogEventNotOrder(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

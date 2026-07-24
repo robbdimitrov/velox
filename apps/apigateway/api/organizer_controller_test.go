@@ -396,9 +396,8 @@ func TestCancelEventRequiresOwnership(t *testing.T) {
 	}
 }
 
-// TestCancelEventRejectsNonOwningOrganizer covers a real event owned by one
-// organizer being rejected when a different organizer attempts cancellation,
-// not just a nonexistent event ID.
+// TestCancelEventRejectsNonOwningOrganizer covers a real owned event, not
+// just a nonexistent event ID.
 func TestCancelEventRejectsNonOwningOrganizer(t *testing.T) {
 	server := NewServerWithStore("test", nil, nil)
 	client := newTestClient(server)

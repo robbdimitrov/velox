@@ -210,6 +210,12 @@ func consumeEvents(ctx context.Context, cl kafkaClient, store EventStore, health
 				// succeed (docs/infrastructure.md: reject lower versions).
 				slog.Info("dropping stale/duplicate event", "topic", record.Topic, "offset", record.Offset, "event_id", event.EventID, "request_id", reqID)
 				cl.CommitRecords(ctx, record)
+			case errors.Is(err, internal.ErrInvalidSignature):
+				// A bad signature can never become valid on retry; leaving the
+				// offset uncommitted would poison-pill the partition forever.
+				slog.Error("failed to apply event", "topic", record.Topic, "offset", record.Offset, "error", err, "request_id", reqID)
+				sendToDLQ(ctx, cl, record, reqID, "invalid_signature", err.Error())
+				cl.CommitRecords(ctx, record)
 			default:
 				// Transient/infra failure: leave the offset uncommitted so
 				// this record is retried with backoff via redelivery.
