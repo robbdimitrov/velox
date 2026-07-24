@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -84,5 +85,20 @@ func assertSecurityHeaders(t *testing.T, h http.Header) {
 	}
 	if h.Get("Strict-Transport-Security") != "" {
 		t.Error("Strict-Transport-Security must not be set: no TLS termination in this deployment")
+	}
+}
+
+func TestMetricsExposesLivenessGauge(t *testing.T) {
+	server := NewServerWithStore("test", nil, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rr := httptest.NewRecorder()
+	server.Routes().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+	}
+	if !strings.Contains(rr.Body.String(), `velox_apigateway_up{service="apigateway"} 1`) {
+		t.Fatalf("body missing liveness gauge: %s", rr.Body.String())
 	}
 }
