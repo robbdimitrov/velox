@@ -76,6 +76,39 @@ func (s *DatabaseStore) ListOrders(ctx context.Context, user User) ([]Order, err
 	return orders, rows.Err()
 }
 
+func (s *DatabaseStore) GetOrganizerOrders(ctx context.Context, eventID string) ([]Order, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT DISTINCT o.id::text
+		FROM orders.orders o
+		JOIN orders.order_seats os ON os.order_id = o.id
+		WHERE os.event_id = $1
+		ORDER BY o.id::text
+		LIMIT $2
+	`, eventID, listResultLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var orders []Order
+	for rows.Next() {
+		var orderID string
+		if err := rows.Scan(&orderID); err != nil {
+			return nil, err
+		}
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return nil, err
+		}
+		order, err := loadOrderTx(ctx, tx, orderID)
+		rollback(tx)
+		if err != nil {
+			return nil, err
+		}
+		orders = append(orders, order)
+	}
+	return orders, rows.Err()
+}
+
 func (s *DatabaseStore) GetOrder(ctx context.Context, user User, orderID string) (Order, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

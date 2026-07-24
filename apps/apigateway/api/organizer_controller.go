@@ -73,15 +73,25 @@ func (s *Server) handleOrganizerEvents(w http.ResponseWriter, r *http.Request, u
 }
 
 func (s *Server) handleOrganizerOrders(w http.ResponseWriter, r *http.Request, user User) {
-	if !s.organizerOwnsEvent(r.Context(), r.PathValue("eventId"), user) {
+	eventID := r.PathValue("eventId")
+	if !s.organizerOwnsEvent(r.Context(), eventID, user) {
 		writeError(w, http.StatusNotFound, "event_not_found")
+		return
+	}
+	if s.store != nil {
+		orders, err := s.store.GetOrganizerOrders(r.Context(), eventID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"orders": orders})
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var orders []Order
 	for _, order := range s.orders {
-		if order.EventID == r.PathValue("eventId") {
+		if order.EventID == eventID {
 			orders = append(orders, *order)
 			if len(orders) >= listResultLimit {
 				break
