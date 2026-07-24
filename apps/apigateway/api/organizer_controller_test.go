@@ -551,3 +551,20 @@ func TestLegacyAPIRoutesRemainForOrganizerCompatibility(t *testing.T) {
 		t.Fatalf("legacy venue route status = %d, want %d body=%s", rr.Code, http.StatusOK, rr.Body.String())
 	}
 }
+
+// TestStaffMutationRouteDoesNotExist locks in Phase 5's resolved scope: staff
+// access is read-only until invite/assignment is implemented.
+func TestStaffMutationRouteDoesNotExist(t *testing.T) {
+	server := NewServerWithStore("test", nil, nil)
+	client := newTestClient(server)
+	cookie := client.login(t, "organizer@velox.local", "organizer")
+
+	req := httptest.NewRequest(http.MethodPost, "/organizer/venues/ven_northstar/staff", bytes.NewReader([]byte(`{}`)))
+	req.AddCookie(cookie)
+	rr := httptest.NewRecorder()
+	server.Routes().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("status = %d, want %d (no staff mutation handler registered)", rr.Code, http.StatusMethodNotAllowed)
+	}
+}

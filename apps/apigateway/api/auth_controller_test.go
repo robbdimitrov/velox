@@ -157,3 +157,32 @@ func TestMe(t *testing.T) {
 		t.Fatalf("expected user email, got %s", resp.User.Email)
 	}
 }
+
+func TestNormalizeEmail(t *testing.T) {
+	cases := map[string]string{
+		"Foo@Bar.com":      "foo@bar.com",
+		"  foo@bar.com  ":  "foo@bar.com",
+		" Foo@Bar.com ":    "foo@bar.com",
+		"already@lower.io": "already@lower.io",
+	}
+	for input, want := range cases {
+		if got := normalizeEmail(input); got != want {
+			t.Errorf("normalizeEmail(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestLoginNormalizesEmailCasingAndWhitespace(t *testing.T) {
+	server := NewServerWithStore("test", nil, nil)
+	client := newTestClient(server)
+
+	reqBody := `{"email":"  Mixed.Case@Velox.Local  ","password":"passphrase","role":"reserver"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader([]byte(reqBody)))
+	rr := httptest.NewRecorder()
+	server.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("register status = %d, body=%s", rr.Code, rr.Body.String())
+	}
+
+	client.login(t, "mixed.case@velox.local", "passphrase")
+}
