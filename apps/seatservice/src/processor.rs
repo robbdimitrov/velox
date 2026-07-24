@@ -69,6 +69,57 @@ fn verify_order_event_signature(
     signing::verify_order_event(key, event_type, payload.get().as_bytes(), &signature_bytes)
 }
 
+/// Verifies the signature, DLQing and returning false on failure so callers
+/// can early-return true without duplicating the reject-and-continue steps.
+async fn verify_or_dlq(
+    producer: &FutureProducer,
+    meta: &MessageMeta,
+    payload_bytes: &[u8],
+    order_signing_key: &[u8],
+    event_type: &str,
+    payload_val: &RawValue,
+    signature: Option<&str>,
+) -> bool {
+    if verify_order_event_signature(order_signing_key, event_type, payload_val, signature) {
+        return true;
+    }
+    warn!(event_type, "signature verification failed");
+    send_to_dlq(
+        producer,
+        meta,
+        payload_bytes,
+        "invalid_signature",
+        &format!("{event_type} signature verification failed"),
+    )
+    .await;
+    false
+}
+
+/// Parses the payload as generic JSON, DLQing on failure.
+async fn parse_json_or_dlq(
+    producer: &FutureProducer,
+    meta: &MessageMeta,
+    payload_bytes: &[u8],
+    event_type: &str,
+    payload_val: &RawValue,
+) -> Option<serde_json::Value> {
+    match serde_json::from_str(payload_val.get()) {
+        Ok(v) => Some(v),
+        Err(err) => {
+            warn!(error = %err, event_type, "Failed to deserialize payload");
+            send_to_dlq(
+                producer,
+                meta,
+                payload_bytes,
+                "payload_deserialize_error",
+                &err.to_string(),
+            )
+            .await;
+            None
+        }
+    }
+}
+
 /// Returns whether the Kafka offset may be committed: true for durable handling
 /// or DLQ, false for transient failures that need redelivery.
 pub async fn process_message(
@@ -109,9 +160,7 @@ pub async fn process_message(
                 }
             };
 
-            if !verify_order_event_signature(order_signing_key, &envelope.event_type, &payload_val, envelope.signature.as_deref()) {
-                warn!("OrderCreated failed signature verification");
-                send_to_dlq(producer, &meta, payload_bytes, "invalid_signature", "OrderCreated signature verification failed").await;
+            if !verify_or_dlq(producer, &meta, payload_bytes, order_signing_key, &envelope.event_type, &payload_val, envelope.signature.as_deref()).await {
                 return true;
             }
 
@@ -165,19 +214,10 @@ pub async fn process_message(
             true
         } else if envelope.event_type == "OrderCancelled" {
             let Some(payload_val) = envelope.payload else { return true };
-            if !verify_order_event_signature(order_signing_key, &envelope.event_type, &payload_val, envelope.signature.as_deref()) {
-                warn!("OrderCancelled failed signature verification");
-                send_to_dlq(producer, &meta, payload_bytes, "invalid_signature", "OrderCancelled signature verification failed").await;
+            if !verify_or_dlq(producer, &meta, payload_bytes, order_signing_key, &envelope.event_type, &payload_val, envelope.signature.as_deref()).await {
                 return true;
             }
-            let payload_json: serde_json::Value = match serde_json::from_str(payload_val.get()) {
-                Ok(v) => v,
-                Err(err) => {
-                    warn!(error = %err, "Failed to deserialize OrderCancelled payload");
-                    send_to_dlq(producer, &meta, payload_bytes, "payload_deserialize_error", &err.to_string()).await;
-                    return true;
-                }
-            };
+            let Some(payload_json) = parse_json_or_dlq(producer, &meta, payload_bytes, &envelope.event_type, &payload_val).await else { return true };
             let order_id = payload_json.get("order_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
             let outbox_event_id = payload_json.get("outbox_event_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
             if order_id.is_empty() || outbox_event_id.is_empty() {
@@ -202,19 +242,10 @@ pub async fn process_message(
             }
         } else if envelope.event_type == "OrderConfirmed" {
             let Some(payload_val) = envelope.payload else { return true };
-            if !verify_order_event_signature(order_signing_key, &envelope.event_type, &payload_val, envelope.signature.as_deref()) {
-                warn!("OrderConfirmed failed signature verification");
-                send_to_dlq(producer, &meta, payload_bytes, "invalid_signature", "OrderConfirmed signature verification failed").await;
+            if !verify_or_dlq(producer, &meta, payload_bytes, order_signing_key, &envelope.event_type, &payload_val, envelope.signature.as_deref()).await {
                 return true;
             }
-            let payload_json: serde_json::Value = match serde_json::from_str(payload_val.get()) {
-                Ok(v) => v,
-                Err(err) => {
-                    warn!(error = %err, "Failed to deserialize OrderConfirmed payload");
-                    send_to_dlq(producer, &meta, payload_bytes, "payload_deserialize_error", &err.to_string()).await;
-                    return true;
-                }
-            };
+            let Some(payload_json) = parse_json_or_dlq(producer, &meta, payload_bytes, &envelope.event_type, &payload_val).await else { return true };
             let order_id = payload_json.get("order_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
             let outbox_event_id = payload_json.get("outbox_event_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
             if order_id.is_empty() || outbox_event_id.is_empty() {
@@ -239,19 +270,10 @@ pub async fn process_message(
             }
         } else if envelope.event_type == "EventCancelled" {
             let Some(payload_val) = envelope.payload else { return true };
-            if !verify_order_event_signature(order_signing_key, &envelope.event_type, &payload_val, envelope.signature.as_deref()) {
-                warn!("EventCancelled failed signature verification");
-                send_to_dlq(producer, &meta, payload_bytes, "invalid_signature", "EventCancelled signature verification failed").await;
+            if !verify_or_dlq(producer, &meta, payload_bytes, order_signing_key, &envelope.event_type, &payload_val, envelope.signature.as_deref()).await {
                 return true;
             }
-            let payload_json: serde_json::Value = match serde_json::from_str(payload_val.get()) {
-                Ok(v) => v,
-                Err(err) => {
-                    warn!(error = %err, "Failed to deserialize EventCancelled payload");
-                    send_to_dlq(producer, &meta, payload_bytes, "payload_deserialize_error", &err.to_string()).await;
-                    return true;
-                }
-            };
+            let Some(payload_json) = parse_json_or_dlq(producer, &meta, payload_bytes, &envelope.event_type, &payload_val).await else { return true };
             let event_id = payload_json.get("event_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
             let outbox_event_id = payload_json.get("outbox_event_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
             if event_id.is_empty() || outbox_event_id.is_empty() {
