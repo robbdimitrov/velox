@@ -5,6 +5,7 @@ use chrono::Utc;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use serde_json::value::RawValue;
 use sha2::{Digest, Sha256};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tracing::Instrument;
 use tracing::{error, info, warn};
@@ -19,26 +20,30 @@ pub struct MessageMeta {
     pub request_id: Option<String>,
 }
 
-async fn send_to_dlq(
-    producer: &FutureProducer,
-    meta: &MessageMeta,
-    payload_bytes: &[u8],
-    error_class: &str,
-    error_message: &str,
-) {
-    let payload_hash = hex::encode(Sha256::digest(payload_bytes));
+/// Bundles the values every DLQ helper needs so they travel as one argument
+/// instead of four, keeping call sites under clippy's arg-count lint.
+struct DlqContext<'a> {
+    producer: &'a FutureProducer,
+    meta: &'a MessageMeta,
+    payload_bytes: &'a [u8],
+    dlq_count: &'a AtomicU64,
+}
+
+async fn send_to_dlq(ctx: &DlqContext<'_>, error_class: &str, error_message: &str) {
+    ctx.dlq_count.fetch_add(1, Ordering::Relaxed);
+    let payload_hash = hex::encode(Sha256::digest(ctx.payload_bytes));
     let now = Utc::now();
     let record_value = serde_json::json!({
         "source_topic": "order.events.v1",
-        "source_partition": meta.source_partition,
-        "source_offset": meta.source_offset,
+        "source_partition": ctx.meta.source_partition,
+        "source_offset": ctx.meta.source_offset,
         "consumer_group": CONSUMER_GROUP,
         "error_class": error_class,
         "error_message": error_message,
         "payload_hash": payload_hash,
         "first_seen_at": now,
         "last_seen_at": now,
-        "correlation_id": meta.request_id.clone().unwrap_or_default(),
+        "correlation_id": ctx.meta.request_id.clone().unwrap_or_default(),
     });
     let Ok(msg_str) = serde_json::to_string(&record_value) else {
         error!("failed to serialize DLQ record");
@@ -47,7 +52,7 @@ async fn send_to_dlq(
     let record = FutureRecord::to(DLQ_TOPIC)
         .payload(&msg_str)
         .key(error_class);
-    if let Err((e, _)) = producer.send(record, Duration::from_secs(5)).await {
+    if let Err((e, _)) = ctx.producer.send(record, Duration::from_secs(5)).await {
         error!(error = %e, "failed to publish DLQ record");
     }
 }
@@ -72,9 +77,7 @@ fn verify_order_event_signature(
 /// Verifies the signature, DLQing and returning false on failure so callers
 /// can early-return true without duplicating the reject-and-continue steps.
 async fn verify_or_dlq(
-    producer: &FutureProducer,
-    meta: &MessageMeta,
-    payload_bytes: &[u8],
+    ctx: &DlqContext<'_>,
     order_signing_key: &[u8],
     event_type: &str,
     payload_val: &RawValue,
@@ -85,9 +88,7 @@ async fn verify_or_dlq(
     }
     warn!(event_type, "signature verification failed");
     send_to_dlq(
-        producer,
-        meta,
-        payload_bytes,
+        ctx,
         "invalid_signature",
         &format!("{event_type} signature verification failed"),
     )
@@ -97,9 +98,7 @@ async fn verify_or_dlq(
 
 /// Parses the payload as generic JSON, DLQing on failure.
 async fn parse_json_or_dlq(
-    producer: &FutureProducer,
-    meta: &MessageMeta,
-    payload_bytes: &[u8],
+    ctx: &DlqContext<'_>,
     event_type: &str,
     payload_val: &RawValue,
 ) -> Option<serde_json::Value> {
@@ -107,14 +106,7 @@ async fn parse_json_or_dlq(
         Ok(v) => Some(v),
         Err(err) => {
             warn!(error = %err, event_type, "Failed to deserialize payload");
-            send_to_dlq(
-                producer,
-                meta,
-                payload_bytes,
-                "payload_deserialize_error",
-                &err.to_string(),
-            )
-            .await;
+            send_to_dlq(ctx, "payload_deserialize_error", &err.to_string()).await;
             None
         }
     }
@@ -128,24 +120,24 @@ pub async fn process_message(
     payload_bytes: &[u8],
     meta: MessageMeta,
     order_signing_key: &[u8],
+    dlq_count: &AtomicU64,
 ) -> bool {
     let request_id = meta.request_id.clone();
     let req_id_str = request_id.clone().unwrap_or_else(|| "unknown".to_string());
     let span = tracing::info_span!("process_message", request_id = %req_id_str);
 
     async move {
+        let ctx = DlqContext {
+            producer,
+            meta: &meta,
+            payload_bytes,
+            dlq_count,
+        };
         let envelope: EventEnvelope = match serde_json::from_slice(payload_bytes) {
             Ok(e) => e,
             Err(err) => {
                 warn!(error = %err, "Failed to deserialize event envelope");
-                send_to_dlq(
-                    producer,
-                    &meta,
-                    payload_bytes,
-                    "envelope_deserialize_error",
-                    &err.to_string(),
-                )
-                .await;
+                send_to_dlq(&ctx, "envelope_deserialize_error", &err.to_string()).await;
                 return true;
             }
         };
@@ -155,12 +147,12 @@ pub async fn process_message(
                 Some(p) => p,
                 None => {
                     warn!("OrderCreated missing payload");
-                    send_to_dlq(producer, &meta, payload_bytes, "missing_payload", "OrderCreated missing payload").await;
+                    send_to_dlq(&ctx, "missing_payload", "OrderCreated missing payload").await;
                     return true;
                 }
             };
 
-            if !verify_or_dlq(producer, &meta, payload_bytes, order_signing_key, &envelope.event_type, &payload_val, envelope.signature.as_deref()).await {
+            if !verify_or_dlq(&ctx, order_signing_key, &envelope.event_type, &payload_val, envelope.signature.as_deref()).await {
                 return true;
             }
 
@@ -168,7 +160,7 @@ pub async fn process_message(
                 Ok(o) => o,
                 Err(err) => {
                     warn!(error = %err, "Failed to deserialize OrderCreated payload");
-                    send_to_dlq(producer, &meta, payload_bytes, "payload_deserialize_error", &err.to_string()).await;
+                    send_to_dlq(&ctx, "payload_deserialize_error", &err.to_string()).await;
                     return true;
                 }
             };
@@ -181,7 +173,7 @@ pub async fn process_message(
                 || order.outbox_event_id.is_empty()
             {
                 warn!(order_id = %order.order_id, "Missing required fields in OrderCreated");
-                send_to_dlq(producer, &meta, payload_bytes, "missing_required_fields", "OrderCreated missing required fields").await;
+                send_to_dlq(&ctx, "missing_required_fields", "OrderCreated missing required fields").await;
                 return true;
             }
 
@@ -214,15 +206,15 @@ pub async fn process_message(
             true
         } else if envelope.event_type == "OrderCancelled" {
             let Some(payload_val) = envelope.payload else { return true };
-            if !verify_or_dlq(producer, &meta, payload_bytes, order_signing_key, &envelope.event_type, &payload_val, envelope.signature.as_deref()).await {
+            if !verify_or_dlq(&ctx, order_signing_key, &envelope.event_type, &payload_val, envelope.signature.as_deref()).await {
                 return true;
             }
-            let Some(payload_json) = parse_json_or_dlq(producer, &meta, payload_bytes, &envelope.event_type, &payload_val).await else { return true };
+            let Some(payload_json) = parse_json_or_dlq(&ctx, &envelope.event_type, &payload_val).await else { return true };
             let order_id = payload_json.get("order_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
             let outbox_event_id = payload_json.get("outbox_event_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
             if order_id.is_empty() || outbox_event_id.is_empty() {
                 warn!("OrderCancelled missing order_id or outbox_event_id");
-                send_to_dlq(producer, &meta, payload_bytes, "missing_required_fields", "OrderCancelled missing required fields").await;
+                send_to_dlq(&ctx, "missing_required_fields", "OrderCancelled missing required fields").await;
                 return true;
             }
 
@@ -242,15 +234,15 @@ pub async fn process_message(
             }
         } else if envelope.event_type == "OrderConfirmed" {
             let Some(payload_val) = envelope.payload else { return true };
-            if !verify_or_dlq(producer, &meta, payload_bytes, order_signing_key, &envelope.event_type, &payload_val, envelope.signature.as_deref()).await {
+            if !verify_or_dlq(&ctx, order_signing_key, &envelope.event_type, &payload_val, envelope.signature.as_deref()).await {
                 return true;
             }
-            let Some(payload_json) = parse_json_or_dlq(producer, &meta, payload_bytes, &envelope.event_type, &payload_val).await else { return true };
+            let Some(payload_json) = parse_json_or_dlq(&ctx, &envelope.event_type, &payload_val).await else { return true };
             let order_id = payload_json.get("order_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
             let outbox_event_id = payload_json.get("outbox_event_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
             if order_id.is_empty() || outbox_event_id.is_empty() {
                 warn!("OrderConfirmed missing order_id or outbox_event_id");
-                send_to_dlq(producer, &meta, payload_bytes, "missing_required_fields", "OrderConfirmed missing required fields").await;
+                send_to_dlq(&ctx, "missing_required_fields", "OrderConfirmed missing required fields").await;
                 return true;
             }
 
@@ -270,15 +262,15 @@ pub async fn process_message(
             }
         } else if envelope.event_type == "EventCancelled" {
             let Some(payload_val) = envelope.payload else { return true };
-            if !verify_or_dlq(producer, &meta, payload_bytes, order_signing_key, &envelope.event_type, &payload_val, envelope.signature.as_deref()).await {
+            if !verify_or_dlq(&ctx, order_signing_key, &envelope.event_type, &payload_val, envelope.signature.as_deref()).await {
                 return true;
             }
-            let Some(payload_json) = parse_json_or_dlq(producer, &meta, payload_bytes, &envelope.event_type, &payload_val).await else { return true };
+            let Some(payload_json) = parse_json_or_dlq(&ctx, &envelope.event_type, &payload_val).await else { return true };
             let event_id = payload_json.get("event_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
             let outbox_event_id = payload_json.get("outbox_event_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
             if event_id.is_empty() || outbox_event_id.is_empty() {
                 warn!("EventCancelled missing event_id or outbox_event_id");
-                send_to_dlq(producer, &meta, payload_bytes, "missing_required_fields", "EventCancelled missing required fields").await;
+                send_to_dlq(&ctx, "missing_required_fields", "EventCancelled missing required fields").await;
                 return true;
             }
 

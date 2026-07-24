@@ -55,12 +55,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let broker_errors = Arc::new(AtomicUsize::new(0));
     let broker_first_error = Arc::new(AtomicU64::new(0));
+    let dlq_count = Arc::new(AtomicU64::new(0));
 
     // Probe endpoint: /healthz is process liveness, /readyz checks dependencies.
     let probe_pool = pool.clone();
     let probe_broker_errors = broker_errors.clone();
     let probe_broker_first_error = broker_first_error.clone();
     let probe_producer = producer.clone();
+    let probe_dlq_count = dlq_count.clone();
     tokio::spawn(async move {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
         use tokio::net::TcpListener;
@@ -83,6 +85,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .next()
                         .and_then(|line| line.split_whitespace().nth(1))
                         .unwrap_or("/healthz");
+                    if path == "/metrics" {
+                        let body = format!(
+                            "velox_seatservice_dlq_events_total{{service=\"seatservice\"}} {}\n",
+                            probe_dlq_count.load(Ordering::Relaxed)
+                        );
+                        let response = format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type: text/plain; version=0.0.4\r\nContent-Length: {}\r\n\r\n{}",
+                            body.len(),
+                            body
+                        );
+                        let _ = socket.write_all(response.as_bytes()).await;
+                        continue;
+                    }
                     let ready = if path == "/readyz" {
                         let db_ready = tokio::time::timeout(
                             Duration::from_secs(2),
@@ -122,6 +137,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut shutdown_rx2 = shutdown_tx.subscribe();
     let consumer_broker_errors = broker_errors.clone();
     let consumer_broker_first_error = broker_first_error.clone();
+    let consumer_dlq_count = dlq_count.clone();
 
     let expiry_task = tokio::spawn(expiry::run(
         db_client.clone(),
@@ -158,7 +174,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     source_offset: m.offset(),
                                     request_id: req_id,
                                 };
-                                let should_commit = processor::process_message(&db_client, &producer, payload, meta, &order_signing_key).await;
+                                let should_commit = processor::process_message(&db_client, &producer, payload, meta, &order_signing_key, &consumer_dlq_count).await;
                                 if should_commit {
                                     note_broker_success(&consumer_broker_errors, &consumer_broker_first_error);
                                     if let Err(e) = consumer.commit_message(&m, CommitMode::Async) {
