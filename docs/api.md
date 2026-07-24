@@ -336,8 +336,8 @@ SvelteKit proxy forwards to canonical gateway `POST /organizer/events`.
 
 ### `GET /organizer/events/{eventId}/orders`
 
-Requires event ownership. Returns `{"orders":[]}` from current in-memory order
-state, capped at 100 rows.
+Requires event ownership. Returns orders joined through their seats for this
+event, capped at 100 rows in store-backed mode.
 
 ### `GET /organizer/events/{eventId}/inventory`
 
@@ -353,7 +353,7 @@ Requires event ownership. SSE stream sends metrics JSON from projections in
 store-backed mode: confirmed reservation count, active holds, available seats,
 section availability percentages, projection lag, and an inventory-derived
 demand score. Legacy `GET /organizer/metrics/stream` remains for the current
-organizer overview and chooses the first in-memory organizer event.
+organizer overview and chooses the organizer's first event from the store.
 
 ### `POST /organizer/events/{eventId}/announcements`
 
