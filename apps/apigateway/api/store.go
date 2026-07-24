@@ -827,8 +827,13 @@ func (s *DatabaseStore) GetEvents(ctx context.Context) ([]Event, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	return scanEventRows(rows)
+}
 
+// scanEventRows shares the column layout and derived-field logic between
+// GetEvents and GetOrganizerEvents, whose queries differ only by ownership join.
+func scanEventRows(rows *sql.Rows) ([]Event, error) {
+	defer rows.Close()
 	var events []Event
 	for rows.Next() {
 		var e Event
@@ -874,23 +879,7 @@ func (s *DatabaseStore) GetOrganizerEvents(ctx context.Context, userID string) (
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var events []Event
-	for rows.Next() {
-		var e Event
-		var sectionIDs string
-		var held, reserved int
-		if err := rows.Scan(&e.ID, &e.VenueID, &e.Name, &e.Description, &e.Category, &e.StartsAt, &e.Timezone, &e.Status, &e.Venue, &e.City, &sectionIDs, &e.SeatsOpen, &held, &reserved); err != nil {
-			return nil, err
-		}
-		e.SectionIDs = splitCSV(sectionIDs)
-		e.SeatsTotal = e.SeatsOpen + held + reserved
-		e.DemandScore = demandScore(reserved, held, e.SeatsTotal)
-
-		events = append(events, e)
-	}
-	return events, rows.Err()
+	return scanEventRows(rows)
 }
 
 // Keep GetEvent's event filter in sync with GetEventVenueID so public reads
